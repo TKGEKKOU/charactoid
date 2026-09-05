@@ -55,7 +55,7 @@ if (-not (Test-Path $venvPy)) {
 }
 
 if (-not $NoInstall) {
-  $depsOk = & $venvPy -c "import fastapi, uvicorn" 2>$null
+  $depsOk = & $venvPy -c "import fastapi, uvicorn, imageio_ffmpeg" 2>$null
   if ($LASTEXITCODE -ne 0) {
     Write-Host "     安装依赖（首次，可能需要几分钟）..."
     & $venvPy -m pip install --upgrade pip

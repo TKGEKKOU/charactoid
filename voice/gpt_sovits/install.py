@@ -163,9 +163,10 @@ class GPTSoVITSInstallManager:
         with self._lock:
             if self.state.installing:
                 return False
-            url = DEFAULT_DOWNLOAD_URL
-            # 下载源由固定 manifest 提供；参数仅为兼容旧客户端。
-            self.config.save(download_url=DEFAULT_DOWNLOAD_URL)
+            url = (url or os.getenv("YUMENO_GPT_SOVITS_DOWNLOAD_URL") or DEFAULT_DOWNLOAD_URL).strip()
+            if not url.startswith(("https://", "http://")):
+                raise ValueError("GPT-SoVITS 下载地址必须是 HTTP(S) URL")
+            self.config.save(download_url=url)
             self.state.installing = True
             self.state.cancel_requested.clear()
             self.state.error = ""
@@ -192,7 +193,26 @@ class GPTSoVITSInstallManager:
             filename = Path(urlsplit(url).path).name or "gpt-sovits.zip"
             archive = self.download_dir / filename
             self.state.set_progress("download", filename, 0, 0, detail="准备下载…")
-            self._download(url, archive)
+            candidates = [url]
+            for fallback in os.getenv("YUMENO_GPT_SOVITS_FALLBACK_URLS", "").split(","):
+                fallback = fallback.strip()
+                if fallback and fallback not in candidates:
+                    candidates.append(fallback)
+            last_error = None
+            for candidate in candidates:
+                try:
+                    if candidate != url:
+                        filename = Path(urlsplit(candidate).path).name or "gpt-sovits.zip"
+                        archive = self.download_dir / filename
+                        self.state.set_progress("download", filename, 0, 0, detail="切换备用下载源…")
+                    self._download(candidate, archive)
+                    break
+                except (OSError, urllib.error.URLError, RuntimeError) as exc:
+                    last_error = exc
+                    archive.unlink(missing_ok=True)
+                    archive.with_suffix(archive.suffix + ".part").unlink(missing_ok=True)
+            else:
+                raise RuntimeError(f"GPT-SoVITS 所有下载源均失败：{last_error}") from last_error
             if self.state.cancel_requested.is_set():
                 raise GPTSoVITSInstallCancelled()
             self.state.set_progress("extracting", filename, 0, 0, detail="准备解压…")

@@ -74,10 +74,19 @@ class LocalEmbeddingResourceManager:
         directory = self.model_directory(model_id)
         return settings, directory, self._read_metadata(directory)
 
+    @staticmethod
+    def _model_complete(directory: Path) -> bool:
+        """Reject metadata-only/partial downloads after restart."""
+        if not (directory / "config.json").is_file():
+            return False
+        has_tokenizer = any((directory / name).is_file() for name in ("tokenizer.json", "tokenizer_config.json", "spiece.model", "vocab.txt"))
+        has_weights = any(directory.glob(pattern) for pattern in ("*.safetensors", "*.bin", "*.pt"))
+        return has_tokenizer and has_weights
+
     def status(self) -> dict:
         settings, directory, metadata = self._active()
         elapsed = time.monotonic() - self._started_at if self._started_at else 0
-        installed = (directory / "config.json").is_file()
+        installed = self._model_complete(directory)
         ready = installed if settings.embedding_provider == "managed_local" else bool(
             settings.embedding_api_key and settings.embedding_base_url and settings.embedding_model
         )

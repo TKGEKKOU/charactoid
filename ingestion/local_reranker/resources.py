@@ -53,10 +53,19 @@ class LocalRerankerResourceManager:
         model_id = settings.reranker_model or DEFAULT_LOCAL_RERANKER_MODEL
         return settings, self.model_directory(model_id)
 
+    @staticmethod
+    def _model_complete(directory: Path) -> bool:
+        """Reject metadata-only/partial downloads after restart."""
+        if not (directory / "config.json").is_file():
+            return False
+        has_tokenizer = any((directory / name).is_file() for name in ("tokenizer.json", "tokenizer_config.json", "spiece.model", "vocab.txt"))
+        has_weights = any(directory.glob(pattern) for pattern in ("*.safetensors", "*.bin", "*.pt"))
+        return has_tokenizer and has_weights
+
     def status(self) -> dict:
         settings, directory = self._active()
         elapsed = time.monotonic() - self._started_at if self._started_at else 0
-        installed = (directory / "config.json").is_file()
+        installed = self._model_complete(directory)
         return {
             "model_id": settings.reranker_model or DEFAULT_LOCAL_RERANKER_MODEL,
             "source": settings.reranker_model_source,

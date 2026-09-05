@@ -93,7 +93,7 @@ def initialize_voice_resources(app: FastAPI, settings: Settings) -> None:
     app.state.rvc_sessions = RVCSessionManager(
         settings.project_root,
         separator_factory=_separator_factory(app.state.separator_resources),
-        ffmpeg_resolver=find_ffmpeg,
+        ffmpeg_resolver=lambda root: find_ffmpeg(root),
     )
     app.state.clone_tasks = CloneTaskManager(
         settings.project_root,

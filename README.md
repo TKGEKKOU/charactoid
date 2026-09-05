@@ -137,6 +137,19 @@ Copy-Item .env.example .env
 ```
 
 Embedding、Reranker、GPT-SoVITS、RVC、FFmpeg 等能力按需准备；未安装或未启动不等于系统错误，系统会在任务卡片中提示可执行的下一步。
+### Windows 资源安装边界
+
+首次启动只安装 YUMENO 主程序依赖；大模型和独立运行时由设置页或对话中的资源任务按需下载。请按以下顺序操作：
+
+1. 在资源页执行“检查所有运行资源”。
+2. 先安装 **FFmpeg**；安装完成后状态必须显示可执行路径。
+3. 需要语音识别时安装 **ASR**；需要知识库本地向量化时安装 **Embedding**，需要重排时再安装 **Reranker**。
+4. 需要人声分离时安装 **Separator**；需要 RVC 时安装 **RVC 运行时与基础资源**。
+5. GPT-SoVITS 是独立的大型 Windows 整合包，只有执行安装并通过 API 探针后才能启动。
+
+FFmpeg 安装会把已验证的可执行文件复制到 `runtime/ffmpeg/ffmpeg.exe`；如果此前下载中断，请重新执行安装，不要手动把网页保存内容改名为 exe。RVC 默认使用 `YUMENO_RVC_DEVICE=auto`：有可用 CUDA 时选择 GPU，否则使用 CPU；可在 `.env` 中明确设置 `cuda` 或 `cpu`。
+
+**可选用户资产**：RVC 音色 `.pth`/`.index`、GPT-SoVITS 训练权重、LLM/API Key 和远程 Provider 不由仓库自动分发，也不属于“基础资源安装”。安装基础资源后，仍需在 Web 端配置这些用户自己的资产或服务。
 ## 系统架构
 
 YUMENO 的核心不是把多个功能页堆在一起，而是让**角色 Agent 成为统一入口**：用户从对话提出目标，Core Agent 负责理解，Supervisor 负责调度，领域 Worker 负责执行，Runtime 负责把长任务变成可观察、可恢复、可停止的运行过程。
@@ -397,3 +410,4 @@ YUMENO 自有代码采用 [MIT License](LICENSE)。第三方依赖、模型、GP
 ## 贡献
 
 欢迎提交 Issue 或 Pull Request。提交 Agent、Worker、Runtime 或架构图修改时，请同时说明影响的状态、权限、数据边界和测试命令；涉及模型和第三方代码时，请确认许可证与分发边界。
+

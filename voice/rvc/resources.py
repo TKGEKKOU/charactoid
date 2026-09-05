@@ -104,10 +104,10 @@ class RVCResourceManager:
         # 默认优先使用 YUMENO 自带的 CUDA 推理清单；只有明确指定 cpu
         # 或没有 CUDA 清单时才回退 CPU。外部 RVC 的完整 requirements
         # 包含 Gradio/服务端/训练依赖，不应被 YUMENO 运行时直接使用。
-        device = os.getenv("YUMENO_RVC_DEVICE", "cuda").strip().lower()
+        device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
         cuda = self.core_root / "requirements-inference-cu128.txt"
         cpu = self.core_root / "requirements-inference-cpu.txt"
-        if device in {"cuda", "gpu", "auto"} and cuda.is_file():
+        if device in {"cuda", "gpu"} and cuda.is_file():
             return cuda
         if cpu.is_file():
             return cpu
@@ -149,7 +149,7 @@ class RVCResourceManager:
         # YUMENO 已内置 infer 核心后，不应要求用户额外保留原版仓库；\n        # 外部源码只用于兼容资源发现，不能成为可用性门槛。\n        if not source_component_ready: missing.append("rvc_source")
         if not cli_ok: missing.append("infer_cli")
         if not runtime_ready: missing.append("runtime")
-        selected_device = os.getenv("YUMENO_RVC_DEVICE", "cuda").strip().lower()
+        selected_device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
         if runtime_ready and selected_device in {"cuda", "gpu"} and not bool(probe.get("cuda_available")):
             missing.append("cuda")
         if hubert is None: missing.append("hubert")
@@ -429,7 +429,7 @@ class RVCResourceManager:
                 "print(json.dumps({'torch_version': torch.__version__, 'cuda_available': bool(torch.cuda.is_available()), "
                 "'cuda_version': torch.version.cuda, 'device': 'cuda' if torch.cuda.is_available() else 'cpu'}))")
             probe_output = self._run([str(self.python_path()), "-c", probe_code], 600)
-            device = os.getenv("YUMENO_RVC_DEVICE", "cuda").strip().lower()
+            device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
             try:
                 probe = json.loads((probe_output or "").strip().splitlines()[-1])
             except (ValueError, IndexError):
@@ -454,3 +454,4 @@ class RVCResourceManager:
             self._set(installing=False, phase="cancelled", detail="安装已取消", cancelling=False, eta_seconds=None)
         except Exception as exc:
             self._set(installing=False, phase="failed", error=str(exc), detail="RVC 运行时准备失败", cancelling=False)
+

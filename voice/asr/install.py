@@ -242,3 +242,5 @@ class STTResourceManager:
 # 兼容旧安装资源接口；新代码使用 STT 命名。
 ASRResources = STTResources
 ASRResourceManager = STTResourceManager
+
+

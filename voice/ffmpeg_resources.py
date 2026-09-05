@@ -6,6 +6,36 @@ import subprocess
 from pathlib import Path
 
 
+def _probe_ffmpeg(path: Path | str | None) -> bool:
+    if not path:
+        return False
+    try:
+        completed = subprocess.run([str(path), "-version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=15, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0 and "ffmpeg" in (completed.stdout or "").lower()
+
+
+def resolve_ffmpeg(project_root: Path) -> Path:
+    """Resolve a usable FFmpeg binary, preferring the project-managed copy."""
+    managed = Path(project_root) / "runtime" / "ffmpeg" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    if _probe_ffmpeg(managed):
+        return managed
+    located = shutil.which("ffmpeg")
+    if _probe_ffmpeg(located):
+        return Path(located)
+    # 允许运行时直接使用 imageio-ffmpeg 的受信任缓存；资源安装器仍会
+    # 将它复制到项目 runtime 目录，保证新用户最终拥有可见的完整体。
+    try:
+        from imageio_ffmpeg import get_ffmpeg_exe
+        cached = Path(get_ffmpeg_exe())
+    except (ImportError, OSError, RuntimeError):
+        cached = None
+    if _probe_ffmpeg(cached):
+        return cached
+    raise RuntimeError("未找到可执行的 ffmpeg，请先在资源管理器安装 FFmpeg")
+
+
 class FFmpegResourceManager:
     """管理供音视频前处理使用的独立 ffmpeg 可执行文件。
 
@@ -21,20 +51,7 @@ class FFmpegResourceManager:
         self.installing = False
 
     def _probe(self, path: Path | str | None) -> bool:
-        if not path:
-            return False
-        try:
-            completed = subprocess.run(
-                [str(path), "-version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=15,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return False
-        return completed.returncode == 0 and "ffmpeg" in (completed.stdout or "").lower()
+        return _probe_ffmpeg(path)
 
     def status(self) -> dict:
         managed = self.binary if self._probe(self.binary) else None

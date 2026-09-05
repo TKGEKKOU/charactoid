@@ -35,6 +35,7 @@ from voice.asr import build_stt_provider
 from voice.asr.install import STTResourceManager
 from voice.asr.stream_client import WorkerStreamClient
 from voice.clone_tasks import CloneTaskManager
+from voice.clone_pipeline import find_ffmpeg
 from voice.ffmpeg_resources import FFmpegResourceManager
 from voice.gpt_sovits import GPTSoVITSAdapter, GPTSoVITSConfig
 from voice.gpt_sovits.install import GPTSoVITSInstallManager
@@ -92,6 +93,7 @@ def initialize_voice_resources(app: FastAPI, settings: Settings) -> None:
     app.state.rvc_sessions = RVCSessionManager(
         settings.project_root,
         separator_factory=_separator_factory(app.state.separator_resources),
+        ffmpeg_resolver=find_ffmpeg,
     )
     app.state.clone_tasks = CloneTaskManager(
         settings.project_root,

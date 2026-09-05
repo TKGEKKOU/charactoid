@@ -7,7 +7,6 @@ video -> ffmpeg 44.1k stereo -> htdemucs vocals -> 16k mono for VAD slicing
 from __future__ import annotations
 
 import io
-import shutil
 import subprocess
 import wave
 from dataclasses import dataclass
@@ -17,6 +16,7 @@ from typing import Callable
 import numpy as np
 
 from voice.vad.base import VAD
+from voice.ffmpeg_resources import resolve_ffmpeg
 
 REFERENCE_RATE = 24000
 VAD_RATE = 16000
@@ -66,13 +66,10 @@ class SegmentFile:
 
 
 def find_ffmpeg(project_root: Path) -> Path:
-    managed = Path(project_root) / "runtime" / "ffmpeg" / "ffmpeg.exe"
-    if managed.is_file():
-        return managed
-    located = shutil.which("ffmpeg")
-    if located:
-        return Path(located)
-    raise ClonePipelineError("未找到 ffmpeg，无法提取视频音轨")
+    try:
+        return resolve_ffmpeg(project_root)
+    except RuntimeError as exc:
+        raise ClonePipelineError("未找到可执行的 ffmpeg，无法提取视频音轨") from exc
 
 
 def _run_ffmpeg(ffmpeg: Path, args: list[str]) -> None:

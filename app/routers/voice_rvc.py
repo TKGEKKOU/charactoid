@@ -11,6 +11,7 @@ from fastapi import APIRouter, File, Header, HTTPException, Request, UploadFile,
 from pydantic import BaseModel, Field, ValidationError
 from fastapi.responses import FileResponse
 from voice.rvc.sessions import RVCSessionError
+from voice.clone_pipeline import find_ffmpeg
 from voice.rvc.audio_ops import normalize_audio
 
 from app.routers.settings import require_local
@@ -247,6 +248,7 @@ def cancel_session(session_id: str, request: Request, x_yumeno_request: str = He
 def extract_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
     guard(request, x_yumeno_request)
     try:
+        request.app.state.rvc_sessions.ffmpeg_resolver = find_ffmpeg
         return request.app.state.rvc_sessions.start_extract(session_id)
     except RVCSessionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -256,6 +258,7 @@ def extract_session(session_id: str, request: Request, x_yumeno_request: str = H
 def separate_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
     guard(request, x_yumeno_request)
     try:
+        request.app.state.rvc_sessions.ffmpeg_resolver = find_ffmpeg
         return request.app.state.rvc_sessions.start_separation(session_id)
     except RVCSessionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

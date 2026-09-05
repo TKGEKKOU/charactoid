@@ -21,11 +21,12 @@ class RVCSessionError(RuntimeError):
 class RVCSessionManager:
     """Managed input-preparation sessions for the standalone RVC producer."""
 
-    def __init__(self, project_root: Path, separator_factory: Callable[[], object]):
+    def __init__(self, project_root: Path, separator_factory: Callable[[], object], ffmpeg_resolver: Callable[[Path], Path] | None = None):
         self.project_root = Path(project_root)
         self.root = self.project_root / "data" / "voice" / "rvc" / "sessions"
         self.root.mkdir(parents=True, exist_ok=True)
         self.separator_factory = separator_factory
+        self.ffmpeg_resolver = ffmpeg_resolver or find_ffmpeg
         self._lock = threading.RLock()
         self._workers: dict[str, threading.Thread] = {}
         self._cancel_events: dict[str, threading.Event] = {}
@@ -151,7 +152,7 @@ class RVCSessionManager:
             def work():
                 source = Path(meta["source"]["path"])
                 target = self._dir(session_id) / "work" / "normalized.wav"
-                ffmpeg = find_ffmpeg(self.project_root)
+                ffmpeg = self.ffmpeg_resolver(self.project_root)
                 self._update(session_id, {
                     "phase": "extracting" if meta["source"]["kind"] == "video" else "normalizing",
                     "progress": 15,
@@ -211,7 +212,7 @@ class RVCSessionManager:
         meta = self._load(session_id)
         normalized = Path(meta["normalized_wav"]["path"])
         work = self._dir(session_id) / "work"
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
         vocals = work / "vocals.wav"
         instrumental = work / "instrumental.wav"
         separator = self.separator_factory()

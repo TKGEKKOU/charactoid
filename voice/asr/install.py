@@ -194,9 +194,10 @@ class STTResourceManager:
                     raise RuntimeError(detail[-2000:]) from fallback_error
             model_id = os.getenv("YUMENO_STT_MODEL_ID", os.getenv("YUMENO_ASR_MODEL_ID", "Qwen/Qwen3-ASR-0.6B"))
             script = (
-                "from modelscope import snapshot_download; "
-                f"snapshot_download({model_id!r}, local_dir={str(self.managed_model)!r})"
-            )
+                "model_id=%r; target=%r; "
+                "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
+                "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
+            ) % (model_id, str(self.managed_model))
             download_env = os.environ.copy()
             download_env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
             self._phase = "model"

@@ -78,17 +78,37 @@ class GPTSoVITSAdapter:
         with self.opener(request, timeout=300) as response:
             return response.read()
 
+    def _http_ready(self) -> bool:
+        """Confirm that the listener is an HTTP GPT-SoVITS API, not just an open port.
+
+        The upstream API is FastAPI-based and exposes ``/docs``.  A TCP-only
+        check can incorrectly accept another process occupying the configured
+        port, so installation/startup readiness requires an actual HTTP reply.
+        ``/openapi.json`` is used as a fallback for builds that disable docs.
+        """
+        for path in ("/docs", "/openapi.json"):
+            try:
+                with self.opener(
+                    Request(f"{self.base_url}{path}", method="GET"), timeout=5
+                ) as response:
+                    status = getattr(response, "status", 200)
+                    if 200 <= status < 400:
+                        return True
+            except (OSError, HTTPError, URLError):
+                continue
+        return False
+
     def is_alive(self) -> bool:
         if self._process is not None and self._process.poll() is not None:
             return False
-        # 端口可达即视为存活：兼容由启动页或历史会话启动、未被本实例追踪的服务，
-        # 避免重复拉起第二个实例。
+        # TCP readiness alone is insufficient: another local process may own
+        # the port, or the API may still be booting behind its listener.
         try:
             with socket.create_connection(("127.0.0.1", self.port), timeout=2):
                 pass
-            return True
         except OSError:
             return False
+        return self._http_ready()
 
     @staticmethod
     def _listener_pids(port: int) -> list[int]:
@@ -250,7 +270,8 @@ class GPTSoVITSAdapter:
                 try:
                     with socket.create_connection(("127.0.0.1", self.port), timeout=1):
                         pass
-                    return
+                    if self._http_ready():
+                        return
                 except OSError:
                     self.sleeper(0.5)
             raise GPTSoVITSUnavailable(

@@ -50,6 +50,7 @@ def test_is_alive_checks_port_when_process_untracked(monkeypatch):
         "voice.gpt_sovits.adapter.socket.create_connection",
         lambda *args, **kwargs: type("Sock", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})(),
     )
+    monkeypatch.setattr(adapter, "_http_ready", lambda: True)
     assert adapter.is_alive() is True
 
     monkeypatch.setattr(

@@ -156,6 +156,18 @@ class STTResourceManager:
             raise subprocess.CalledProcessError(process.returncode, command, stdout, stderr)
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
+    @staticmethod
+    def _asr_device() -> str:
+        requested = os.getenv("YUMENO_ASR_DEVICE", "auto").strip().lower()
+        if requested in {"cpu", "cuda"}:
+            return requested
+        # Avoid installing the 2.8GB CUDA wheel on ordinary Windows machines.
+        try:
+            probe = subprocess.run(["nvidia-smi", "-L"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=False)
+        except (OSError, subprocess.SubprocessError):
+            probe = None
+        return "cuda" if probe is not None and probe.returncode == 0 else "cpu"
+
     def _install(self) -> None:
         try:
             if not self.runtime_python.is_file():
@@ -165,6 +177,10 @@ class STTResourceManager:
                 "YUMENO_PYTORCH_INDEX",
                 "https://mirrors.aliyun.com/pytorch-wheels/cu128/",
             )
+            device = self._asr_device()
+            requirements = self.requirements
+            if device == "cpu":
+                requirements = self.requirements.with_name("requirements-local-cpu.txt")
             pip_command = [
                 str(self.runtime_python),
                 "-m",
@@ -179,7 +195,7 @@ class STTResourceManager:
                 "--extra-index-url",
                 pytorch_index,
                 "-r",
-                str(self.requirements),
+                str(requirements),
             ]
             self._phase = "runtime"
             try:

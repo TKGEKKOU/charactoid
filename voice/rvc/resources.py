@@ -152,7 +152,8 @@ class RVCResourceManager:
             except (OSError, ValueError):
                 probe = {}
         missing = []
-        # YUMENO 已内置 infer 核心后，不应要求用户额外保留原版仓库；\n        # 外部源码只用于兼容资源发现，不能成为可用性门槛。\n        if not source_component_ready: missing.append("rvc_source")
+        # YUMENO 已内置 infer 核心后，不应要求用户额外保留原版仓库；\n        # 外部源码只用于兼容资源发现，不能成为可用性门槛。\n        # The vendor inference core is the shipped runtime boundary; an
+        # external RVC checkout is optional compatibility input only.
         if not cli_ok: missing.append("infer_cli")
         if not runtime_ready: missing.append("runtime")
         selected_device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
@@ -160,7 +161,8 @@ class RVCResourceManager:
             missing.append("cuda")
         if hubert is None: missing.append("hubert")
         if rmvpe is None: missing.append("rmvpe")
-        if not models: missing.append("voice_model")
+        # .pth files are user assets, not downloadable base resources.
+        # Keep them visible in components but do not block base installation.
         indices = self.index_paths()
         components = {
             "source": {"ready": source_component_ready, "label": "YUMENO 内置 RVC 核心", "path": str(self.core_root)},
@@ -179,6 +181,7 @@ class RVCResourceManager:
             "torch_version": probe.get("torch_version", ""),
             "cuda_version": probe.get("cuda_version", ""),
             "ready": not missing,
+            "base_ready": not missing,
             "installed": runtime_ready,
             "source_configured": source_ok,
             "source_root": str(self.source_root),
@@ -194,6 +197,7 @@ class RVCResourceManager:
             "rmvpe_ready": rmvpe is not None,
             "rmvpe_dir": str(rmvpe) if rmvpe else "",
             "missing": missing,
+            "missing_optional": [] if models else ["voice_model"],
             "components": components,
             "requirements_file": str(self.requirements_file()) if self.requirements_file() else "",
             "note": "RVC 首期仅支持本地音频变声；训练和实时转换尚未接入。",

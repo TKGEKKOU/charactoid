@@ -34,10 +34,24 @@ def fake_segments_result(session_dir: Path, audio_wav):
 
 
 def patch_ffmpeg(monkeypatch):
+    """Inject a deterministic in-process converter for API tests.
+
+    Production still resolves and executes a real FFmpeg binary. These tests
+    exercise the API state transitions, so they must not depend on a developer
+    checkout containing runtime/ffmpeg/ffmpeg.exe.
+    """
+    import shutil
     import voice.studio as studio_module
 
     bundled = Path("runtime/ffmpeg/ffmpeg.exe")
     monkeypatch.setattr(studio_module, "find_ffmpeg", lambda _root: bundled.resolve())
+
+    def fake_convert(_ffmpeg, source, target, _rate, _channels):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        return target
+
+    monkeypatch.setattr(studio_module, "convert_wav", fake_convert)
 
 
 def test_session_lifecycle_and_video_flow(client, tmp_path, monkeypatch):

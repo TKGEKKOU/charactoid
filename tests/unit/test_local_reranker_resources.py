@@ -46,7 +46,7 @@ def test_reranker_runtime_install_uses_shared_embedding_runtime_and_domestic_sou
     assert (manager.runtime_dir / ".reranker-requirements-ready").is_file()
 
 
-def test_reranker_runtime_install_does_not_fall_back_overseas(tmp_path: Path, monkeypatch):
+def test_reranker_runtime_install_falls_back_to_official_indexes(tmp_path: Path, monkeypatch):
     manager = LocalRerankerResourceManager(tmp_path)
     manager.runtime_python.parent.mkdir(parents=True)
     manager.runtime_python.write_text("python", encoding="ascii")
@@ -59,11 +59,11 @@ def test_reranker_runtime_install_does_not_fall_back_overseas(tmp_path: Path, mo
 
     monkeypatch.setattr(manager, "_run", fail_domestic)
 
-    with pytest.raises(RuntimeError, match="国内镜像"):
+    with pytest.raises(RuntimeError, match="国内与官方源"):
         manager._install_runtime()
 
-    assert len(commands) == 2
-    assert all("download.pytorch.org" not in item for command in commands for item in command)
+    assert len(commands) == 3
+    assert any("download.pytorch.org" in item for command in commands for item in command)
 
 
 def test_reranker_runtime_skips_pip_when_shared_dependencies_are_ready(tmp_path: Path, monkeypatch):

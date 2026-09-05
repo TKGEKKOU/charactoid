@@ -55,15 +55,36 @@ if (-not (Test-Path $venvPy)) {
 }
 
 if (-not $NoInstall) {
-  $depsOk = & $venvPy -c "import fastapi, uvicorn, imageio_ffmpeg" 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "     安装依赖（首次，可能需要几分钟）..."
+  # Do not infer a complete environment from a few imports.  A fresh clone,
+  # an old .venv, or a changed requirements file must all trigger a full
+  # dependency reconciliation before the Web server is allowed to start.
+  $dependencyMarker = Join-Path $root ".venv\.yumeno-requirements.sha256"
+  $fingerprintInput = @(
+    (Get-FileHash (Join-Path $root "requirements.txt") -Algorithm SHA256).Hash
+    (Get-FileHash (Join-Path $root "pyproject.toml") -Algorithm SHA256).Hash
+  ) -join "`n"
+  $dependencyFingerprint = [BitConverter]::ToString(
+    (New-Object Security.Cryptography.SHA256Managed).ComputeHash(
+      [Text.Encoding]::UTF8.GetBytes($fingerprintInput)
+    )
+  ).Replace("-", "").ToLowerInvariant()
+  $markerMatches = (Test-Path $dependencyMarker) -and ((Get-Content $dependencyMarker -Raw).Trim() -eq $dependencyFingerprint)
+  $pipHealthy = $false
+  if ($markerMatches) {
+    & $venvPy -m pip check 2>$null | Out-Null
+    $pipHealthy = ($LASTEXITCODE -eq 0)
+  }
+  if (-not ($markerMatches -and $pipHealthy)) {
+    Write-Host "     安装/校准依赖（首次或依赖变更时可能需要几分钟）..."
     & $venvPy -m pip install --upgrade pip
     if ($LASTEXITCODE -ne 0) { Write-Host "升级 pip 失败" -ForegroundColor Red; exit 1 }
     & $venvPy -m pip install -e . -r requirements.txt
     if ($LASTEXITCODE -ne 0) { Write-Host "安装依赖失败" -ForegroundColor Red; exit 1 }
+    & $venvPy -m pip check
+    if ($LASTEXITCODE -ne 0) { Write-Host "依赖校验失败" -ForegroundColor Red; exit 1 }
+    Set-Content -Path $dependencyMarker -Value $dependencyFingerprint -NoNewline -Encoding ascii
   } else {
-    Write-Host "     依赖已就绪，跳过安装"
+    Write-Host "     依赖已就绪且通过 pip check，跳过安装"
   }
   if ($Desktop) {
     & $venvPy -m pip install -r requirements-desktop.txt

@@ -136,7 +136,7 @@ class GPTSoVITSConfig:
         return {
             "install_dir": str(install_dir) if install_dir else None,
             "api_port": int(data.get("api_port") or DEFAULT_API_PORT),
-            "download_url": DEFAULT_DOWNLOAD_URL,
+            "download_url": str(download_url).strip() if isinstance(download_url, str) and download_url.strip() else DEFAULT_DOWNLOAD_URL,
         }
 
     def save(
@@ -151,8 +151,10 @@ class GPTSoVITSConfig:
         if api_port is not None:
             values["api_port"] = int(api_port)
         if download_url is not None:
-            # 下载源由应用 manifest 固定，忽略旧版/客户端自定义地址。
-            values["download_url"] = DEFAULT_DOWNLOAD_URL
+            value = download_url.strip()
+            if not value.startswith(("https://", "http://")):
+                raise ValueError("GPT-SoVITS 下载地址必须是 HTTP(S) URL")
+            values["download_url"] = value
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.config_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")

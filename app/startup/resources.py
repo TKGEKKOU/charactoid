@@ -105,6 +105,7 @@ def initialize_voice_resources(app: FastAPI, settings: Settings) -> None:
         separator_factory=_separator_factory(app.state.separator_resources),
         vad_factory=EnergyVAD,
         voices_root=settings.project_root / "data" / "tts" / "voices",
+        ffmpeg_resolver=find_ffmpeg,
     )
 
 

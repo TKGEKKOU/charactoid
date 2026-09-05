@@ -62,12 +62,14 @@ class VoiceStudioManager:
         vad_factory: Callable,
         voices_root: Path | None = None,
         agent_runtime: Any | None = None,
+        ffmpeg_resolver: Callable[[Path], Path] | None = None,
     ) -> None:
         self.project_root = Path(project_root)
         self.sessions_dir = self.project_root / "data" / "voice_studio" / "sessions"
         self.meta_dir = self.project_root / "data" / "voice_studio" / "voices"
         self.voices_root = Path(voices_root) if voices_root else self.project_root / "data" / "tts" / "voices"
         self.separator_factory = separator_factory
+        self.ffmpeg_resolver = ffmpeg_resolver or find_ffmpeg
         self.vad_factory = vad_factory
         self.agent_runtime = agent_runtime
         self._cancel: dict[str, threading.Event] = {}
@@ -554,7 +556,7 @@ class VoiceStudioManager:
 
     def _run_video(self, session_id: str, video_path: Path, cancel: threading.Event) -> None:
         session_dir = self._session_dir(session_id)
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
 
         def report(phase: str, percent: int) -> None:
             if cancel.is_set():
@@ -573,7 +575,7 @@ class VoiceStudioManager:
 
     def _convert_audio_files(self, session_id: str, audio_paths: list[Path], cancel: threading.Event) -> None:
         session_dir = self._session_dir(session_id)
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
         work = session_dir / "work"
         work.mkdir(parents=True, exist_ok=True)
         converted: list[Path] = []
@@ -613,7 +615,7 @@ class VoiceStudioManager:
 
     def _run_separation(self, session_id: str, audio_wav: Path, cancel: threading.Event) -> None:
         session_dir = self._session_dir(session_id)
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
 
         def report(phase: str, percent: int) -> None:
             if cancel.is_set():
@@ -634,7 +636,7 @@ class VoiceStudioManager:
     def upload_segments(self, session_id: str, audio_paths: list[Path]) -> dict:
         """Accept user-uploaded clean clips as extra reference segments."""
         session_dir = self._session_dir(session_id)
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
         segments_dir = session_dir / "segments"
         segments_dir.mkdir(parents=True, exist_ok=True)
         meta = self._load_meta(session_id)
@@ -685,7 +687,7 @@ class VoiceStudioManager:
         return True
 
     def _run_audio(self, session_id: str, audio_path: Path, cancel: threading.Event) -> None:
-        audio_wav = convert_wav(find_ffmpeg(self.project_root), audio_path, self._session_dir(session_id) / "work" / "audio_44k.wav", 44100, 2)
+        audio_wav = convert_wav(self.ffmpeg_resolver(self.project_root), audio_path, self._session_dir(session_id) / "work" / "audio_44k.wav", 44100, 2)
         self._run_separation(session_id, audio_wav, cancel)
 
     def _store_segments(self, session_id: str, result: dict) -> None:
@@ -744,7 +746,7 @@ class VoiceStudioManager:
     def upload_reference(self, session_id: str, audio_path: Path) -> dict:
         """Accept a directly-uploaded clean audio clip as the reference."""
         session_dir = self._session_dir(session_id)
-        ffmpeg = find_ffmpeg(self.project_root)
+        ffmpeg = self.ffmpeg_resolver(self.project_root)
         converted = session_dir / "work" / "reference_upload.wav"
         convert_wav(ffmpeg, audio_path, converted, REFERENCE_RATE, 1)
         seconds = wav_seconds(converted)

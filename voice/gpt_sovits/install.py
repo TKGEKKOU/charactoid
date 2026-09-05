@@ -260,28 +260,23 @@ class GPTSoVITSInstallManager:
             partial = destination.with_suffix(destination.suffix + ".part")
             self.state.source = urlsplit(url).hostname or "下载源"
             try:
-                with opener.open(request, timeout=60) as response, partial.open("ab" if resume else "wb") as target:
-                    total = resume + int(response.headers.get("Content-Length") or 0)
-                    downloaded = resume
-                    self.state.set_progress(
-                        "download",
-                        destination.name,
-                        downloaded,
-                        total,
-                        detail=f"来源：{self.state.source}",
-                    )
-                    while chunk := response.read(1024 * 1024):
-                        if self.state.cancel_requested.is_set():
-                            raise GPTSoVITSInstallCancelled()
-                        target.write(chunk)
-                        downloaded += len(chunk)
-                        self.state.set_progress(
-                            "download",
-                            destination.name,
-                            downloaded,
-                            total,
-                            detail=f"来源：{self.state.source}",
-                        )
+                with opener.open(request, timeout=60) as response:
+                    # Mirrors may ignore Range and return HTTP 200. Restart
+                    # instead of appending a full archive to the partial file.
+                    resumed = resume > 0 and getattr(response, "status", 200) == 206
+                    if resume > 0 and not resumed:
+                        resume = 0
+                        partial.unlink(missing_ok=True)
+                    with partial.open("ab" if resumed else "wb") as target:
+                        total = resume + int(response.headers.get("Content-Length") or 0)
+                        downloaded = resume
+                        self.state.set_progress("download", destination.name, downloaded, total, detail=f"来源：{self.state.source}")
+                        while chunk := response.read(1024 * 1024):
+                            if self.state.cancel_requested.is_set():
+                                raise GPTSoVITSInstallCancelled()
+                            target.write(chunk)
+                            downloaded += len(chunk)
+                            self.state.set_progress("download", destination.name, downloaded, total, detail=f"来源：{self.state.source}")
                 os.replace(partial, destination)
                 return
             except GPTSoVITSInstallCancelled:

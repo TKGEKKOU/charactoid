@@ -157,15 +157,20 @@ class LocalRerankerResourceManager:
         else:
             marker.write_text("ready\n", encoding="ascii")
             return
-        pypi = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
-        pytorch = os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/")
-        command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi, "--extra-index-url", pytorch, "-r", str(self.requirements)]
-        try:
-            self._run(command)
-        except RuntimeError as domestic_error:
-            raise RuntimeError(
-                f"Reranker 运行依赖从国内镜像安装失败，未切换境外源：{domestic_error}"
-            ) from domestic_error
+        indexes = [
+            (os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/"), os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/")),
+            ("https://pypi.org/simple/", "https://download.pytorch.org/whl/cu128"),
+        ]
+        last_error = None
+        for pypi, pytorch in indexes:
+            command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi, "--extra-index-url", pytorch, "-r", str(self.requirements)]
+            try:
+                self._run(command)
+                break
+            except RuntimeError as exc:
+                last_error = exc
+        else:
+            raise RuntimeError(f"Reranker 运行依赖安装失败，已尝试国内与官方源：{last_error}") from last_error
         marker.write_text("ready\n", encoding="ascii")
 
     def _install(self, model_id: str, source: str, device: str) -> None:
@@ -174,11 +179,10 @@ class LocalRerankerResourceManager:
             self._install_runtime()
             self._phase = "model"
             directory.mkdir(parents=True, exist_ok=True)
-            code = (
-                "model_id=%r; target=%r; "
-                "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
-                "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
-            ) % (model_id, str(directory))
+            if source == "modelscope":
+                code = "from modelscope import snapshot_download; snapshot_download(%r, local_dir=%r)" % (model_id, str(directory))
+            else:
+                code = "from huggingface_hub import snapshot_download; snapshot_download(repo_id=%r, local_dir=%r)" % (model_id, str(directory))
             env = os.environ.copy()
             env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
             env["HF_HOME"] = str(self.project_root / "runtime" / "huggingface-cache")

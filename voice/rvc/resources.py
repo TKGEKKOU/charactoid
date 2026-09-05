@@ -34,8 +34,14 @@ class RVCResourceManager:
         self._custom_source = source_root is not None
         configured = source_root or os.getenv("YUMENO_RVC_SOURCE_DIR", "E:/Retrieval-based-Voice-Conversion-WebUI-main")
         self.source_root = Path(configured).expanduser().resolve()
+        # 个人音色目录只能在用户显式配置时启用；绝不把开发者机器路径
+        # 作为新用户的隐式资源来源。
         configured_models = os.getenv("YUMENO_RVC_MODEL_DIR") if source_root is None else None
-        self.external_model_root = Path(configured_models or "D:/Music/RVC/HatsuneMiku").expanduser().resolve() if source_root is None else Path("__disabled__")
+        self.external_model_root = (
+            Path(configured_models).expanduser().resolve()
+            if configured_models
+            else Path("__disabled__")
+        )
         # 推理核心随 YUMENO 交付，外部 RVC 仓库只作为兼容的资源来源与参考。
         self.core_root = self.project_root / "voice" / "rvc" / "vendor"
         self.managed_root = self.project_root / "data" / "providers" / "rvc"

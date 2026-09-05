@@ -37,13 +37,13 @@ def test_reranker_runtime_install_uses_shared_embedding_runtime_and_domestic_sou
 
     monkeypatch.setattr(manager, "_run", fake_run)
 
-    manager._install_runtime()
+    manager._install_runtime("cuda")
 
     assert manager.runtime_dir == tmp_path / "runtime" / "embedding"
     assert "https://mirrors.aliyun.com/pypi/simple/" in commands[1]
     assert "https://mirrors.aliyun.com/pytorch-wheels/cu128/" in commands[1]
     assert all("download.pytorch.org" not in item for command in commands for item in command)
-    assert (manager.runtime_dir / ".reranker-requirements-ready").is_file()
+    assert (manager.runtime_dir / ".reranker-requirements-ready.json").is_file()
 
 
 def test_reranker_runtime_install_falls_back_to_official_indexes(tmp_path: Path, monkeypatch):
@@ -59,8 +59,8 @@ def test_reranker_runtime_install_falls_back_to_official_indexes(tmp_path: Path,
 
     monkeypatch.setattr(manager, "_run", fail_domestic)
 
-    with pytest.raises(RuntimeError, match="国内与官方源"):
-        manager._install_runtime()
+    with pytest.raises(RuntimeError, match="运行依赖安装失败"):
+        manager._install_runtime("cuda")
 
     assert len(commands) == 3
     assert any("download.pytorch.org" in item for command in commands for item in command)
@@ -79,11 +79,11 @@ def test_reranker_runtime_skips_pip_when_shared_dependencies_are_ready(tmp_path:
 
     monkeypatch.setattr(manager, "_run", fake_run)
 
-    manager._install_runtime()
+    manager._install_runtime("cuda")
 
     assert len(commands) == 1
     assert commands[0][-1] == "import torch, transformers, modelscope, huggingface_hub"
-    assert (manager.runtime_dir / ".reranker-requirements-ready").is_file()
+    assert (manager.runtime_dir / ".reranker-requirements-ready.json").is_file()
 
 
 def test_reranker_cancel_install_terminates_active_process(tmp_path: Path):
@@ -105,3 +105,16 @@ def test_reranker_cancel_install_terminates_active_process(tmp_path: Path):
     assert manager.cancel_install() is True
     assert manager.status()["cancelling"] is True
     assert process.terminated is True
+
+
+def test_reranker_cpu_runtime_uses_cpu_requirements_without_cuda_index(tmp_path: Path, monkeypatch):
+    manager = LocalRerankerResourceManager(tmp_path)
+    manager.runtime_python.parent.mkdir(parents=True)
+    manager.runtime_python.write_text("python", encoding="ascii")
+    commands = []
+    monkeypatch.setattr(manager, "_run", lambda command, **kwargs: (_ for _ in ()).throw(RuntimeError("missing")) if command[-1].startswith("import torch") else commands.append(list(command)) or subprocess.CompletedProcess(command, 0, "", ""))
+
+    manager._install_runtime("cpu")
+
+    assert commands[0][-1].endswith("requirements-local-cpu.txt")
+    assert all("cu128" not in item for item in commands[0])

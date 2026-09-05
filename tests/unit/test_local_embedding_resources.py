@@ -51,9 +51,35 @@ def test_runtime_install_falls_back_to_official_pytorch_index(tmp_path: Path, mo
 
     monkeypatch.setattr(manager, "_run", fake_run)
 
-    manager._install_runtime()
+    manager._install_runtime("cuda")
 
     assert len(commands) == 2
     assert "https://mirrors.aliyun.com/pytorch-wheels/cu128/" in commands[0]
     assert "https://download.pytorch.org/whl/cu128" in commands[1]
-    assert (manager.runtime_dir / ".requirements-ready").is_file()
+    assert (manager.runtime_dir / ".requirements-ready.json").is_file()
+
+
+def test_cpu_runtime_uses_cpu_requirements_without_cuda_index(tmp_path: Path, monkeypatch):
+    manager = LocalEmbeddingResourceManager(tmp_path)
+    manager.runtime_python.parent.mkdir(parents=True)
+    manager.runtime_python.write_text("python", encoding="ascii")
+    commands = []
+    monkeypatch.setattr(manager, "_run", lambda command, **kwargs: commands.append(list(command)) or subprocess.CompletedProcess(command, 0, "", ""))
+
+    manager._install_runtime("cpu")
+
+    assert commands[0][-1].endswith("requirements-local-cpu.txt")
+    assert all("cu128" not in item for item in commands[0])
+
+
+def test_auto_without_nvidia_uses_cpu_runtime(tmp_path: Path, monkeypatch):
+    manager = LocalEmbeddingResourceManager(tmp_path)
+    manager.runtime_python.parent.mkdir(parents=True)
+    manager.runtime_python.write_text("python", encoding="ascii")
+    commands = []
+    monkeypatch.setattr("ingestion.local_embedding.resources.subprocess.run", lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, "", ""))
+    monkeypatch.setattr(manager, "_run", lambda command, **kwargs: commands.append(list(command)) or subprocess.CompletedProcess(command, 0, "", ""))
+
+    manager._install_runtime("auto")
+
+    assert commands[0][-1].endswith("requirements-local-cpu.txt")

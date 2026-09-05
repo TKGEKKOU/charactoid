@@ -1,5 +1,6 @@
 """Installation and status management for the local reranker."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -27,6 +28,7 @@ class LocalRerankerResourceManager:
         # the managed runtime avoids downloading several GB of duplicate wheels.
         self.runtime_dir = self.project_root / "runtime" / "embedding"
         self.requirements = self.project_root / "ingestion" / "local_reranker" / "requirements-local.txt"
+        self.cpu_requirements = self.requirements.with_name("requirements-local-cpu.txt")
         self.worker_script = self.project_root / "ingestion" / "local_reranker" / "worker.py"
         self._installing = False
         self._cancel_requested = threading.Event()
@@ -137,46 +139,58 @@ class LocalRerankerResourceManager:
             raise RuntimeError((stderr or stdout or "Reranker subprocess failed")[-3000:])
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
-    def _install_runtime(self) -> None:
+    @staticmethod
+    def _effective_device(device: str) -> str:
+        if device != "auto":
+            return device
+        try:
+            result = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5)
+            return "cuda" if result.returncode == 0 and result.stdout.strip() else "cpu"
+        except (OSError, subprocess.SubprocessError):
+            return "cpu"
+
+    def _install_runtime(self, device: str = "cuda") -> None:
         self._phase = "runtime"
-        self._current_file = "正在检查共享 AI 运行环境（阿里云镜像）"
+        actual = self._effective_device(device)
+        requirements = self.requirements if actual == "cuda" else self.cpu_requirements
+        if not requirements.is_file():
+            requirements = Path(__file__).with_name(requirements.name)
         if not self.runtime_python.is_file():
             subprocess.run([sys.executable, "-m", "venv", str(self.runtime_dir)], check=True)
-        marker = self.runtime_dir / ".reranker-requirements-ready"
-        if marker.is_file():
-            return
-        probe = [
-            str(self.runtime_python),
-            "-c",
-            "import torch, transformers, modelscope, huggingface_hub",
-        ]
+        marker = self.runtime_dir / ".reranker-requirements-ready.json"
+        expected = {"requirements_sha256": hashlib.sha256(requirements.read_bytes()).hexdigest(), "device": actual, "python": f"{sys.version_info.major}.{sys.version_info.minor}"}
+        try:
+            if json.loads(marker.read_text(encoding="utf-8")) == expected:
+                return
+        except (OSError, json.JSONDecodeError):
+            pass
+        probe = [str(self.runtime_python), "-c", "import torch, transformers, modelscope, huggingface_hub"]
         try:
             self._run(probe)
         except RuntimeError:
             pass
         else:
-            marker.write_text("ready\n", encoding="ascii")
+            marker.write_text(json.dumps(expected, sort_keys=True) + "\\n", encoding="utf-8")
             return
-        indexes = [
-            (os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/"), os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/")),
-            ("https://pypi.org/simple/", "https://download.pytorch.org/whl/cu128"),
-        ]
+        pypi = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
+        indexes = [(pypi, os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/"))] if actual == "cuda" else [(pypi, None)]
+        if actual == "cuda":
+            indexes.append((os.getenv("YUMENO_PYPI_FALLBACK_INDEX", "https://pypi.org/simple/"), os.getenv("YUMENO_PYTORCH_FALLBACK_INDEX", "https://download.pytorch.org/whl/cu128")))
         last_error = None
-        for pypi, pytorch in indexes:
-            command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi, "--extra-index-url", pytorch, "-r", str(self.requirements)]
+        for pypi_index, torch_index in indexes:
+            command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi_index]
+            if torch_index: command += ["--extra-index-url", torch_index]
+            command += ["-r", str(requirements)]
             try:
-                self._run(command)
-                break
-            except RuntimeError as exc:
-                last_error = exc
-        else:
-            raise RuntimeError(f"Reranker 运行依赖安装失败，已尝试国内与官方源：{last_error}") from last_error
-        marker.write_text("ready\n", encoding="ascii")
+                self._run(command); marker.write_text(json.dumps(expected, sort_keys=True) + "\n", encoding="utf-8"); return
+            except RerankerInstallCancelled: raise
+            except RuntimeError as exc: last_error = exc
+        raise RuntimeError(f"Reranker {actual} 运行依赖安装失败：{last_error}") from last_error
 
     def _install(self, model_id: str, source: str, device: str) -> None:
         directory = self.model_directory(model_id)
         try:
-            self._install_runtime()
+            self._install_runtime(device)
             self._phase = "model"
             directory.mkdir(parents=True, exist_ok=True)
             if source == "modelscope":

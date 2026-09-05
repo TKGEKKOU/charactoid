@@ -1,5 +1,6 @@
 """受管本地 Embedding 模型的安装、状态和目录操作。"""
 
+import hashlib
 import json
 import os
 import re
@@ -35,6 +36,7 @@ class LocalEmbeddingResourceManager:
         self.local_settings_path = self.project_root / "data" / "local_settings.json"
         self.runtime_dir = self.project_root / "runtime" / "embedding"
         self.requirements = self.project_root / "ingestion" / "local_embedding" / "requirements-local.txt"
+        self.cpu_requirements = self.requirements.with_name("requirements-local-cpu.txt")
         self.worker_script = self.project_root / "ingestion" / "local_embedding" / "worker.py"
         self._installing = False
         self._cancel_requested = threading.Event()
@@ -193,43 +195,50 @@ class LocalEmbeddingResourceManager:
             raise RuntimeError((stderr or stdout or "子进程执行失败")[-3000:])
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
-    def _install_runtime(self) -> None:
+    @staticmethod
+    def _effective_device(device: str) -> str:
+        if device != "auto":
+            return device
+        try:
+            result = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5)
+            return "cuda" if result.returncode == 0 and result.stdout.strip() else "cpu"
+        except (OSError, subprocess.SubprocessError):
+            return "cpu"
+
+    def _install_runtime(self, device: str = "cuda") -> None:
         self._phase = "runtime"
+        actual = self._effective_device(device)
+        requirements = self.requirements if actual == "cuda" else self.cpu_requirements
+        if not requirements.is_file():
+            requirements = Path(__file__).with_name(requirements.name)
         if not self.runtime_python.is_file():
             subprocess.run([sys.executable, "-m", "venv", str(self.runtime_dir)], check=True)
-        marker = self.runtime_dir / ".requirements-ready"
-        if marker.is_file():
-            return
-        pypi = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
-        pytorch = os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/")
-        pip_command = [
-            str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2",
-            "--index-url", pypi, "--extra-index-url", pytorch, "-r", str(self.requirements),
-        ]
+        marker = self.runtime_dir / ".requirements-ready.json"
+        expected = {"requirements_sha256": hashlib.sha256(requirements.read_bytes()).hexdigest(), "device": actual, "python": f"{sys.version_info.major}.{sys.version_info.minor}"}
         try:
-            self._run(pip_command)
-        except EmbeddingInstallCancelled:
-            raise
-        except RuntimeError as domestic_error:
-            # 国内镜像并不总是同步 CUDA Wheel；仅 PyTorch 源回退，其他依赖继续走国内 PyPI。
-            fallback = os.getenv("YUMENO_PYTORCH_FALLBACK_INDEX", "https://download.pytorch.org/whl/cu128")
-            pip_command[pip_command.index(pypi)] = os.getenv("YUMENO_PYPI_FALLBACK_INDEX", "https://pypi.org/simple/")
-            pip_command[pip_command.index(pytorch)] = fallback
-            self._current_file = "PyTorch CUDA 12.8（官方备用源）"
+            if json.loads(marker.read_text(encoding="utf-8")) == expected:
+                return
+        except (OSError, json.JSONDecodeError):
+            pass
+        pypi = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
+        indexes = [(pypi, os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/"))] if actual == "cuda" else [(pypi, None)]
+        if actual == "cuda":
+            indexes.append((os.getenv("YUMENO_PYPI_FALLBACK_INDEX", "https://pypi.org/simple/"), os.getenv("YUMENO_PYTORCH_FALLBACK_INDEX", "https://download.pytorch.org/whl/cu128")))
+        last_error = None
+        for pypi_index, torch_index in indexes:
+            command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi_index]
+            if torch_index: command += ["--extra-index-url", torch_index]
+            command += ["-r", str(requirements)]
             try:
-                self._run(pip_command)
-            except EmbeddingInstallCancelled:
-                raise
-            except RuntimeError as fallback_error:
-                raise RuntimeError(
-                    f"国内 PyTorch 镜像缺少所需版本，官方备用源也安装失败：{fallback_error}"
-                ) from domestic_error
-        marker.write_text("ready\n", encoding="ascii")
+                self._run(command); marker.write_text(json.dumps(expected, sort_keys=True) + "\n", encoding="utf-8"); return
+            except EmbeddingInstallCancelled: raise
+            except RuntimeError as exc: last_error = exc
+        raise RuntimeError(f"Embedding {actual} 运行依赖安装失败：{last_error}") from last_error
 
     def _install(self, model_id: str, source: str, device: str) -> None:
         directory = self.model_directory(model_id)
         try:
-            self._install_runtime()
+            self._install_runtime(device)
             self._phase = "model"
             self._current_file = model_id
             directory.mkdir(parents=True, exist_ok=True)

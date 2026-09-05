@@ -32,8 +32,14 @@ class RVCResourceManager:
     def __init__(self, project_root: Path, source_root: Path | None = None) -> None:
         self.project_root = Path(project_root).resolve()
         self._custom_source = source_root is not None
-        configured = source_root or os.getenv("YUMENO_RVC_SOURCE_DIR", "E:/Retrieval-based-Voice-Conversion-WebUI-main")
-        self.source_root = Path(configured).expanduser().resolve()
+        configured = source_root or os.getenv("YUMENO_RVC_SOURCE_DIR", "").strip()
+        # Only an explicit external tree may be used. Never guess a developer
+        # checkout on another drive for a fresh GitHub installation.
+        self.source_root = (
+            Path(configured).expanduser().resolve()
+            if configured
+            else self.project_root / "runtime" / "rvc" / "external_source"
+        )
         # 个人音色目录只能在用户显式配置时启用；绝不把开发者机器路径
         # 作为新用户的隐式资源来源。
         configured_models = os.getenv("YUMENO_RVC_MODEL_DIR") if source_root is None else None
@@ -464,4 +470,3 @@ class RVCResourceManager:
             self._set(installing=False, phase="cancelled", detail="安装已取消", cancelling=False, eta_seconds=None)
         except Exception as exc:
             self._set(installing=False, phase="failed", error=str(exc), detail="RVC 运行时准备失败", cancelling=False)
-

@@ -180,9 +180,13 @@ class LocalRerankerResourceManager:
             self._phase = "model"
             directory.mkdir(parents=True, exist_ok=True)
             if source == "modelscope":
-                code = "from modelscope import snapshot_download; snapshot_download(%r, local_dir=%r)" % (model_id, str(directory))
+                code = ("model_id=%r; target=%r; "
+                        "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
+                        "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n") % (model_id, str(directory))
             else:
-                code = "from huggingface_hub import snapshot_download; snapshot_download(repo_id=%r, local_dir=%r)" % (model_id, str(directory))
+                code = ("model_id=%r; target=%r; "
+                        "try:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
+                        "except Exception:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n") % (model_id, str(directory))
             env = os.environ.copy()
             env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
             env["HF_HOME"] = str(self.project_root / "runtime" / "huggingface-cache")

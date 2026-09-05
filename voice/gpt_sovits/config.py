@@ -102,7 +102,10 @@ def detect_install_dir(roots: tuple[Path, ...] | None = None) -> Path | None:
             candidate = Path(value)
             if probe_installation(candidate).ok:
                 return candidate
-    roots = roots or tuple(Path(d) for d in ("D:/", "C:/"))
+    # Fresh Web installs must not silently attach to an unrelated GPT-SoVITS
+    # checkout elsewhere on the machine. Drive scanning is available only to
+    # callers that explicitly pass roots (for an import-existing-install flow).
+    roots = () if roots is None else roots
     for root in roots:
         if not root.is_dir():
             continue

@@ -60,3 +60,4 @@ node_modules/
 
 # Local screenshot references and capture materials
 .screenshots/
+runtime/rvc/runtime-ready.json

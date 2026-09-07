@@ -35,7 +35,7 @@
 .\scripts\start.ps1 -NoInstall
 ```
 
-浏览器访问 `http://127.0.0.1:17000/static/index.html`，依次执行 W2、W3、W4、W5、W6、W7。
+浏览器访问 `http://127.0.0.1:18000/static/index.html`，依次执行 W2、W3、W4、W5、W6、W7。
 
 ### Desktop
 

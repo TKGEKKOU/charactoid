@@ -1,6 +1,6 @@
 "use strict";
 const { chromium } = require("playwright");
-const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:17000";
+const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:18000";
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {

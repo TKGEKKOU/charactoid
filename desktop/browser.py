@@ -6,14 +6,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 
-def app_url(host: str = "127.0.0.1", port: int = 17000, fragment: str = "") -> str:
+def app_url(host: str = "127.0.0.1", port: int = 18000, fragment: str = "") -> str:
     url = f"http://{host}:{port}/static/index.html"
     if fragment:
         return f"{url}#{fragment.lstrip('#')}"
     return url
 
 
-def health_url(host: str = "127.0.0.1", port: int = 17000) -> str:
+def health_url(host: str = "127.0.0.1", port: int = 18000) -> str:
     return f"http://{host}:{port}/api/health"
 
 
@@ -50,7 +50,7 @@ def open_app(
 def wait_and_open(
     *,
     host: str = "127.0.0.1",
-    port: int = 17000,
+    port: int = 18000,
     timeout: float = 60,
     pause: float = 0.4,
     fragment: str = "",

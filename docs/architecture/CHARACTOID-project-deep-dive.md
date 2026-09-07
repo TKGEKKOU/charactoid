@@ -112,7 +112,7 @@ flowchart LR
 执行 `.\.venv\Scripts\python.exe -B main.py` 时：
 
 1. [`main.py`](../../main.py) 调用 `create_app()`。
-2. `uvicorn.run()` 绑定 `Settings.app_host/app_port`，默认 `127.0.0.1:17000`。
+2. `uvicorn.run()` 绑定 `Settings.app_host/app_port`，默认 `127.0.0.1:18000`。
 3. FastAPI lifespan 创建 MCP 管理器、B站/OneBot 管理器、Agent 服务和媒体资源管理器。
 4. 完整启动时后台预热 Embedding、ASR、GPT-SoVITS；测试应用 `initialize_database=False` 不预热重资源。
 
@@ -1436,14 +1436,14 @@ Set-Location D:\CodePython\CHARACTOID
 前三步可观察结果：
 
 1. `main.py` 导入 `app.main.create_app()`，在模块级创建 app。
-2. Uvicorn 监听默认 `127.0.0.1:17000`。
-3. 浏览器访问 `http://127.0.0.1:17000/static/index.html`，`static/app.js` 加载默认“对话”视图。
+2. Uvicorn 监听默认 `127.0.0.1:18000`。
+3. 浏览器访问 `http://127.0.0.1:18000/static/index.html`，`static/app.js` 加载默认“对话”视图。
 
 验证：
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:17000/api/health
-Get-NetTCPConnection -LocalPort 17000 -State Listen
+Invoke-RestMethod http://127.0.0.1:18000/api/health
+Get-NetTCPConnection -LocalPort 18000 -State Listen
 ```
 
 健康接口成功只证明 FastAPI 可达，不证明 Milvus、LLM、Embedding、GPT-SoVITS 或 MCP 全部可用。资源详情看 `/api/status` 和各专用 status API。
@@ -1575,7 +1575,7 @@ Get-NetTCPConnection -LocalPort 17000 -State Listen
 
 ### 43.11 QQ 私聊/群聊
 
-1. NapCat 配置反向 WebSocket：`ws://127.0.0.1:17000/api/onebot/ws`。
+1. NapCat 配置反向 WebSocket：`ws://127.0.0.1:18000/api/onebot/ws`。
 2. CHARACTOID 接入页启用 OneBot，token 留空或双方一致。
 3. NapCat 连接后，`OneBotConnectionManager` 更新 bot UIN、连接时间和事件时间。
 4. 每个窗口可绑定角色；未单独绑定时使用默认角色。
@@ -1616,12 +1616,12 @@ Get-NetTCPConnection -LocalPort 17000 -State Listen
 检查端口：
 
 ```powershell
-Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 18000 -State Listen -ErrorAction SilentlyContinue
 ```
 
 可能原因：
 
-- 已有旧 CHARACTOID 占用 17000。
+- 已有旧 CHARACTOID 占用 18000。
 - `.venv` 依赖不完整。
 - SQLite 文件或目录权限失败。
 - import 阶段第三方库缺失。
@@ -1629,7 +1629,7 @@ Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinu
 若已有监听，先确认 PID 和命令行，不要盲目结束所有 Python：
 
 ```powershell
-$conn = Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinue
+$conn = Get-NetTCPConnection -LocalPort 18000 -State Listen -ErrorAction SilentlyContinue
 if ($conn) { Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" | Select-Object ProcessId,CommandLine }
 ```
 
@@ -1757,7 +1757,7 @@ if ($conn) { Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningPr
 
 检查顺序：
 
-1. 17000 listener。
+1. 18000 listener。
 2. 命令行包含 CHARACTOID 的 Python。
 3. free-search/MCP stdio 子进程。
 4. Embedding worker。

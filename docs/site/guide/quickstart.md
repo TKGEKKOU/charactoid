@@ -8,7 +8,7 @@ CHARACTOID 的主服务入口是 `main.py`。推荐在项目根目录创建并�
 .\.venv\Scripts\python.exe -B main.py
 ```
 
-默认地址：`http://127.0.0.1:17000/static/index.html`
+默认地址：`http://127.0.0.1:18000/static/index.html`
 
 如果使用已经准备好的环境，也可以直接运行：
 

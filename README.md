@@ -112,7 +112,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 启动后访问：
 
 ```text
-http://127.0.0.1:17000/static/index.html
+http://127.0.0.1:18000/static/index.html
 ```
 
 ### 手动启动

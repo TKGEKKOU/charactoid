@@ -80,7 +80,7 @@ def extract_zip_safely(archive: Path, workdir: Path) -> None:
                     continue
                 if _is_unsafe_zip_path(info.filename):
                     raise RuntimeError(f"非法路径: {info.filename}")
-                if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                if (info.external_attr >> 16) & 0o180000 == 0o120000:
                     raise RuntimeError(f"不支持符号链接: {info.filename}")
                 total += info.file_size
             if total > MAX_EXTRACT_BYTES:

@@ -29,14 +29,14 @@ def test_show_main_opens_browser_instead_of_webview(tmp_path, monkeypatch):
     api.show_main()
 
     assert loaded == []
-    assert opened == ["http://127.0.0.1:17000/static/index.html"]
+    assert opened == ["http://127.0.0.1:18000/static/index.html"]
 
 
 def test_show_main_routes_new_users_to_providers(tmp_path, monkeypatch):
     opened = _patch_open_app(monkeypatch)
     api = LauncherApi(tmp_path, FakeDocker(True), FakeServer(True))
     api.show_main()
-    assert opened == ["http://127.0.0.1:17000/static/index.html#providers"]
+    assert opened == ["http://127.0.0.1:18000/static/index.html#providers"]
 
 
 def test_show_main_is_idempotent(tmp_path, monkeypatch):
@@ -58,7 +58,7 @@ def test_successful_start_opens_browser_workbench(tmp_path, monkeypatch):
     while time.monotonic() < deadline and not api.progress()["done"]:
         time.sleep(0.02)
     assert api.progress()["ok"] is True
-    assert opened == ["http://127.0.0.1:17000/static/index.html#providers"]
+    assert opened == ["http://127.0.0.1:18000/static/index.html#providers"]
 
 
 def test_start_script_uses_the_current_web_and_desktop_launch_contract():

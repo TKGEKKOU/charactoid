@@ -46,9 +46,9 @@ class FakeServer:
         self.settings = type(
             "S",
             (),
-            {"app_port": 17000, "milvus_uri": "http://127.0.0.1:17002"},
+            {"app_port": 18000, "milvus_uri": "http://127.0.0.1:18002"},
         )()
-        self.url = "http://127.0.0.1:17000"
+        self.url = "http://127.0.0.1:18000"
         self.app = None
         self.started = False
         self.stop_calls = 0
@@ -76,7 +76,7 @@ def test_status_reports_components(tmp_path: Path):
     assert status["docker_ready"] is True
     assert status["containers_up"] is True
     assert status["service_running"] is False
-    assert status["port"] == 17000
+    assert status["port"] == 18000
 
 
 def test_existing_service_still_runs_dependency_validation(tmp_path: Path, monkeypatch):

@@ -601,27 +601,27 @@ Run: `.\.venv\Scripts\python.exe -B main.py`
 In another PowerShell:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 17000 -State Listen
-Invoke-RestMethod http://127.0.0.1:17000/api/tts/status
+Get-NetTCPConnection -LocalPort 18000 -State Listen
+Invoke-RestMethod http://127.0.0.1:18000/api/tts/status
 ```
 
-Expected: port 17000 listens; status identifies only `gpt_sovits` and contains no Lunar model fields.
+Expected: port 18000 listens; status identifies only `gpt_sovits` and contains no Lunar model fields.
 
 - [ ] **Step 4: Browser QA in Microsoft Edge**
 
-Open `http://127.0.0.1:17000/static/index.html`. Confirm settings show only GPT-SoVITS, invalid Japanese assets are blocked with a retraining message, and persona editing offers an output language selector. Using a valid Japanese asset, synthesize `何の用かしら` as Japanese and a Chinese sentence as Chinese; confirm neither request reads Japanese kanji with Chinese phonetics unless Chinese is explicitly selected.
+Open `http://127.0.0.1:18000/static/index.html`. Confirm settings show only GPT-SoVITS, invalid Japanese assets are blocked with a retraining message, and persona editing offers an output language selector. Using a valid Japanese asset, synthesize `何の用かしら` as Japanese and a Chinese sentence as Chinese; confirm neither request reads Japanese kanji with Chinese phonetics unless Chinese is explicitly selected.
 
 - [ ] **Step 5: Record PID and stop command**
 
 Report the PID returned by `Get-NetTCPConnection`. Provide:
 
 ```powershell
-$conn = Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinue
+$conn = Get-NetTCPConnection -LocalPort 18000 -State Listen -ErrorAction SilentlyContinue
 if ($conn) {
     Stop-Process -Id $conn.OwningProcess
     Write-Host "Stopped process PID:" $conn.OwningProcess
 } else {
-    Write-Host "No service is listening on port 17000"
+    Write-Host "No service is listening on port 18000"
 }
 ```
 

@@ -52,7 +52,7 @@ https://github.com/TKGEKKOU/charactoid/releases/download/v0.2.0/CHARACTOID-Lite-
 # 2. 运行安装向导（一键安装）
 
 # 3. 配置 API Key
-# 打开 http://127.0.0.1:17000/static/index.html#providers
+# 打开 http://127.0.0.1:18000/static/index.html#providers
 # 在「提供商配置」填入 OpenAI API Key 或 DashScope API Key
 ```
 
@@ -68,7 +68,7 @@ pip install -r requirements-lite.txt
 # 3. 启动服务
 python main.py
 
-# 4. 访问 http://127.0.0.1:17000
+# 4. 访问 http://127.0.0.1:18000
 ```
 
 默认配置会使用 `milvus-lite`，因此不需要先启动 Docker。若 `.env` 配置为远程 Milvus，
@@ -191,7 +191,7 @@ cd charactoid
 docker-compose -f docker-compose.full.yml up -d
 
 # 服务说明：
-# - app: CHARACTOID 主应用（端口 17000）
+# - app: CHARACTOID 主应用（端口 18000）
 # - milvus: 向量数据库（端口 19530）
 # - ollama: 本地 LLM（端口 11434）
 # - gpt-sovits: 语音服务（端口 9880）

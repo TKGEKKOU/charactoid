@@ -320,7 +320,7 @@ FastAPI 是业务生命周期的中心：启动时后台预热 MCP、Embedding�
 
 ### 11.2 最近一次进程清理结果
 
-已确认项目相关 FastAPI、Uvicorn、Embedding、ASR、测试服务器和 Live2D QA 进程已停止，端口 `17000`、`18765`、`18766`、`54321` 当前无监听。
+已确认项目相关 FastAPI、Uvicorn、Embedding、ASR、测试服务器和 Live2D QA 进程已停止，端口 `18000`、`18765`、`18766`、`54321` 当前无监听。
 
 Docker Compose 在此前清理检查中没有运行容器。本报告生成时再次查询 Docker API 得到命名管道访问失败，因此当前 Docker 容器状态未被二次确认；这通常表示 Docker Desktop 引擎未运行或当前会话无法访问其命名管道。
 

@@ -46,7 +46,7 @@ services:
       MINIO_ADDRESS: minio:9000
       COMMON_SECURITY_AUTHORIZATIONENABLED: "false"
     ports:
-      - "127.0.0.1:17002:19530"
+      - "127.0.0.1:18002:19530"
       - "127.0.0.1:9091:9091"
     volumes:
       - ./milvus_data/milvus:/var/lib/milvus
@@ -69,7 +69,7 @@ services:
     environment:
       MILVUS_URL: standalone:19530
     ports:
-      - "127.0.0.1:17003:3000"
+      - "127.0.0.1:18003:3000"
     depends_on:
       standalone:
         condition: service_healthy

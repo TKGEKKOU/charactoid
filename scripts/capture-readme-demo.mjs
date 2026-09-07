@@ -2,7 +2,7 @@
 import playwright from "../frontend/node_modules/playwright/index.js";
 import { mkdirSync } from "node:fs";
 const { chromium } = playwright;
-const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:17000";
+const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:18000";
 const outDir = new URL("../docs/images/", import.meta.url).pathname.replace(/^\/+([A-Z]:)/, "$1");
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, channel: "msedge" }).catch(() => chromium.launch({ headless: true }));

@@ -37,7 +37,7 @@ def test_stream_client_sends_start_and_roundtrips(monkeypatch):
     )
 
     async def fake_connect(url, **kwargs):
-        assert url == "ws://127.0.0.1:17004/ws/transcribe"
+        assert url == "ws://127.0.0.1:18004/ws/transcribe"
         return ws
 
     monkeypatch.setattr("voice.asr.stream_client.websockets.connect", fake_connect)

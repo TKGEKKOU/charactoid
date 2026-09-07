@@ -111,7 +111,7 @@ function Test-CharactoidRunning {
   $code = @'
 import httpx
 try:
-    response = httpx.get("http://127.0.0.1:17000/api/health", timeout=1, trust_env=False)
+    response = httpx.get("http://127.0.0.1:18000/api/health", timeout=1, trust_env=False)
     raise SystemExit(0 if response.is_success else 1)
 except Exception:
     raise SystemExit(1)
@@ -131,7 +131,7 @@ if ($Desktop) {
 
 Write-Host "[4/4] 启动 Web 工作台"
 if (Test-CharactoidRunning) {
-  Write-Host "     服务已在 17000 端口运行，正在打开浏览器"
+  Write-Host "     服务已在 18000 端口运行，正在打开浏览器"
   Open-CharactoidWorkbench
   exit 0
 }
@@ -143,5 +143,5 @@ if (-not $NoBrowser) {
 }
 
 Write-Host ""
-Write-Host "FastAPI 启动中，浏览器访问 http://127.0.0.1:17000/static/index.html （Ctrl+C 停止）" -ForegroundColor Green
+Write-Host "FastAPI 启动中，浏览器访问 http://127.0.0.1:18000/static/index.html （Ctrl+C 停止）" -ForegroundColor Green
 & $venvPy -B main.py

@@ -31,7 +31,7 @@ ASSET_STATUS_READY = "ready"
 ASSET_STATUS_FAILED = "failed"
 
 GPT_SOVITS_SAMPLE_RATE = 32000
-ASR_SERVICE_URL = "http://127.0.0.1:17004/transcribe"
+ASR_SERVICE_URL = "http://127.0.0.1:18004/transcribe"
 
 
 class TrainingDataInvalid(ValueError):

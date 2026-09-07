@@ -153,7 +153,7 @@ RAG 证据合同使用三种状态：`accepted`、`insufficient`、`failed`。`f
 .\.venv\Scripts\python.exe -B main.py
 ```
 
-默认地址：`http://127.0.0.1:17000/static/index.html`。
+默认地址：`http://127.0.0.1:18000/static/index.html`。
 
 聚焦回归：
 

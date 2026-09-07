@@ -6,7 +6,7 @@ import json
 import numpy as np
 import websockets
 
-WORKER_WS_URL = "ws://127.0.0.1:17004/ws/transcribe"
+WORKER_WS_URL = "ws://127.0.0.1:18004/ws/transcribe"
 
 
 class WorkerStreamError(RuntimeError):

@@ -121,7 +121,7 @@ class LauncherApi:
             "url": self.server.url,
             "port": self.settings.app_port,
             "milvus_port": milvus_port,
-            "attu_port": 17003,
+            "attu_port": 18003,
             "version": self._app_version(),
         }
 
@@ -348,9 +348,9 @@ class LauncherApi:
                 ):
                     raise RuntimeError("Milvus 启动超时，请检查 Docker 容器状态")
                 self._set_step("milvus", "ok", "Milvus 已连接")
-                self._set_step("attu", "running", "正在启动 Attu（127.0.0.1:17003）…")
+                self._set_step("attu", "running", "正在启动 Attu（127.0.0.1:18003）…")
                 attu_ready = self._wait_port(
-                    17003,
+                    18003,
                     timeout=25,
                     on_tick=lambda: self._set_step("attu", "running", self._compose_summary()),
                 )
@@ -361,7 +361,7 @@ class LauncherApi:
                     except Exception:
                         pass
                     attu_ready = self._wait_port(
-                        17003,
+                        18003,
                         timeout=40,
                         on_tick=lambda: self._set_step("attu", "running", self._compose_summary()),
                     )

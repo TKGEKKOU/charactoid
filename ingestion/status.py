@@ -21,8 +21,8 @@ from voice.gpt_sovits import GPTSoVITSAdapter, GPTSoVITSConfig
 
 _STARTED_AT = time.monotonic()
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_ASR_PORT = 17004
-_ATTU_PORT = 17003
+_ASR_PORT = 18004
+_ATTU_PORT = 18003
 
 
 def _app_version() -> str:

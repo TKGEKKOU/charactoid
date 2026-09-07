@@ -195,7 +195,7 @@ class Settings:
         return cls(
             project_root=project_root,
             app_host=get("APP_HOST", "127.0.0.1"),
-            app_port=int(get("APP_PORT", "17000")),
+            app_port=int(get("APP_PORT", "18000")),
             workspace_id="local-default",
             sqlite_path=project_root / str(get("DB_PATH", "data/charactoid.db")),
             milvus_uri=normalize_milvus_uri(

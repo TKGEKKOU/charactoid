@@ -32,7 +32,7 @@ class FakeGPTAdapter:
             "missing": [],
             "next_action": "start_service",
             "install_dir": "D:/managed/gpt_sovits",
-            "api_port": 17005,
+            "api_port": 18005,
         }
 
     def stop_service(self):

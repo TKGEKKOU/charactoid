@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_API_PORT = 17005
+DEFAULT_API_PORT = 18005
 # 固定的 Windows GPT-SoVITS v3lora 整合包下载源。普通用户无需填写 URL。
 DEFAULT_DOWNLOAD_URL = "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v3lora-20250228.7z?download=true"
 COMMON_INSTALL_HINTS = (

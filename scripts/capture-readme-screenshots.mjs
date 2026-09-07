@@ -5,7 +5,7 @@ const { chromium } = playwright;
 import { existsSync, mkdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:17000";
+const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:18000";
 const outDir = new URL("../docs/images/", import.meta.url).pathname.replace(/^\/+([A-Z]:)/, "$1");
 mkdirSync(outDir, { recursive: true });
 

@@ -11,12 +11,12 @@ from desktop.browser import (
 
 
 def test_app_url_points_at_local_workbench():
-    assert app_url(port=17000) == 'http://127.0.0.1:17000/static/index.html'
+    assert app_url(port=18000) == 'http://127.0.0.1:18000/static/index.html'
 
 
 def test_app_url_adds_setup_fragment_when_needed():
-    assert app_url(port=17000, fragment='providers') == (
-        'http://127.0.0.1:17000/static/index.html#providers'
+    assert app_url(port=18000, fragment='providers') == (
+        'http://127.0.0.1:18000/static/index.html#providers'
     )
 
 
@@ -35,7 +35,7 @@ def test_open_app_prefers_edge_and_does_not_hide_the_window():
     edge = Path(r'C:/Program Files/Microsoft/Edge/Application/msedge.exe')
     opened = []
     open_app(
-        'http://127.0.0.1:17000/static/index.html',
+        'http://127.0.0.1:18000/static/index.html',
         runner=runner,
         webbrowser_open=lambda url: opened.append(url),
         exists=lambda path: path == edge,
@@ -46,7 +46,7 @@ def test_open_app_prefers_edge_and_does_not_hide_the_window():
         },
     )
 
-    assert launched[0][0] == [str(edge), 'http://127.0.0.1:17000/static/index.html']
+    assert launched[0][0] == [str(edge), 'http://127.0.0.1:18000/static/index.html']
     assert launched[0][1].get('creationflags', 0) == 0
     assert opened == []
 
@@ -54,13 +54,13 @@ def test_open_app_prefers_edge_and_does_not_hide_the_window():
 def test_open_app_falls_back_to_default_browser():
     opened = []
     open_app(
-        'http://127.0.0.1:17000/static/index.html',
+        'http://127.0.0.1:18000/static/index.html',
         runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('no edge')),
         webbrowser_open=lambda url: opened.append(url),
         exists=lambda path: False,
         environ={},
     )
-    assert opened == ['http://127.0.0.1:17000/static/index.html']
+    assert opened == ['http://127.0.0.1:18000/static/index.html']
 
 
 def test_wait_and_open_polls_health_then_opens():
@@ -74,15 +74,15 @@ def test_wait_and_open_polls_health_then_opens():
 
     opened = []
     ok = wait_and_open(
-        port=17000,
+        port=18000,
         timeout=1,
         pause=0,
         health_get=health_get,
         opener=lambda url: opened.append(url),
     )
     assert ok is True
-    assert calls[0] == 'http://127.0.0.1:17000/api/health'
-    assert opened == ['http://127.0.0.1:17000/static/index.html']
+    assert calls[0] == 'http://127.0.0.1:18000/api/health'
+    assert opened == ['http://127.0.0.1:18000/static/index.html']
 
 
 def test_edge_candidates_cover_standard_install_locations():

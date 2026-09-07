@@ -49,7 +49,7 @@ NapCat 参考值固定为：
 - 连接角色：`Universal（全双工，API + 事件）`。
 - 心跳间隔：`30000 ms`。
 - 重连间隔：`5000 ms`。
-- URL：`ws://<CHARACTOID主机>:17000/api/onebot/ws`（HTTPS 页面使用 `wss://`）。
+- URL：`ws://<CHARACTOID主机>:18000/api/onebot/ws`（HTTPS 页面使用 `wss://`）。
 - NapCat 的鉴权 Token 必须与 CHARACTOID 保存的 OneBot Token 完全一致。
 - “上报 Bot 自身发出的消息”默认关闭，避免回复回流形成重复事件；需要调试时由用户手动开启。
 - “开启调试输出”默认关闭。

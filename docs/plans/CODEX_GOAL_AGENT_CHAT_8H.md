@@ -499,24 +499,24 @@ D:\CodePython\CHARACTOID\.venv\Scripts\python.exe -B D:\CodePython\CHARACTOID\ma
 默认页面：
 
 ```text
-http://127.0.0.1:17000/static/index.html
+http://127.0.0.1:18000/static/index.html
 ```
 
 检查端口：
 
 ```powershell
-Get-NetTCPConnection -LocalPort 17000 -State Listen
+Get-NetTCPConnection -LocalPort 18000 -State Listen
 ```
 
 停止服务：
 
 ```powershell
-$conn = Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinue
+$conn = Get-NetTCPConnection -LocalPort 18000 -State Listen -ErrorAction SilentlyContinue
 if ($conn) {
     Stop-Process -Id $conn.OwningProcess
     Write-Host "Stopped process PID:" $conn.OwningProcess
 } else {
-    Write-Host "No service is listening on port 17000"
+    Write-Host "No service is listening on port 18000"
 }
 ```
 

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from settings import Settings
 
 
-WORKER_URL = "http://127.0.0.1:17004"
+WORKER_URL = "http://127.0.0.1:18004"
 _managers: dict[Path, "LocalSTTManager"] = {}
 
 

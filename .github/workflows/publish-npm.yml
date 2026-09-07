@@ -1,0 +1,48 @@
+name: Publish npm package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    environment: npm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check package version
+        shell: bash
+        run: |
+          test -f package.json
+          node -e "const p=require('./package.json'); console.log('Publishing charactoid@'+p.version)"
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build:frontend
+
+      - name: Build npm runtime
+        run: npm run build:npm
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance

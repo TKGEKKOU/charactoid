@@ -6,8 +6,9 @@ export default defineConfig({
   lang: 'zh-CN',
   base: '/charactoid/',
   cleanUrls: true,
+  head: [['link', { rel: 'icon', href: '/charactoid/favicon.ico' }]],
   themeConfig: {
-    logo: '/logo-mark.svg',
+    logo: '/favicon.ico',
     siteTitle: 'CHARACTOID',
     socialLinks: [{ icon: 'github', link: 'https://github.com/TKGEKKOU/charactoid' }],
     search: { provider: 'local' },

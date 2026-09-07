@@ -15,6 +15,10 @@
 
 </div>
 
+<div align="center">
+  <img src="docs/images/charactoid-icon.ico" width="96" height="96" alt="CHARACTOID 图标">
+</div>
+
 CHARACTOID 是一个**本地优先的角色 Agent 工作台**。它把角色对话、工具调用、知识检索、语音能力和长任务执行组织在同一条可恢复的 Agent 链路中。
 
 与“聊天页 + 一组互相独立的设置页”不同，CHARACTOID 的对话不仅用于回答问题，也可以作为实际操作入口：用户可以直接提出“检查资源”“安装模型”“启动 GPT-SoVITS”“把资料加入知识库”或“用这段音频做 RVC 变声”，系统会根据真实状态完成检查、配置、执行和结果回收，并在对话中展示可继续操作的任务卡片。
@@ -410,4 +414,6 @@ CHARACTOID 自有代码采用 [MIT License](LICENSE)。第三方依赖、模型�
 ## 贡献
 
 欢迎提交 Issue 或 Pull Request。提交 Agent、Worker、Runtime 或架构图修改时，请同时说明影响的状态、权限、数据边界和测试命令；涉及模型和第三方代码时，请确认许可证与分发边界。
+
+
 

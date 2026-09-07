@@ -3,8 +3,7 @@ name: Publish npm package
 on:
   push:
     tags:
-      - "v*.*.*"
-  workflow_dispatch:
+      - "v*"
 
 permissions:
   contents: read
@@ -26,11 +25,18 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Check package version
+      - name: Verify release tag and package version
         shell: bash
         run: |
           test -f package.json
-          node -e "const p=require('./package.json'); console.log('Publishing charactoid@'+p.version)"
+          git_tag="${GITHUB_REF_NAME#v}"
+          package_version=$(node -p "require('./package.json').version")
+          echo "Git tag: ${GITHUB_REF_NAME}"
+          echo "Package: charactoid@${package_version}"
+          test "$git_tag" = "$package_version" || {
+            echo "Release tag and package.json version do not match." >&2
+            exit 1
+          }
 
       - name: Build frontend
         working-directory: frontend
@@ -45,7 +51,16 @@ jobs:
       - name: Upgrade npm for trusted publishing
         run: npm install --global npm@latest
 
+      - name: Select npm dist-tag
+        id: npm-tag
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [[ "$version" == *-* ]]; then
+            echo "tag=rc" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
-        run: npm publish --access public --provenance
-
-
+        run: npm publish --access public --tag "${{ steps.npm-tag.outputs.tag }}" --provenance

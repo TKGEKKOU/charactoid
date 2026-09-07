@@ -1,12 +1,19 @@
 {
-  "name": "charactoid-launcher",
-  "version": "1.0.0",
-  "private": false,
+  "name": "charactoid-cli",
+  "version": "1.0.1",
   "description": "One-command launcher for CHARACTOID",
   "bin": {
-    "charactoid": "bin/charactoid.mjs"
+    "charactoid-cli": "bin/charactoid.mjs"
   },
+  "files": [
+    "bin/charactoid.mjs"
+  ],
   "engines": {
     "node": ">=18"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TKGEKKOU/charactoid.git"
+  },
+  "license": "MIT"
 }

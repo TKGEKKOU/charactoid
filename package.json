@@ -19,9 +19,10 @@
   "homepage": "https://github.com/TKGEKKOU/charactoid",
   "license": "MIT",
   "scripts": {
-    "build:npm": "powershell -ExecutionPolicy Bypass -File scripts/build-npm-runtime.ps1",
+    "build:npm": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-npm-runtime.ps1",
     "pack:npm": "npm run build:npm && npm pack --dry-run",
     "release:npm": "npm run build:npm && npm publish",
     "release:npm:patch": "npm version patch --no-git-tag-version && npm run release:npm"
   }
 }
+

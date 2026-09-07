@@ -1,9 +1,13 @@
 name: Publish npm package
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "确认发布当前 package.json 中的版本到 npm"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,19 +29,25 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Verify release tag and package version
+      - name: Verify manual release request
         shell: bash
+        env:
+          CONFIRM_RELEASE: ${{ inputs.confirm }}
         run: |
-          test -f package.json
-          git_tag="${GITHUB_REF_NAME#v}"
-          package_version=$(node -p "require('./package.json').version")
-          echo "Git tag: ${GITHUB_REF_NAME}"
-          package_name=$(node -p "require('./package.json').name")
-          echo "Package: ${package_name}@${package_version}"
-          test "$git_tag" = "$package_version" || {
-            echo "Release tag and package.json version do not match." >&2
+          test "$CONFIRM_RELEASE" = "true" || {
+            echo "Publishing was not confirmed. Nothing was published." >&2
             exit 1
           }
+          test -f package.json
+          package_name=$(node -p "require('./package.json').name")
+          package_version=$(node -p "require('./package.json').version")
+          echo "Package: ${package_name}@${package_version}"
+          echo "Source ref: ${GITHUB_REF_NAME}"
+
+          if npm view "${package_name}@${package_version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "${package_name}@${package_version} already exists on npm. Change package.json before publishing again." >&2
+            exit 1
+          fi
 
       - name: Build frontend
         working-directory: frontend

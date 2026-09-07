@@ -1,0 +1,12 @@
+{
+  "name": "charactoid-launcher",
+  "version": "1.0.0",
+  "private": false,
+  "description": "One-command launcher for CHARACTOID",
+  "bin": {
+    "charactoid": "bin/charactoid.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

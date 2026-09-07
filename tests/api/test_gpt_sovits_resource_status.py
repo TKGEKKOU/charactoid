@@ -42,7 +42,7 @@ class FakeGPTAdapter:
 def test_gpt_sovits_resource_status_is_standardized(client):
     client.app.state.gpt_sovits_install = FakeGPTInstall()
     client.app.state.gpt_sovits = FakeGPTAdapter()
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
 
     status_response = client.get("/api/resources/gpt_sovits/status", headers=headers)
     assert status_response.status_code == 200

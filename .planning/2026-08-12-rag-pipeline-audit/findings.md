@@ -9,7 +9,7 @@
 
 ## Project History Check
 - `.planning/2026-08-10-enterprise-agent-rag` and `.planning/2026-08-11-agent-rag-search-routing` exist, but standard `task_plan.md`, `findings.md`, and `progress.md` files were absent when checked.
-- External memory registry had no YUMENO/RAG project hit; current source is the authority.
+- External memory registry had no CHARACTOID/RAG project hit; current source is the authority.
 
 ## Initial Source Map
 - `ingestion/milvus_store.py` defines dense HNSW and BM25 sparse indexes; retrieval fuses the two channels with RRF.

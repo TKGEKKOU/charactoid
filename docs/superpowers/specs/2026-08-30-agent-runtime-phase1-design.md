@@ -5,7 +5,7 @@
 
 ## 1. 目标
 
-把 YUMENO 当前已经存在的 Supervisor、Worker、HITL、checkpoint、Tool 能力和请求级观测，收敛为一个统一、可恢复、可查询、可审计的 Agent Runtime 基础层。第一阶段不更换 LangGraph，不引入第二套 Agent 编排框架，不重写声音、RAG 或渠道业务。
+把 CHARACTOID 当前已经存在的 Supervisor、Worker、HITL、checkpoint、Tool 能力和请求级观测，收敛为一个统一、可恢复、可查询、可审计的 Agent Runtime 基础层。第一阶段不更换 LangGraph，不引入第二套 Agent 编排框架，不重写声音、RAG 或渠道业务。
 
 完成后，一次复杂请求应能被视为一个 `AgentRun`：有稳定的 `run_id`、状态、事件、结果、错误和确认点；服务重启或人工确认后可以从已有 checkpoint 继续，而不是依赖某个路由器或前端轮询的隐式状态。
 
@@ -274,7 +274,7 @@ runtime_failed
 - 不在第一阶段实现分布式 Redis/Celery/RQ 队列。
 - 不默认开放公网访问。
 - 不把完整 prompt、隐藏推理、API Key 或模型权重写入 RunEvent。
-- 不修改 YUMENO 的 Supervisor-centric 拓扑为平级群聊。
+- 不修改 CHARACTOID 的 Supervisor-centric 拓扑为平级群聊。
 
 ## 12. 后续阶段接口预留
 

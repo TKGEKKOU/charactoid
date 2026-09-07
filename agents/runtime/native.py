@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""YUMENO 内置 Agent Runtime 的执行生命周期原语。
+"""CHARACTOID 内置 Agent Runtime 的执行生命周期原语。
 
 这里吸收 Harness 的 Session/Job/Event/Cancel/Resume 抽象，但不依赖外部
 源码、Node runtime 或额外可执行文件。业务仍由现有 Core/Supervisor/Worker

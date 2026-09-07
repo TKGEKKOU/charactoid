@@ -117,7 +117,7 @@ def run_benchmark(
         root, table.physical_name
     )
 
-    context_messages = [SystemMessage(content="YUMENO")]
+    context_messages = [SystemMessage(content="CHARACTOID")]
     for index in range(50):
         call_id = f"benchmark-{index}"
         context_messages.extend(

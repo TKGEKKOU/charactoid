@@ -13,7 +13,7 @@ from typing import Callable
 from urllib.parse import urlparse
 
 
-DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/TKGEKKOU/yumeno/main/catalog/extension-catalog.json"
+DEFAULT_CATALOG_URL = "https://raw.githubusercontent.com/TKGEKKOU/charactoid/main/catalog/extension-catalog.json"
 CATALOG_SCHEMA_VERSION = 1
 MAX_CATALOG_BYTES = 2 * 1024 * 1024
 _ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -170,14 +170,14 @@ class CatalogClient:
         fetcher: Callable[[str], bytes] | None = None,
     ) -> None:
         self.project_root = Path(project_root)
-        self.url = url or os.environ.get("YUMENO_EXTENSION_CATALOG_URL", DEFAULT_CATALOG_URL)
+        self.url = url or os.environ.get("CHARACTOID_EXTENSION_CATALOG_URL", DEFAULT_CATALOG_URL)
         self.cache_path = self.project_root / "data" / "cache" / "extensions" / "catalog.json"
         self.fetcher = fetcher or self._download
 
     @staticmethod
     def _download(url: str) -> bytes:
         _https(url, "目录 URL")
-        request = urllib.request.Request(url, headers={"User-Agent": "YUMENO"})
+        request = urllib.request.Request(url, headers={"User-Agent": "CHARACTOID"})
         with urllib.request.urlopen(request, timeout=30) as response:
             data = response.read(MAX_CATALOG_BYTES + 1)
         if len(data) > MAX_CATALOG_BYTES:

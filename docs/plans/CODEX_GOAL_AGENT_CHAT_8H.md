@@ -7,12 +7,12 @@
 你正在维护本地项目：
 
 ```text
-D:\CodePython\YUMENO
+D:\CodePython\CHARACTOID
 ```
 
 ## 一、最终目标
 
-将 YUMENO 完善为一个**以对话为首要入口、以结构化工具和专项 Agent 执行复杂工作流**的本地多智能体系统。用户应当主要通过对话，并在必要时上传文本、文档、图片、音频、视频或其他受支持文件，即可完成系统现有工作流，而不需要理解内部接口、手动填写路径或在多个页面之间反复搬运数据。
+将 CHARACTOID 完善为一个**以对话为首要入口、以结构化工具和专项 Agent 执行复杂工作流**的本地多智能体系统。用户应当主要通过对话，并在必要时上传文本、文档、图片、音频、视频或其他受支持文件，即可完成系统现有工作流，而不需要理解内部接口、手动填写路径或在多个页面之间反复搬运数据。
 
 最终交互原则：
 
@@ -41,7 +41,7 @@ D:\CodePython\YUMENO
 
 ### GPT-SoVITS
 
-GPT-SoVITS 是 YUMENO 的主声音系统，继续负责：
+GPT-SoVITS 是 CHARACTOID 的主声音系统，继续负责：
 
 - 角色对话语音；
 - TTS；
@@ -72,7 +72,7 @@ RVC 不负责训练，不参与角色默认音色，不作为 TTS 回退，不�
 模型：D:\Music\RVC\HatsuneMiku\HatsuneMiku_pth.pth
 Index：D:\Music\RVC\HatsuneMiku\HatsuneMiku_index.index
 输入：D:\Music\提取\小小恋歌\小さな恋のうた(Vocals).wav
-已保留输出：D:\CodePython\YUMENO\data\voice\rvc\tasks\1e0111969cb9\output.wav
+已保留输出：D:\CodePython\CHARACTOID\data\voice\rvc\tasks\1e0111969cb9\output.wav
 ```
 
 禁止删除上述用户资源和已保留输出。
@@ -151,7 +151,7 @@ static/js/rvc-studio.js
 
 ## 五、阶段 B：对话页文件上传与预览
 
-参考成熟对话产品的交互，但保持 YUMENO 现有视觉语言。上传区域至少支持：
+参考成熟对话产品的交互，但保持 CHARACTOID 现有视觉语言。上传区域至少支持：
 
 ### 文档与通用文件
 
@@ -218,7 +218,7 @@ static/js/rvc-studio.js
 要求：
 
 - API、Agent 和 Worker 之间传递 `file_id`，不传用户提供的任意路径；
-- 文件解析必须限制在 YUMENO 受管目录；
+- 文件解析必须限制在 CHARACTOID 受管目录；
 - 防止 `..`、绝对路径注入、符号链接逃逸和任意文件读取；
 - 文件下载与 `<audio>/<video>/<img>` 预览应能在浏览器工作，不依赖媒体标签无法携带的自定义请求头；
 - 同时保留本地访问限制、会话归属校验和文件 ID 校验；
@@ -483,9 +483,9 @@ timed_out
 根据实际代码调整，但至少运行相关集合：
 
 ```powershell
-D:\CodePython\YUMENO\.venv\Scripts\python.exe -m py_compile <修改过的 Python 文件>
+D:\CodePython\CHARACTOID\.venv\Scripts\python.exe -m py_compile <修改过的 Python 文件>
 node --check <修改过的原生 JS 文件>
-D:\CodePython\YUMENO\.venv\Scripts\python.exe -m pytest -q <相关测试>
+D:\CodePython\CHARACTOID\.venv\Scripts\python.exe -m pytest -q <相关测试>
 npm run typecheck
 npm run build:frontend
 ```
@@ -493,7 +493,7 @@ npm run build:frontend
 FastAPI 启动入口：
 
 ```powershell
-D:\CodePython\YUMENO\.venv\Scripts\python.exe -B D:\CodePython\YUMENO\main.py
+D:\CodePython\CHARACTOID\.venv\Scripts\python.exe -B D:\CodePython\CHARACTOID\main.py
 ```
 
 默认页面：

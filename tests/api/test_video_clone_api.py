@@ -37,14 +37,14 @@ def test_from_video_creates_task_and_reports_status(client, tmp_path, monkeypatc
     response = client.post(
         f"/api/tts/personas/{persona['id']}/reference/from-video",
         files={"video": ("clip.mp4", b"fake-video-bytes", "video/mp4")},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 202
     body = response.json()
     assert body["task_id"] == "task-1"
     assert "clone-tasks" in body["status_url"]
 
-    status = client.get("/api/tts/clone-tasks/task-1", headers={"X-YUMENO-Request": "web"})
+    status = client.get("/api/tts/clone-tasks/task-1", headers={"X-CHARACTOID-Request": "web"})
     assert status.status_code == 200
     assert status.json()["state"] == "running"
 
@@ -54,7 +54,7 @@ def test_from_video_rejects_unsupported_extension(client):
     response = client.post(
         f"/api/tts/personas/{persona['id']}/reference/from-video",
         files={"video": ("clip.txt", b"nope", "text/plain")},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 415
 
@@ -71,7 +71,7 @@ def test_task_status_reports_failure(client, monkeypatch):
             }
 
     client.app.state.clone_tasks = FakeManager()
-    status = client.get("/api/tts/clone-tasks/task-9", headers={"X-YUMENO-Request": "web"})
+    status = client.get("/api/tts/clone-tasks/task-9", headers={"X-CHARACTOID-Request": "web"})
     assert status.status_code == 200
     assert status.json()["state"] == "failed"
     assert status.json()["error"] == "人声分离模型未安装"
@@ -83,11 +83,11 @@ def test_separator_status_and_install_roundtrip(client, tmp_path, monkeypatch):
     manager = SeparatorResourceManager(tmp_path)
     client.app.state.separator_resources = manager
 
-    status = client.get("/api/tts/separator/status", headers={"X-YUMENO-Request": "web"})
+    status = client.get("/api/tts/separator/status", headers={"X-CHARACTOID-Request": "web"})
     assert status.status_code == 200
     assert status.json()["installed"] is False
 
-    installed = client.post("/api/tts/separator/install", headers={"X-YUMENO-Request": "web"})
+    installed = client.post("/api/tts/separator/install", headers={"X-CHARACTOID-Request": "web"})
     assert installed.status_code == 202
     assert installed.json()["installing"] is True
 

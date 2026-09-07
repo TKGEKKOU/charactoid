@@ -25,7 +25,7 @@ def _metadata(db_path: Path) -> list[dict]:
     try:
         rows = connection.execute(
             "SELECT physical_name, document_id, display_name, schema_json, row_count "
-            "FROM _yumeno_datasets ORDER BY display_name, physical_name"
+            "FROM _charactoid_datasets ORDER BY display_name, physical_name"
         ).fetchall()
         return [
             {

@@ -47,7 +47,7 @@ export async function listLive2dModels(): Promise<Live2dModel[]> {
 export async function openLive2dModelDirectory(): Promise<void> {
   await fetchJson("/api/live2d/model-directory", {
     method: "POST",
-    headers: { "X-YUMENO-Request": "web" },
+    headers: { "X-CHARACTOID-Request": "web" },
   });
 }
 
@@ -121,7 +121,7 @@ export async function synthesizeVoicePreview(assetId: string, language: string):
   };
   const response = await fetch(`/api/voice-assets/${encodeURIComponent(assetId)}/synthesize`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+    headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
     body: JSON.stringify({ text: samples[language] || samples.auto, text_lang: language || "auto" }),
   });
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail || "试听失败");

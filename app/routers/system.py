@@ -109,7 +109,7 @@ def shutdown(
     payload: ShutdownPayload = Body(default=ShutdownPayload()),
     request: Request = ...,
 ) -> dict:
-    """仅本机可用：延迟退出当前 YUMENO 进程（桌面版连同窗口一起退出）。
+    """仅本机可用：延迟退出当前 CHARACTOID 进程（桌面版连同窗口一起退出）。
     stop_docker=True 时先执行 docker compose stop（暂停容器、不删除）再退出。"""
     require_local(request)
 
@@ -133,5 +133,5 @@ def shutdown(
                 pass
         os._exit(0)
 
-    threading.Thread(target=stop, daemon=True, name="yumeno-shutdown").start()
+    threading.Thread(target=stop, daemon=True, name="charactoid-shutdown").start()
     return {"status": "stopping"}

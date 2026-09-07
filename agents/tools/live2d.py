@@ -37,7 +37,7 @@ def get_live2d_vts_config(runtime: ToolRuntime[PersonaAgentContext]) -> dict[str
         "url": VTS_URL,
         "host": "127.0.0.1",
         "port": 8001,
-        "plugin_name": "YUMENO",
+        "plugin_name": "CHARACTOID",
         "protocol": "VTubeStudioPublicAPI 1.0",
     }
 

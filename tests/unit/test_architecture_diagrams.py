@@ -12,9 +12,9 @@ ROOT = Path(__file__).resolve().parents[2]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 DIAGRAM_README = (ROOT / "diagrams" / "README.md").read_text(encoding="utf-8")
 DIAGRAM_STEMS = (
-    "yumeno-system-context",
-    "yumeno-multi-agent",
-    "yumeno-rvc-workflow",
+    "charactoid-system-context",
+    "charactoid-multi-agent",
+    "charactoid-rvc-workflow",
 )
 README_STEMS = DIAGRAM_STEMS
 
@@ -35,7 +35,7 @@ def test_parent_mermaid_covers_compiled_nodes():
 
 
 def test_checked_in_parent_mmd_matches_generator():
-    assert parent_graph_mermaid().strip() == _mmd("yumeno-multi-agent")
+    assert parent_graph_mermaid().strip() == _mmd("charactoid-multi-agent")
 
 
 def test_readme_and_diagram_index_have_expected_layers():

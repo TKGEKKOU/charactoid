@@ -2,8 +2,8 @@
 
 /* VTube Studio Public API client. */
 window.PLVTS = (function () {
-  const LS_TOKEN = "yumeno:vts:token";
-  const LS_URL = "yumeno:vts:url";
+  const LS_TOKEN = "charactoid:vts:token";
+  const LS_URL = "charactoid:vts:url";
   const DEFAULT_URL = "ws://127.0.0.1:8001";
   const LEGACY_DEFAULT_URL = "ws://127.0.0.1:8001/api";
   const SEND_INTERVAL_MS = 66;
@@ -93,11 +93,11 @@ window.PLVTS = (function () {
 
     _authenticate() {
       if (this.token) {
-        this._request("AuthenticationRequest", { pluginName: "YUMENO", pluginDeveloper: "YUMENO", authenticationToken: this.token });
+        this._request("AuthenticationRequest", { pluginName: "CHARACTOID", pluginDeveloper: "CHARACTOID", authenticationToken: this.token });
         this._emitStatus("auth", "正在验证 VTube Studio 授权...");
       } else {
-        this._request("AuthenticationTokenRequest", { pluginName: "YUMENO", pluginDeveloper: "YUMENO" });
-        this._emitStatus("auth", "请在 VTube Studio 中允许 YUMENO 插件");
+        this._request("AuthenticationTokenRequest", { pluginName: "CHARACTOID", pluginDeveloper: "CHARACTOID" });
+        this._emitStatus("auth", "请在 VTube Studio 中允许 CHARACTOID 插件");
       }
     }
 
@@ -108,7 +108,7 @@ window.PLVTS = (function () {
         const token = message.data && message.data.authenticationToken;
         if (!token) { this._fail("VTube Studio 未返回授权令牌"); return; }
         this.token = token;
-        this._request("AuthenticationRequest", { pluginName: "YUMENO", pluginDeveloper: "YUMENO", authenticationToken: token });
+        this._request("AuthenticationRequest", { pluginName: "CHARACTOID", pluginDeveloper: "CHARACTOID", authenticationToken: token });
         this._emitStatus("auth", "已获得授权，正在验证...");
         return;
       }
@@ -121,7 +121,7 @@ window.PLVTS = (function () {
       this.connected = Boolean(data.authenticated);
       this.authenticated = this.connected;
       if (!this.token && data.authenticationToken) this.token = data.authenticationToken;
-      if (this.connected) this._emitStatus("ok", "已连接，YUMENO 正在自主驱动角色");
+      if (this.connected) this._emitStatus("ok", "已连接，CHARACTOID 正在自主驱动角色");
       else this._fail("授权失败：" + (data.reason || "请在 VTube Studio 中接受授权"));
     }
 
@@ -171,7 +171,7 @@ window.PLVTS = (function () {
     _emitStatus(level, message) {
       this.status = level; this.lastMessage = message || "";
       if (level === "error") this.lastError = message || "";
-      document.dispatchEvent(new CustomEvent("yumeno:live2d", { detail: { type: "vts", level, message } }));
+      document.dispatchEvent(new CustomEvent("charactoid:live2d", { detail: { type: "vts", level, message } }));
     }
   }
 

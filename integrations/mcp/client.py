@@ -138,7 +138,7 @@ def _make_sync_tool(
 ) -> BaseTool:
     """把仅支持异步调用的 MCP 工具包装为可在同步 Agent 链路中调用。
 
-    YUMENO 的 workflow 是同步 invoke，并在工作线程（anyio.to_thread /
+    CHARACTOID 的 workflow 是同步 invoke，并在工作线程（anyio.to_thread /
     FastAPI 同步端点）中执行，线程内没有运行中的事件循环，因此可以安全地
     用 asyncio.run 桥接异步工具；工具 schema 与 metadata 保持原样。
     """
@@ -172,7 +172,7 @@ class MCPRuntime:
     """Own persistent MCP sessions on a dedicated asyncio event loop.
 
     MCP transports own sockets and stdio subprocesses which must remain on the
-    event loop where they were created.  The rest of YUMENO still exposes
+    event loop where they were created.  The rest of CHARACTOID still exposes
     synchronous LangChain tools, so this small bridge gives both sides a
     single lifecycle and avoids creating a fresh process for every tool call.
     """
@@ -201,7 +201,7 @@ class MCPRuntime:
                 self._startup_error = None
                 thread = threading.Thread(
                     target=self._thread_main,
-                    name="yumeno-mcp-runtime",
+                    name="charactoid-mcp-runtime",
                     daemon=True,
                 )
                 self._thread = thread
@@ -285,7 +285,7 @@ class MCPRuntime:
                         if not command.future.done():
                             command.future.cancel()
 
-        owner_task = loop.create_task(owner(), name="yumeno-mcp-owner")
+        owner_task = loop.create_task(owner(), name="charactoid-mcp-owner")
         with self._lock:
             self._owner_task = owner_task
 

@@ -2,7 +2,7 @@
 
 ## 目标
 
-在 YUMENO 侧边栏“接入”下方新增独立的“NapCat”页面，为外部独立运行的 NapCatQQ 提供轻量 OneBot 11 连接控制台。YUMENO 不安装、启动、停止或更新 NapCatQQ。
+在 CHARACTOID 侧边栏“接入”下方新增独立的“NapCat”页面，为外部独立运行的 NapCatQQ 提供轻量 OneBot 11 连接控制台。CHARACTOID 不安装、启动、停止或更新 NapCatQQ。
 
 ## 范围
 
@@ -39,7 +39,7 @@
 1. 顶部状态栏：启用状态、连接状态、客户端数量、最近事件。
 2. 连接地址：当前页面来源推导的反向 WebSocket URL与复制按钮。
 3. 接入配置：启用、Token、默认角色、群聊触发方式和前缀。
-4. 连接检查与 NapCat 填写参考：逐项反馈 YUMENO、OneBot 和 NapCat 状态。
+4. 连接检查与 NapCat 填写参考：逐项反馈 CHARACTOID、OneBot 和 NapCat 状态。
 5. 发信台：选择私聊/群聊目标，发送文字、语音或文字加语音。
 
 NapCat 参考值固定为：
@@ -49,8 +49,8 @@ NapCat 参考值固定为：
 - 连接角色：`Universal（全双工，API + 事件）`。
 - 心跳间隔：`30000 ms`。
 - 重连间隔：`5000 ms`。
-- URL：`ws://<YUMENO主机>:17000/api/onebot/ws`（HTTPS 页面使用 `wss://`）。
-- NapCat 的鉴权 Token 必须与 YUMENO 保存的 OneBot Token 完全一致。
+- URL：`ws://<CHARACTOID主机>:17000/api/onebot/ws`（HTTPS 页面使用 `wss://`）。
+- NapCat 的鉴权 Token 必须与 CHARACTOID 保存的 OneBot Token 完全一致。
 - “上报 Bot 自身发出的消息”默认关闭，避免回复回流形成重复事件；需要调试时由用户手动开启。
 - “开启调试输出”默认关闭。
 
@@ -59,7 +59,7 @@ NapCat 参考值固定为：
 发信台只在 OneBot 客户端已连接时启用。目标列表通过 OneBot API 请求获取并按私聊/群聊分组；没有目标或 API 不支持时保留手动填写 ID 的降级入口。
 
 - 文本发送调用 `send_private_msg` 或 `send_group_msg`。
-- 语音发送使用 `record` 消息段，语音文件由 YUMENO 的现有 TTS 生成器产生。
+- 语音发送使用 `record` 消息段，语音文件由 CHARACTOID 的现有 TTS 生成器产生。
 - “文字 + 语音”先发送文字，语音生成成功后再发送语音；语音失败不撤回文字，并在发送记录中显示原因。
 - 自动回复和手动发送共用发送锁，保证同一目标的消息顺序；不同目标可以并行。
 - 自动回复默认发送文字和语音，两个开关都可单独关闭。
@@ -91,7 +91,7 @@ NapCat 参考值固定为：
 - 页面提供独立“清除 Token”动作，并要求用户确认。
 - 反向 WebSocket 地址默认使用当前网页主机与端口，协议随 HTTP/HTTPS 切换为 WS/WSS。
 - 页面说明 Token 留空只适合本机测试；跨设备或公网连接必须配置 Token。
-- YUMENO 继续接受 `Authorization: Bearer <token>` 或查询参数 `access_token`，兼容 NapCat 配置能力。
+- CHARACTOID 继续接受 `Authorization: Bearer <token>` 或查询参数 `access_token`，兼容 NapCat 配置能力。
 
 ## 后端接口
 
@@ -112,10 +112,10 @@ NapCat 参考值固定为：
 - 保存成功后显示短暂、明确的成功反馈，并立即刷新状态。
 - 保存失败保留用户尚未提交的表单值。
 - 复制失败时提示用户手动复制，不静默失败。
-- NapCat 断开时状态从“已连接”回到“等待连接”，不显示为 YUMENO 故障。
+- NapCat 断开时状态从“已连接”回到“等待连接”，不显示为 CHARACTOID 故障。
 - OneBot 被禁用时，页面不把“没有连接”显示成异常。
 - Token 不匹配导致的 WebSocket 拒绝应记录为最近错误，但不能记录 Token 内容。
-- 用户若曾把 Token 截图或粘贴到外部渠道，应立即在 NapCat 与 YUMENO 两端同时更换；文档、日志和页面均不得展示 Token 明文。
+- 用户若曾把 Token 截图或粘贴到外部渠道，应立即在 NapCat 与 CHARACTOID 两端同时更换；文档、日志和页面均不得展示 Token 明文。
 
 ## 测试
 

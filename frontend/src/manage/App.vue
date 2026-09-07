@@ -75,15 +75,15 @@ async function previewLocalFile(file: File) {
 }
 function beforeUnload(event: BeforeUnloadEvent) { if (!workbench.isDirty.value) return; event.preventDefault(); event.returnValue = ""; }
 function selectRequestedNode(event?: Event) {
-  const requested = (event as CustomEvent<{ nodeId?: string }> | undefined)?.detail?.nodeId || sessionStorage.getItem("yumeno.manage.node");
+  const requested = (event as CustomEvent<{ nodeId?: string }> | undefined)?.detail?.nodeId || sessionStorage.getItem("charactoid.manage.node");
   if (!requested) return;
-  sessionStorage.removeItem("yumeno.manage.node");
+  sessionStorage.removeItem("charactoid.manage.node");
   workbench.selectNode(requested);
 }
 async function onManageShow() { await workbench.refreshIfClean(); selectRequestedNode(); }
 watch(() => workbench.selectedPersonaId.value, () => { versionPanelOpen.value = false; });
-onMounted(async () => { await workbench.initialize(); selectRequestedNode(); window.addEventListener("beforeunload", beforeUnload); document.querySelector("#role-workbench-root")?.addEventListener("yumeno:manage-show", onManageShow); document.addEventListener("yumeno:manage-select-node", selectRequestedNode); document.querySelector("#close-preview")?.addEventListener("click", closePreview); document.querySelector("#preview-backdrop")?.addEventListener("click", closePreview); });
-onBeforeUnmount(() => { window.removeEventListener("beforeunload", beforeUnload); document.querySelector("#role-workbench-root")?.removeEventListener("yumeno:manage-show", onManageShow); document.removeEventListener("yumeno:manage-select-node", selectRequestedNode); document.querySelector("#close-preview")?.removeEventListener("click", closePreview); document.querySelector("#preview-backdrop")?.removeEventListener("click", closePreview); });
+onMounted(async () => { await workbench.initialize(); selectRequestedNode(); window.addEventListener("beforeunload", beforeUnload); document.querySelector("#role-workbench-root")?.addEventListener("charactoid:manage-show", onManageShow); document.addEventListener("charactoid:manage-select-node", selectRequestedNode); document.querySelector("#close-preview")?.addEventListener("click", closePreview); document.querySelector("#preview-backdrop")?.addEventListener("click", closePreview); });
+onBeforeUnmount(() => { window.removeEventListener("beforeunload", beforeUnload); document.querySelector("#role-workbench-root")?.removeEventListener("charactoid:manage-show", onManageShow); document.removeEventListener("charactoid:manage-select-node", selectRequestedNode); document.querySelector("#close-preview")?.removeEventListener("click", closePreview); document.querySelector("#preview-backdrop")?.removeEventListener("click", closePreview); });
 </script>
 
 <template>

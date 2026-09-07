@@ -33,7 +33,7 @@ class BailianReranker:
     Supports both Bailian's compatible ``/reranks`` API and the native
     ``/api/v1/services/rerank/text-rerank/text-rerank`` API.  ``score_pairs``
     returns scores in the same order as the input documents, which is the
-    contract expected by YUMENO's RAG pipeline.
+    contract expected by CHARACTOID's RAG pipeline.
     """
 
     COMPATIBLE_SUFFIXES = ("/compatible-api/v1/reranks", "/compatible-mode/v1/reranks")

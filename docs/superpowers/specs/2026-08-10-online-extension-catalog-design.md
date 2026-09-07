@@ -175,7 +175,7 @@ POST /api/extensions/catalog/refresh
 5. 写入 `data/mcp_servers.json`，调用现有 reload/test 流程。
 6. 连接成功后显示工具清单；失败时恢复旧配置。
 
-MCP 包的首次依赖下载由声明的运行时完成，不由 YUMENO 执行任意 pip/npm shell 命令。命令仍必须通过现有 stdio 安全策略。
+MCP 包的首次依赖下载由声明的运行时完成，不由 CHARACTOID 执行任意 pip/npm shell 命令。命令仍必须通过现有 stdio 安全策略。
 
 ## 前端设计
 

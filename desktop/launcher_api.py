@@ -168,7 +168,7 @@ class LauncherApi:
         self._start_result = None
         self._browser_opened = False
         self._start_thread = threading.Thread(
-            target=self._start_worker, daemon=True, name="yumeno-start"
+            target=self._start_worker, daemon=True, name="charactoid-start"
         )
         self._start_thread.start()
         return {"ok": True, "starting": True}
@@ -288,10 +288,10 @@ class LauncherApi:
             if result.returncode != 0 or not result.stdout.strip():
                 return "容器状态读取中…"
             names = {
-                "yumeno-etcd": "etcd",
-                "yumeno-minio": "MinIO",
-                "yumeno-milvus": "Milvus",
-                "yumeno-attu": "Attu",
+                "charactoid-etcd": "etcd",
+                "charactoid-minio": "MinIO",
+                "charactoid-milvus": "Milvus",
+                "charactoid-attu": "Attu",
             }
             parts = []
             for line in result.stdout.strip().splitlines():

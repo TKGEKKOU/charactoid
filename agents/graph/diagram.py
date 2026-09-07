@@ -32,7 +32,7 @@ def parent_graph_mermaid() -> str:
     """
 
     lines = [
-        "%% YUMENO Supervisor-centric 父图（与 build_persona_workflow 对齐）",
+        "%% CHARACTOID Supervisor-centric 父图（与 build_persona_workflow 对齐）",
         "flowchart TD",
         "  START([START]) --> S[persona_supervisor\nCore + Supervisor]",
         "  S -->|普通对话 / 已有答案| END([END])",

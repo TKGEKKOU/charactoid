@@ -30,8 +30,8 @@ function feedback(message, error = false) {
 
 function headers(json = false) {
   return json
-    ? { "Content-Type": "application/json", "X-YUMENO-Request": "web" }
-    : { "X-YUMENO-Request": "web" };
+    ? { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }
+    : { "X-CHARACTOID-Request": "web" };
 }
 
 function selectedTarget() {
@@ -298,7 +298,7 @@ async function clearToken() {
 }
 
 async function disconnect() {
-  if (!window.confirm("关闭 YUMENO 与 NapCat 的连接吗？NapCat 若开启自动重连，可能继续出现连接拒绝记录。")) return;
+  if (!window.confirm("关闭 CHARACTOID 与 NapCat 的连接吗？NapCat 若开启自动重连，可能继续出现连接拒绝记录。")) return;
   const button = el("napcat-disconnect");
   button.disabled = true;
   try {

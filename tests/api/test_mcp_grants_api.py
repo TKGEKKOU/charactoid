@@ -23,7 +23,7 @@ def test_grants_patch_updates_config_and_grants(client, tmp_path, monkeypatch):
     response = client.patch(
         "/api/mcp/servers/filesystem/grants",
         json={"allowed_persona_ids": ["persona-a"]},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 200
     assert response.json()["allowed_persona_ids"] == ["persona-a"]

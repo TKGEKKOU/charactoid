@@ -78,9 +78,9 @@ def test_requirements_file_prefers_explicit_device_and_available_variant(tmp_pat
     cpu.write_text("cpu", encoding="utf-8")
     cu.write_text("cuda", encoding="utf-8")
     manager = RVCResourceManager(tmp_path, source)
-    monkeypatch.setenv("YUMENO_RVC_DEVICE", "cuda")
+    monkeypatch.setenv("CHARACTOID_RVC_DEVICE", "cuda")
     assert manager.requirements_file() == cu
-    monkeypatch.setenv("YUMENO_RVC_DEVICE", "cpu")
+    monkeypatch.setenv("CHARACTOID_RVC_DEVICE", "cpu")
     assert manager.requirements_file() == cpu
 
 
@@ -139,7 +139,7 @@ def test_status_does_not_claim_runtime_ready_when_dependencies_were_not_verified
     assert "runtime" in status["missing"]
 
 def test_bundled_core_does_not_require_external_source(tmp_path, monkeypatch):
-    monkeypatch.delenv("YUMENO_RVC_SOURCE_DIR", raising=False)
+    monkeypatch.delenv("CHARACTOID_RVC_SOURCE_DIR", raising=False)
     core_cli = tmp_path / "voice" / "rvc" / "vendor" / "infer" / "cli.py"
     core_cli.parent.mkdir(parents=True)
     core_cli.write_text("# bundled core", encoding="utf-8")

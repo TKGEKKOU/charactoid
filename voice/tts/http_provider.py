@@ -1,6 +1,6 @@
 """HTTP TTS runtimes inspired by AstrBot's provider adapters.
 
-Adapters are intentionally YUMENO-native: they return WAV bytes so the existing
+Adapters are intentionally CHARACTOID-native: they return WAV bytes so the existing
 conversation/audio persistence pipeline can remain unchanged.
 """
 from __future__ import annotations

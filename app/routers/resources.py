@@ -64,7 +64,7 @@ def _gpt_sovits_status(request: Request) -> dict[str, Any]:
     adapter = getattr(request.app.state, "gpt_sovits", None)
     service = _status(adapter) if adapter is not None else {}
     # The adapter probes the configured installation (which may be external),
-    # while the installer probes only YUMENO's managed directory. If no external
+    # while the installer probes only CHARACTOID's managed directory. If no external
     # installation is configured, the managed installation remains authoritative.
     configured = bool(service.get("configured", False)) if adapter is not None else bool(
         installation.get("external_configured", False)
@@ -239,8 +239,8 @@ def _install(request: Request, provider_id: str, payload: dict[str, Any] | None 
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return _sync_task(request, row)
 
-def install(request: Request, provider_id: str, x_yumeno_request: str, payload: dict[str, Any] | None = None):
-    _guard(request, x_yumeno_request)
+def install(request: Request, provider_id: str, x_charactoid_request: str, payload: dict[str, Any] | None = None):
+    _guard(request, x_charactoid_request)
     return _install(request, provider_id, payload)
 
 @router.post("/{provider_id}/install", status_code=202)
@@ -248,24 +248,24 @@ def install_resource(
     provider_id: str,
     request: Request,
     payload: dict[str, Any] | None = Body(default=None),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
     """统一资源安装入口；旧的 /api/providers/resources 路径继续兼容。"""
-    _guard(request, x_yumeno_request)
+    _guard(request, x_charactoid_request)
     return _install(request, provider_id, payload)
 
 
 @router.get("/tasks")
-def list_tasks(request: Request, x_yumeno_request: str = Header(default=""), limit: int = 30):
-    _guard(request, x_yumeno_request)
+def list_tasks(request: Request, x_charactoid_request: str = Header(default=""), limit: int = 30):
+    _guard(request, x_charactoid_request)
     with request.app.state.session_factory() as session:
         rows = session.scalars(select(ProviderDownloadTask).order_by(ProviderDownloadTask.created_at.desc()).limit(max(1, min(limit, 100)))).all()
     return {"items": [_sync_task(request, row) for row in rows]}
 
 @router.delete("/tasks", status_code=200)
-def clear_finished_tasks(request: Request, finished: bool = False, x_yumeno_request: str = Header(default="")):
+def clear_finished_tasks(request: Request, finished: bool = False, x_charactoid_request: str = Header(default="")):
     """清理已结束的资源任务记录，不触碰已安装的资源文件。"""
-    _guard(request, x_yumeno_request)
+    _guard(request, x_charactoid_request)
     if not finished:
         raise HTTPException(status_code=400, detail="只允许清理已结束任务")
     terminal = {"succeeded", "success", "ready", "failed", "cancelled", "interrupted"}
@@ -278,16 +278,16 @@ def clear_finished_tasks(request: Request, finished: bool = False, x_yumeno_requ
     return {"deleted": count}
 
 @router.get("/tasks/{task_id}")
-def task_detail(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def task_detail(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     with request.app.state.session_factory() as session:
         row = session.get(ProviderDownloadTask, task_id)
     if row is None: raise HTTPException(status_code=404, detail="任务不存在")
     return _sync_task(request, row)
 
 @router.delete("/tasks/{task_id}", status_code=202)
-def cancel_task(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def cancel_task(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     with request.app.state.session_factory() as session:
         row = session.get(ProviderDownloadTask, task_id)
         if row is None: raise HTTPException(status_code=404, detail="任务不存在")
@@ -299,8 +299,8 @@ def cancel_task(task_id: str, request: Request, x_yumeno_request: str = Header(d
     return {"task_id": task_id, "cancelled": True}
 
 @router.post("/tasks/{task_id}/retry", status_code=202)
-def retry_task(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def retry_task(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     with request.app.state.session_factory() as session:
         row = session.get(ProviderDownloadTask, task_id)
         if row is None: raise HTTPException(status_code=404, detail="任务不存在")
@@ -309,9 +309,9 @@ def retry_task(task_id: str, request: Request, x_yumeno_request: str = Header(de
     return _install(request, provider_id, params)
 
 @router.get("")
-def resource_catalog(request: Request, x_yumeno_request: str = Header(default="")):
+def resource_catalog(request: Request, x_charactoid_request: str = Header(default="")):
     """返回可由 config_worker 管理的本地资源，不把 API provider 或用户模型混入目录。"""
-    _guard(request, x_yumeno_request)
+    _guard(request, x_charactoid_request)
     definitions = [
         ("rvc", "RVC 运行环境"),
         ("separator", "人声分离模型"),
@@ -334,14 +334,14 @@ def resource_catalog(request: Request, x_yumeno_request: str = Header(default=""
     return {"items": items}
 
 @router.get("/{provider_id}/status")
-def resource_status(provider_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def resource_status(provider_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     canonical = _canonical_provider_id(provider_id)
     return {"provider_id": canonical, "resource_kind": canonical, "status": _resource_status(request, provider_id)}
 
 @router.delete("/{provider_id}/install/cancel", status_code=202)
-def cancel_resource_install(provider_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def cancel_resource_install(provider_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     resource = _resource(request, provider_id)
     status = _resource_status(request, provider_id)
     if not status.get("installing"):
@@ -354,8 +354,8 @@ def cancel_resource_install(provider_id: str, request: Request, x_yumeno_request
     return {"provider_id": canonical, "resource_kind": canonical, "status": _resource_status(request, provider_id)}
 
 @router.delete("/{provider_id}/install")
-def remove_resource(provider_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    _guard(request, x_yumeno_request)
+def remove_resource(provider_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    _guard(request, x_charactoid_request)
     resource = _resource(request, provider_id)
     if _resource_status(request, provider_id).get("installing"):
         raise HTTPException(status_code=409, detail="资源正在安装，请先停止安装")

@@ -2,7 +2,7 @@
 import playwright from "../frontend/node_modules/playwright/index.js";
 import { mkdirSync } from "node:fs";
 const { chromium } = playwright;
-const baseURL = process.env.YUMENO_BASE_URL || "http://127.0.0.1:17000";
+const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:17000";
 const outDir = new URL("../docs/images/", import.meta.url).pathname.replace(/^\/+([A-Z]:)/, "$1");
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, channel: "msedge" }).catch(() => chromium.launch({ headless: true }));
@@ -58,5 +58,5 @@ try {
     .demo-task-card footer { color:#82919d; font-size:12px; } .demo-task-card button { border:1px solid #b9dedd; border-radius:8px; padding:8px 12px; color:#148f8c; background:#f4fffe; font-weight:600; } .demo-task-card button.stop { border-color:#c5dbf3; color:#256eb2; background:#f5faff; }
     .demo-progress { height:8px; border-radius:999px; background:#e7eef5; overflow:hidden; margin:20px 0 10px; } .demo-progress i { display:block; width:68%; height:100%; background:linear-gradient(90deg,#32bcb6,#3784d8); border-radius:inherit; } .demo-task-meta { display:flex; justify-content:space-between; color:#6d8090; font-size:12px; margin-bottom:20px; }
   `});
-  await page.screenshot({ path: `${outDir}/yumeno-conversation-demo.raw.png`, fullPage: true });
+  await page.screenshot({ path: `${outDir}/charactoid-conversation-demo.raw.png`, fullPage: true });
 } finally { await browser.close(); }

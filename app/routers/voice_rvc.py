@@ -25,20 +25,20 @@ provider_router = APIRouter(prefix="/api/providers/rvc", tags=["provider-rvc"])
 audio_resource_router = APIRouter(prefix="/api/providers/resources", tags=["audio-resources"])
 
 @audio_resource_router.get("/ffmpeg/status")
-def ffmpeg_status(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return request.app.state.ffmpeg_resources.status()
+def ffmpeg_status(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.status()
 
 @audio_resource_router.post("/ffmpeg/install", status_code=status.HTTP_202_ACCEPTED)
-def ffmpeg_install(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return request.app.state.ffmpeg_resources.install()
+def ffmpeg_install(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.install()
 
 @audio_resource_router.delete("/ffmpeg")
-def ffmpeg_remove(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return request.app.state.ffmpeg_resources.remove()
+def ffmpeg_remove(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.remove()
 
 @audio_resource_router.get("/ffmpeg/directory")
-def ffmpeg_directory(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return request.app.state.ffmpeg_resources.directory()
+def ffmpeg_directory(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.directory()
 
 AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".webm", ".wma", ".aiff", ".aif", ".mp4", ".mkv"})
 MAX_AUDIO_BYTES = 200 * 1024 * 1024
@@ -98,20 +98,20 @@ def manager(request: Request): return request.app.state.rvc_resources
 def tasks(request: Request): return request.app.state.rvc_tasks
 
 @provider_router.get("/status")
-def provider_status(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return manager(request).status()
+def provider_status(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return manager(request).status()
 
 @provider_router.post("/install", status_code=status.HTTP_202_ACCEPTED)
-def provider_install(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return manager(request).start_install()
+def provider_install(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return manager(request).start_install()
 
 @provider_router.delete("/install/cancel", status_code=status.HTTP_202_ACCEPTED)
-def provider_install_cancel(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return manager(request).cancel_install()
+def provider_install_cancel(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return manager(request).cancel_install()
 
 @provider_router.delete("/install")
-def provider_install_remove(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def provider_install_remove(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         # 与 config_worker 共用同一安全清理实现，保持页面和对话页行为一致。
         return manager(request).remove_managed()
@@ -119,14 +119,14 @@ def provider_install_remove(request: Request, x_yumeno_request: str = Header(def
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 @provider_router.get("/directory")
-def provider_directory(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return {"source_root": str(manager(request).source_root), "managed_root": str(manager(request).managed_root), "runtime_root": str(manager(request).runtime_root), "weights_dir": str(manager(request).weights_dir), "indices_dir": str(manager(request).indices_dir)}
+def provider_directory(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return {"source_root": str(manager(request).source_root), "managed_root": str(manager(request).managed_root), "runtime_root": str(manager(request).runtime_root), "weights_dir": str(manager(request).weights_dir), "indices_dir": str(manager(request).indices_dir)}
 
 
 @provider_router.post("/open-model-directory")
-def open_model_directory(request: Request, x_yumeno_request: str = Header(default="")):
+def open_model_directory(request: Request, x_charactoid_request: str = Header(default="")):
     """打开已配置的 RVC 音色目录；不接受前端任意路径。"""
-    guard(request, x_yumeno_request)
+    guard(request, x_charactoid_request)
     resource = manager(request)
     candidates = [resource.external_model_root, resource.weights_dir]
     directory = next((Path(path).resolve() for path in candidates if Path(path).is_dir()), None)
@@ -145,14 +145,14 @@ def open_model_directory(request: Request, x_yumeno_request: str = Header(defaul
 async def import_models(
     request: Request,
     files: list[UploadFile] = File(...),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
     """导入用户已有的 RVC .pth/.index，不虚构或自动下载第三方音色模型。
 
     RVC 官方项目将用户音色模型放在 assets/weights、assets/indices；
-    YUMENO 复制到自己的受管目录后再参与枚举，删除运行时不会触碰源目录。
+    CHARACTOID 复制到自己的受管目录后再参与枚举，删除运行时不会触碰源目录。
     """
-    guard(request, x_yumeno_request)
+    guard(request, x_charactoid_request)
     resource = manager(request)
     resource.weights_dir.mkdir(parents=True, exist_ok=True)
     resource.indices_dir.mkdir(parents=True, exist_ok=True)
@@ -196,14 +196,14 @@ async def import_models(
     return {"imported": imported, "models": request.app.state.rvc_adapter.list_models(), "indices": request.app.state.rvc_adapter.list_indices()}
 
 @router.post("/sessions", status_code=status.HTTP_201_CREATED)
-def create_session(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def create_session(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     return request.app.state.rvc_sessions.create()
 
 
 @router.post("/sessions/{session_id}/source", status_code=status.HTTP_202_ACCEPTED)
-async def upload_session_source(session_id: str, request: Request, file: UploadFile = File(...), x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+async def upload_session_source(session_id: str, request: Request, file: UploadFile = File(...), x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in AUDIO_EXTENSIONS:
         raise HTTPException(status_code=415, detail="不支持的音频或视频格式")
@@ -217,9 +217,9 @@ async def upload_session_source(session_id: str, request: Request, file: UploadF
 
 
 @router.post("/sessions/{session_id}/attachment", status_code=status.HTTP_202_ACCEPTED)
-async def attach_conversation_attachment(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
+async def attach_conversation_attachment(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
     """将当前会话附件登记为 RVC source，避免浏览器再次上传同一文件。"""
-    guard(request, x_yumeno_request)
+    guard(request, x_charactoid_request)
     form = await request.form()
     attachment_id = str(form.get("attachment_id") or "").strip()
     conversation_id = str(form.get("conversation_id") or "").strip()
@@ -236,8 +236,8 @@ async def attach_conversation_attachment(session_id: str, request: Request, x_yu
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_202_ACCEPTED)
-def cancel_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def cancel_session(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         return request.app.state.rvc_sessions.cancel(session_id)
     except RVCSessionError as exc:
@@ -245,8 +245,8 @@ def cancel_session(session_id: str, request: Request, x_yumeno_request: str = He
 
 
 @router.post("/sessions/{session_id}/extract", status_code=status.HTTP_202_ACCEPTED)
-def extract_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def extract_session(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         request.app.state.rvc_sessions.ffmpeg_resolver = find_ffmpeg
         return request.app.state.rvc_sessions.start_extract(session_id)
@@ -255,8 +255,8 @@ def extract_session(session_id: str, request: Request, x_yumeno_request: str = H
 
 
 @router.post("/sessions/{session_id}/separate", status_code=status.HTTP_202_ACCEPTED)
-def separate_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def separate_session(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         request.app.state.rvc_sessions.ffmpeg_resolver = find_ffmpeg
         return request.app.state.rvc_sessions.start_separation(session_id)
@@ -265,8 +265,8 @@ def separate_session(session_id: str, request: Request, x_yumeno_request: str = 
 
 
 @router.get("/sessions/{session_id}")
-def session_status(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def session_status(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         return request.app.state.rvc_sessions.state(session_id)
     except RVCSessionError as exc:
@@ -286,8 +286,8 @@ def session_waveform(session_id: str, file_id: str, request: Request):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.post("/sessions/{session_id}/files/{file_id}/trim")
-async def trim_session_file(session_id: str, file_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+async def trim_session_file(session_id: str, file_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         body = await request.json()
         return request.app.state.rvc_sessions.trim_file(session_id, file_id, body.get("start"), body.get("end"), volume_percent=body.get("volume_percent", 100), replace_current=bool(body.get("replace_current", False)))
@@ -295,7 +295,7 @@ async def trim_session_file(session_id: str, file_id: str, request: Request, x_y
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.get("/sessions/{session_id}/files/{file_id}")
-def session_file(session_id: str, file_id: str, request: Request, x_yumeno_request: str = Header(default="")):
+def session_file(session_id: str, file_id: str, request: Request, x_charactoid_request: str = Header(default="")):
     file_guard(request)
     try:
         path = request.app.state.rvc_sessions.file_path(session_id, file_id)
@@ -304,12 +304,12 @@ def session_file(session_id: str, file_id: str, request: Request, x_yumeno_reque
     return FileResponse(path, media_type="audio/wav", filename=path.name)
 
 @router.get("/status")
-def rvc_status(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return manager(request).status()
+def rvc_status(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return manager(request).status()
 
 @router.get("/models/{model_id}/metadata")
-def model_metadata(model_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def model_metadata(model_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         return request.app.state.rvc_adapter.model_metadata(model_id)
     except Exception as exc:
@@ -317,12 +317,12 @@ def model_metadata(model_id: str, request: Request, x_yumeno_request: str = Head
 
 
 @router.get("/models")
-def models(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request); return {"models": request.app.state.rvc_adapter.list_models(), "indices": request.app.state.rvc_adapter.list_indices()}
+def models(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return {"models": request.app.state.rvc_adapter.list_models(), "indices": request.app.state.rvc_adapter.list_indices()}
 
 @router.post("/convert", status_code=status.HTTP_202_ACCEPTED)
-async def convert(request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+async def convert(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     if not request.app.state.rvc_resources.status()["ready"]:
         raise HTTPException(status_code=409, detail="RVC 资源尚未就绪")
 
@@ -393,22 +393,22 @@ async def convert(request: Request, x_yumeno_request: str = Header(default="")):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.get("/tasks/{task_id}")
-def task_status(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def task_status(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     record = tasks(request).public_get(task_id)
     if not record: raise HTTPException(status_code=404, detail="RVC task not found")
     if record.get("state") == "succeeded": record["output_url"] = f"/api/voice/rvc/tasks/{task_id}/output"
     return record
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_202_ACCEPTED)
-def cancel_task(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+def cancel_task(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     if not tasks(request).cancel(task_id): raise HTTPException(status_code=404, detail="RVC task not running")
     return tasks(request).get(task_id)
 
 @router.get("/output/{task_id}")
-def output_by_task(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    return output(task_id, request, x_yumeno_request)
+def output_by_task(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    return output(task_id, request, x_charactoid_request)
 
 @router.get("/tasks/{task_id}/files/{file_id}")
 def task_file(task_id: str, file_id: str, request: Request):
@@ -426,16 +426,16 @@ def task_waveform(task_id: str, file_id: str, request: Request):
     except Exception as exc: raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 @router.post("/tasks/{task_id}/files/{file_id}/trim")
-async def trim_task_file(task_id: str, file_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+async def trim_task_file(task_id: str, file_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     try:
         body = await request.json()
         return tasks(request).trim_output(task_id, file_id, body.get("start"), body.get("end"), volume_percent=body.get("volume_percent", 100))
     except Exception as exc: raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.post("/tasks/{task_id}/mix", status_code=status.HTTP_202_ACCEPTED)
-async def mix_task(task_id: str, request: Request, background: UploadFile | None = File(default=None), x_yumeno_request: str = Header(default="")):
-    guard(request, x_yumeno_request)
+async def mix_task(task_id: str, request: Request, background: UploadFile | None = File(default=None), x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request)
     record = tasks(request).get(task_id)
     if not record: raise HTTPException(status_code=404, detail="RVC task not found")
     instrumental = None
@@ -466,7 +466,7 @@ async def mix_task(task_id: str, request: Request, background: UploadFile | None
     return result
 
 @router.get("/tasks/{task_id}/output")
-def output(task_id: str, request: Request, x_yumeno_request: str = Header(default="")):
+def output(task_id: str, request: Request, x_charactoid_request: str = Header(default="")):
     file_guard(request)
     try:
         path = tasks(request).safe_output_path(task_id, "rvc_vocal")

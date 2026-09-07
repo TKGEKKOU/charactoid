@@ -37,7 +37,7 @@ async function poll() { const generation = ++pollGeneration; running.value = tru
 async function runEvaluation() { if (!personaId.value) { error.value = "请先选择评测角色"; return; } error.value = ""; results.value = null; analysis.value = ""; expanded.value = false; try { await apiRequest("/api/eval/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(toEvalRunPayload({ personaId: personaId.value, tier: tier.value, datasetMode: datasetMode.value })) }); await poll(); } catch (reason) { error.value = errorMessage(reason); running.value = false; } }
 async function analyze() { analyzing.value = true; try { const response: any = await apiRequest("/api/eval/analyze", { method: "POST" }); analysis.value = response.analysis || "分析结果为空"; } catch (reason) { error.value = errorMessage(reason); } finally { analyzing.value = false; } }
 async function resumeIfRunning() { await loadPersonas(); try { status.value = await apiRequest("/api/eval/status"); if (status.value.state === "running") poll(); else if (status.value.state === "done") await loadResults(); } catch { /* 初次进入允许没有历史结果 */ } }
-onMounted(() => { const root = document.querySelector("#evaluation-app-root"); root?.addEventListener("yumeno:evaluation-show", resumeIfRunning); root?.addEventListener("yumeno:evaluation-hide", stopPolling); resumeIfRunning(); });
+onMounted(() => { const root = document.querySelector("#evaluation-app-root"); root?.addEventListener("charactoid:evaluation-show", resumeIfRunning); root?.addEventListener("charactoid:evaluation-hide", stopPolling); resumeIfRunning(); });
 onBeforeUnmount(stopPolling);
 </script>
 

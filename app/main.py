@@ -15,7 +15,7 @@ from app.startup.routes import configure_middleware, mount_static_files, registe
 
 def create_app(initialize_database: bool = True) -> FastAPI:
     settings = Settings.load()
-    app = FastAPI(title="YUMENO", lifespan=build_lifespan(settings, initialize_database=initialize_database))
+    app = FastAPI(title="CHARACTOID", lifespan=build_lifespan(settings, initialize_database=initialize_database))
     app.state.settings = settings
     app.state.extension_catalog_client = CatalogClient(settings.project_root)
     app.state.extension_installer = None

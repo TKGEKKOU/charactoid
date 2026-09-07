@@ -1,4 +1,4 @@
-# YUMENO 项目完整技术解读
+# CHARACTOID 项目完整技术解读
 
 > **现行 Agent 图以仓库根目录 ARCHITECTURE.md 为准。** knowledge 已收回父图闭环：Planner + retrieve/fallback，经 finalize 回 Supervisor，不再是快路径直出。Web/Memory/Management 作为独立对外 Worker 的说法已经过时。
 
@@ -18,11 +18,11 @@
 - 第 25-36 章：可观测性、安全、失败处理、测试、微基准、简历和现有功能索引。
 - 第 37-50 章：源码目录地图、依赖装配表、API/WebSocket 参考、实体生命周期、状态机、端到端演练、排障、面试深讲、术语表和逐文件阅读清单。
 
-文中路径均相对于项目根目录 `D:\CodePython\YUMENO`；“入口函数”指可以直接沿调用链继续阅读的函数，而不是声称它们都是稳定的公共 SDK。
+文中路径均相对于项目根目录 `D:\CodePython\CHARACTOID`；“入口函数”指可以直接沿调用链继续阅读的函数，而不是声称它们都是稳定的公共 SDK。
 
 ## 1. 一句话定位
 
-YUMENO 是一个 Windows 本地优先的角色化 Agent/RAG 桌面应用：它把角色人设、分层记忆、Milvus 混合检索、结构化 Text-to-SQL、Skill/MCP/Tool 扩展、GPT-SoVITS 语音、Live2D，以及 B 站和 QQ 消息接入统一到同一个 FastAPI 应用中。
+CHARACTOID 是一个 Windows 本地优先的角色化 Agent/RAG 桌面应用：它把角色人设、分层记忆、Milvus 混合检索、结构化 Text-to-SQL、Skill/MCP/Tool 扩展、GPT-SoVITS 语音、Live2D，以及 B 站和 QQ 消息接入统一到同一个 FastAPI 应用中。
 
 它不是“套壳聊天页”。核心工程价值是把模型的不确定决策限制在策略层，把作用域、权限、数据处理、工具执行、结果校验和生命周期放到可测试的确定性代码中。
 
@@ -93,7 +93,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    EXE["desktop_main.py / YUMENO.exe"] --> WV["PyWebView + Edge WebView2"]
+    EXE["desktop_main.py / CHARACTOID.exe"] --> WV["PyWebView + Edge WebView2"]
     EXE --> API["Uvicorn/FastAPI 线程"]
     EXE --> DK["Docker Compose"]
     DK --> ETCD["etcd"]
@@ -574,7 +574,7 @@ MCP stdio/HTTP transport 内部使用 AnyIO cancel scope 和 `AsyncExitStack`。
 
 ### 21.1 连接方向
 
-YUMENO 提供 [`integrations/onebot11/ws_server.py`](../../integrations/onebot11/ws_server.py) 的正向 WebSocket `/api/onebot/ws`，NapCat 作为客户端连接。Token 可选；用户主动断开后服务端拒绝自动重连，避免控制台不断出现 403 重试。
+CHARACTOID 提供 [`integrations/onebot11/ws_server.py`](../../integrations/onebot11/ws_server.py) 的正向 WebSocket `/api/onebot/ws`，NapCat 作为客户端连接。Token 可选；用户主动断开后服务端拒绝自动重连，避免控制台不断出现 403 重试。
 
 ### 21.2 入站消息
 
@@ -592,7 +592,7 @@ YUMENO 提供 [`integrations/onebot11/ws_server.py`](../../integrations/onebot11
 
 ### 21.3 出站文字和语音
 
-YUMENO 通过 OneBot action 发送私聊或群聊。消息模式支持：
+CHARACTOID 通过 OneBot action 发送私聊或群聊。消息模式支持：
 
 - 只文字
 - 文字 + 语音
@@ -682,7 +682,7 @@ YUMENO 通过 OneBot action 发送私聊或群聊。消息模式支持：
 ### 26.1 已实现
 
 - 服务默认只绑定 `127.0.0.1`。
-- settings 写接口要求本地请求和 `X-YUMENO-Request` 保护头。
+- settings 写接口要求本地请求和 `X-CHARACTOID-Request` 保护头。
 - persona scope 由服务端数据库派生。
 - Milvus 查询下推 workspace/knowledge space 过滤。
 - SQL 使用 AST + SQLite authorizer 双层只读校验。
@@ -843,7 +843,7 @@ stdio/HTTP transport 需要长期 session，且 AnyIO cancel scope 受 task 归�
 3. **决策与执行分离**：Agent 决定做什么，Workflow 决定能不能和怎么做，Tool 完成一个动作。
 4. **数据按问题选引擎**：文本证据走 Milvus RAG，表格计算走 SQLite Text-to-SQL，关系和记忆走应用 SQLite，媒体走文件系统和专用 worker。
 
-这四条是 YUMENO 从功能集合变成可解释工程系统的核心。
+这四条是 CHARACTOID 从功能集合变成可解释工程系统的核心。
 
 ## 35. 页面与微功能实现索引
 
@@ -851,8 +851,8 @@ stdio/HTTP transport 需要长期 session，且 AnyIO cancel scope 受 task 归�
 
 | 页面 | 用户功能 | 前端实现 | API / 服务端实现 | 状态位置 |
 |---|---|---|---|---|
-| 对话 | 最近角色自动选中 | `chat.js` 的 `resolveRecentPersonaId()` | `GET /api/personas` | `localStorage: yumeno:recent-persona` |
-| 对话 | 每角色独立会话窗口 | `selectPersona()` | messages/agent routers | `localStorage: yumeno:conversation:{persona_id}` + SQLite |
+| 对话 | 最近角色自动选中 | `chat.js` 的 `resolveRecentPersonaId()` | `GET /api/personas` | `localStorage: charactoid:recent-persona` |
+| 对话 | 每角色独立会话窗口 | `selectPersona()` | messages/agent routers | `localStorage: charactoid:conversation:{persona_id}` + SQLite |
 | 对话 | 快速连续发送、防旧轮覆盖 | turn id、busy state、realtime socket | `ConversationExecutionRegistry` | 当前页面内存 + LangGraph checkpoint |
 | 对话 | 流式文字、阶段、引用、确认 | SSE 解析与 `resumeAgent()` | agents router + `PersonaAgentService` | 当前轮 `AgentTurnResult` |
 | 对话 | 流式 TTS、只播放当前音频 | TTS WebSocket/NDJSON 与全局 audio 仲裁 | tts router + GPT-SoVITS service | 临时音频 + `ConversationMessage` |
@@ -1089,7 +1089,7 @@ Skill ZIP 上限是 25 MB。MCP 配置响应对密钥做遮罩；前端回传遮
 | `/api/gpt-sovits` | GPT-SoVITS 探测、安装、服务启停、目录 |
 | `/api/voice-studio` | 工作室 session、视频/音频、分离、片段、参考音、完成和声音列表 |
 
-对改变本机文件、安装资源或停止服务的部分接口，router 检查本地来源和 `X-YUMENO-Request` 一类保护头。它是本地桌面防误触，不是公网身份认证。
+对改变本机文件、安装资源或停止服务的部分接口，router 检查本地来源和 `X-CHARACTOID-Request` 一类保护头。它是本地桌面防误触，不是公网身份认证。
 
 ### 39.7 Live2D 与渠道接入
 
@@ -1103,7 +1103,7 @@ Skill ZIP 上限是 25 MB。MCP 配置响应对密钥做遮罩；前端回传遮
 | `/api/integrations/napcat/send` | 手动发送文字或语音 |
 | `WS /api/onebot/ws` | NapCat 反向 WebSocket 连接入口 |
 
-NapCat 端主动连接 YUMENO，YUMENO 不内嵌 QQ 客户端。关闭 OneBot 配置后，服务端会关闭已有连接并拒绝 NapCat 的自动重连；重新启用后才能接受连接。因此“断开”日志里的 403 是禁用状态的预期拒绝，不是 FastAPI 崩溃。
+NapCat 端主动连接 CHARACTOID，CHARACTOID 不内嵌 QQ 客户端。关闭 OneBot 配置后，服务端会关闭已有连接并拒绝 NapCat 的自动重连；重新启用后才能接受连接。因此“断开”日志里的 403 是禁用状态的预期拒绝，不是 FastAPI 崩溃。
 
 ## 40. 数据实体、关系与生命周期
 
@@ -1429,7 +1429,7 @@ NapCat reverse WS
 ### 43.1 启动服务端模式
 
 ```powershell
-Set-Location D:\CodePython\YUMENO
+Set-Location D:\CodePython\CHARACTOID
 .\.venv\Scripts\python.exe -B main.py
 ```
 
@@ -1576,7 +1576,7 @@ Get-NetTCPConnection -LocalPort 17000 -State Listen
 ### 43.11 QQ 私聊/群聊
 
 1. NapCat 配置反向 WebSocket：`ws://127.0.0.1:17000/api/onebot/ws`。
-2. YUMENO 接入页启用 OneBot，token 留空或双方一致。
+2. CHARACTOID 接入页启用 OneBot，token 留空或双方一致。
 3. NapCat 连接后，`OneBotConnectionManager` 更新 bot UIN、连接时间和事件时间。
 4. 每个窗口可绑定角色；未单独绑定时使用默认角色。
 5. 私聊或显式群触发进入统一 Agent。
@@ -1621,7 +1621,7 @@ Get-NetTCPConnection -LocalPort 17000 -State Listen -ErrorAction SilentlyContinu
 
 可能原因：
 
-- 已有旧 YUMENO 占用 17000。
+- 已有旧 CHARACTOID 占用 17000。
 - `.venv` 依赖不完整。
 - SQLite 文件或目录权限失败。
 - import 阶段第三方库缺失。
@@ -1723,11 +1723,11 @@ if ($conn) { Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningPr
 
 403/1008 的根因通常是：
 
-- YUMENO `enabled=false`，这是点击断开后的预期状态。
+- CHARACTOID `enabled=false`，这是点击断开后的预期状态。
 - token 不一致。
 - NapCat URL 指向错误端口或路径。
 
-操作顺序：YUMENO 保存并启用 -> 确认 URL/token -> NapCat 开启反向 WS -> YUMENO 刷新状态。关闭连接后 NapCat 继续自动重连会被拒绝，日志会重复 403；要停止日志需要同时停用 NapCat 侧该连接或重新启用 YUMENO。
+操作顺序：CHARACTOID 保存并启用 -> 确认 URL/token -> NapCat 开启反向 WS -> CHARACTOID 刷新状态。关闭连接后 NapCat 继续自动重连会被拒绝，日志会重复 403；要停止日志需要同时停用 NapCat 侧该连接或重新启用 CHARACTOID。
 
 ### 44.12 QQ 能手动发送但不自动回复
 
@@ -1758,7 +1758,7 @@ if ($conn) { Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningPr
 检查顺序：
 
 1. 17000 listener。
-2. 命令行包含 YUMENO 的 Python。
+2. 命令行包含 CHARACTOID 的 Python。
 3. free-search/MCP stdio 子进程。
 4. Embedding worker。
 5. ASR worker 和 GPT-SoVITS API。
@@ -1883,7 +1883,7 @@ QQ 风险最高的不是“收到消息”，而是主动外发：
 
 ### 47.1 30 秒版本
 
-> YUMENO 是我独立设计的 Windows 本地优先角色化 Agent/RAG 平台。后端用 FastAPI 和 LangGraph，把 Agent 的一次策略决策、Workflow 的权限与数据处理、Tool 的最小执行动作分离；文本知识走 Milvus Dense/BM25/RRF 和 Corrective RAG，复杂表格走隔离 SQLite 与双层只读 Text-to-SQL。系统还统一接入了分层记忆、Skill/MCP、GPT-SoVITS、Live2D、B站和 OneBot/NapCat。
+> CHARACTOID 是我独立设计的 Windows 本地优先角色化 Agent/RAG 平台。后端用 FastAPI 和 LangGraph，把 Agent 的一次策略决策、Workflow 的权限与数据处理、Tool 的最小执行动作分离；文本知识走 Milvus Dense/BM25/RRF 和 Corrective RAG，复杂表格走隔离 SQLite 与双层只读 Text-to-SQL。系统还统一接入了分层记忆、Skill/MCP、GPT-SoVITS、Live2D、B站和 OneBot/NapCat。
 
 ### 47.2 两分钟版本
 
@@ -1934,7 +1934,7 @@ QQ 风险最高的不是“收到消息”，而是主动外发：
 
 ### 47.6 高频面试追问
 
-**为什么不是纯 LangGraph Agent？** 纯自由循环难以保证权限、循环上限、SQL 只读和稳定延迟。YUMENO 保留模型做意图判断，把硬约束放回 Workflow。
+**为什么不是纯 LangGraph Agent？** 纯自由循环难以保证权限、循环上限、SQL 只读和稳定延迟。CHARACTOID 保留模型做意图判断，把硬约束放回 Workflow。
 
 **为什么 Agent 仍有 Legacy Worker？** Web、记忆、管理和动态扩展包含不同工具与 HITL，一次性迁移风险大。先优化高频知识/结构化路径，同时保留兼容面。
 
@@ -1997,7 +1997,7 @@ QQ 风险最高的不是“收到消息”，而是主动外发：
 | TTS | Text-to-Speech，文字转语音 |
 | GPT-SoVITS | 项目当前音色克隆与合成引擎 |
 | VTS | VTube Studio，Live2D 外部控制目标 |
-| OneBot 11 | NapCat 与 YUMENO 交换 QQ 事件/动作的协议 |
+| OneBot 11 | NapCat 与 CHARACTOID 交换 QQ 事件/动作的协议 |
 
 ## 49. 逐文件阅读清单
 
@@ -2072,7 +2072,7 @@ QQ 风险最高的不是“收到消息”，而是主动外发：
 
 ## 50. 项目全景总结
 
-从宏观上，YUMENO 是一个本地优先的“角色运行平台”，不是单一聊天机器人：角色拥有行为、人设、知识、记忆、能力、声音和形象，并能通过网页、B站和 QQ 接收输入。
+从宏观上，CHARACTOID 是一个本地优先的“角色运行平台”，不是单一聊天机器人：角色拥有行为、人设、知识、记忆、能力、声音和形象，并能通过网页、B站和 QQ 接收输入。
 
 从架构上，核心不是“用了多少框架”，而是三条边界：
 

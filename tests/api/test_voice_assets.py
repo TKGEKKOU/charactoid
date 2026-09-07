@@ -6,7 +6,7 @@ from voice.gpt_sovits.config import GPTSoVITSConfig
 def test_voice_asset_crud(client, tmp_path):
     from app.models import VoiceAsset
 
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
 
     created = client.post("/api/voice-assets", json={"name": "测试音色"}, headers=headers)
     assert created.status_code == 201
@@ -43,7 +43,7 @@ def test_voice_asset_import_scans_directory(client, tmp_path):
     response = client.post(
         "/api/voice-assets/import",
         json={"directory": str(model_dir), "reference_language": "ja"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200
@@ -78,7 +78,7 @@ def test_voice_asset_preview_uses_multilingual_synthesis_service(client, db_sess
     response = client.post(
         f"/api/voice-assets/{asset.id}/synthesize",
         json={"text": "你好。何の用かしら", "text_lang": "auto"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200
@@ -134,7 +134,7 @@ def test_existing_invalid_asset_can_be_retrained_with_language(client, db_sessio
         f"/api/voice-assets/{asset.id}/train",
         data={"language": "ja"},
         files={"files": ("sample.wav", b"audio", "audio/wav")},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200

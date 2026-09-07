@@ -39,7 +39,7 @@ def resolve_ffmpeg(project_root: Path) -> Path:
 class FFmpegResourceManager:
     """管理供音视频前处理使用的独立 ffmpeg 可执行文件。
 
-    ``imageio-ffmpeg`` owns the platform-specific download/cache.  YUMENO owns
+    ``imageio-ffmpeg`` owns the platform-specific download/cache.  CHARACTOID owns
     the final project-local copy and validates it before reporting success.
     """
 

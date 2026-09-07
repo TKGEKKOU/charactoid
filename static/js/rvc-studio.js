@@ -9,7 +9,7 @@ let rvcPollTimer = null;
 let rvcRuntimeReady = false;
 let rvcTask = null;
 
-const rvcHeaders = { "X-YUMENO-Request": "web" };
+const rvcHeaders = { "X-CHARACTOID-Request": "web" };
 const rvc$ = (id) => document.getElementById(id);
 const rvcSet = (id, value, error = false) => {
   const node = rvc$(id);

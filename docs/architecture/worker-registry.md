@@ -1,4 +1,4 @@
-# YUMENO Worker 注册表
+# CHARACTOID Worker 注册表
 
 > 本文档描述当前正在运行的 Worker 注册体系。所有 Worker 名称使用带 `_worker` 后缀的 canonical 命名，旧名称仅作为兼容别名保留。
 

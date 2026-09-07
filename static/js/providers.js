@@ -129,7 +129,7 @@ async function handleToggleChange(providerId, enabled) {
     };
     await api(fetch("/api/providers/configure", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify(payload)
     }));
     await loadProviders();
@@ -210,7 +210,7 @@ async function testProviderConnection(provider, formData, modal) {
     };
     const result = await api(fetch("/api/providers/test", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify(payload)
     }));
     if (resultEl) {
@@ -255,7 +255,7 @@ async function saveProviderConfig(provider, formData, modal) {
     };
       await api(fetch("/api/providers/configure", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify(payload)
       }));
       

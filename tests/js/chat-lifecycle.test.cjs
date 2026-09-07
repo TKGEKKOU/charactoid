@@ -18,7 +18,7 @@ assert.strictEqual(
   "chat exposes a reusable recent-persona resolver",
 );
 
-const values = new Map([["yumeno:recent-persona", "persona-2"]]);
+const values = new Map([["charactoid:recent-persona", "persona-2"]]);
 const storage = {
   getItem(key) { return values.get(key) || null; },
   setItem(key, value) { values.set(key, value); },
@@ -30,14 +30,14 @@ assert.strictEqual(
   "persona-2",
   "a valid recent persona wins",
 );
-values.set("yumeno:recent-persona", "deleted-persona");
+values.set("charactoid:recent-persona", "deleted-persona");
 assert.strictEqual(
   sandbox.window.PL.chatPreferences.resolveRecentPersonaId(personas, storage),
   "persona-1",
   "a deleted recent persona falls back to the first available persona",
 );
 sandbox.window.PL.chatPreferences.rememberPersonaId("persona-1", storage);
-assert.strictEqual(values.get("yumeno:recent-persona"), "persona-1");
+assert.strictEqual(values.get("charactoid:recent-persona"), "persona-1");
 
 console.log("ok: chat view lifecycle hook");
 

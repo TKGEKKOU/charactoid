@@ -1,14 +1,14 @@
 "use strict";
 
 /*
- * YUMENO Live2D dock panel.
+ * CHARACTOID Live2D dock panel.
  * Wires the chat toolbar toggle, the character dock UI, lazy-loads the
  * heavy renderer (PIXI + Cubism cores), and forwards state/volume to the
  * desktop floating window (pywebview bridge) or browser popup
  * (BroadcastChannel).
  */
 (function () {
-  const LS_ENABLED = "yumeno:live2d:enabled";
+  const LS_ENABLED = "charactoid:live2d:enabled";
   const HEAVY_SCRIPTS = [
     "/static/vendor/live2d/pixi.min.js",
     "/static/vendor/live2d/live2d.min.js",
@@ -35,8 +35,8 @@
   let focusMode = false;
   let focusHintTimer = 0;
 
-  const STAGE_HEIGHT_KEY = "yumeno:live2d:stageh";
-  const FOCUS_KEY = "yumeno:live2d:focus";
+  const STAGE_HEIGHT_KEY = "charactoid:live2d:stageh";
+  const FOCUS_KEY = "charactoid:live2d:focus";
   const FOCUS_THRESHOLD = 6;
 
   const $ = (id) => document.getElementById(id);
@@ -138,7 +138,7 @@
     const open = Boolean(node && !node.hidden);
     toggle.classList.toggle("is-active", open);
     toggle.setAttribute("aria-pressed", String(open));
-    document.dispatchEvent(new CustomEvent("yumeno:live2d-visibility", { detail: { open } }));
+    document.dispatchEvent(new CustomEvent("charactoid:live2d-visibility", { detail: { open } }));
     toggle.title = open ? "关闭角色面板" : "打开角色面板";
     toggle.setAttribute("aria-label", toggle.title);
   }
@@ -216,7 +216,7 @@
       if (endpoint) endpoint.value = window.PLVTS?.url || config.url || endpoint.value;
       renderVtsStatus({ level: "offline", message: "当前为内嵌模式；连接仅在本次会话有效。" });
     } catch (e) {
-      renderVtsStatus({ level: "error", message: "无法读取连接配置，请确认 YUMENO 后端正在运行" });
+      renderVtsStatus({ level: "error", message: "无法读取连接配置，请确认 CHARACTOID 后端正在运行" });
     }
   }
 
@@ -433,17 +433,17 @@
       const manage = event.target.closest("#live2d-manage");
       if (manage) {
         closeMoreMenu();
-        sessionStorage.setItem("yumeno.manage.node", "module:live2d");
+        sessionStorage.setItem("charactoid.manage.node", "module:live2d");
         const nav = $("nav-manage");
         if (nav) nav.click();
-        document.dispatchEvent(new CustomEvent("yumeno:manage-select-node", { detail: { nodeId: "module:live2d" } }));
+        document.dispatchEvent(new CustomEvent("charactoid:manage-select-node", { detail: { nodeId: "module:live2d" } }));
         return;
       }
       const openFolder = event.target.closest("#live2d-open-folder");
       if (openFolder) {
         setStatus("loading", "正在打开模型文件夹...");
         try {
-          const response = await fetch("/api/live2d/model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } });
+          const response = await fetch("/api/live2d/model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } });
           if (!response.ok) throw new Error("无法打开模型文件夹");
           setStatus("idle", "已打开模型文件夹；复制模型后点击刷新");
         } catch (error) { setStatus("error", error.message); }
@@ -495,7 +495,7 @@
         if (node && !node.hidden) closeDock();
       }
     });
-    document.addEventListener("yumeno:live2d", (event) => {
+    document.addEventListener("charactoid:live2d", (event) => {
       const detail = event.detail || {};
       if (detail.type === "state") setStatus(detail.state);
       if (detail.type === "models") renderModelSelect();

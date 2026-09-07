@@ -2,7 +2,7 @@
 import playwright from "../frontend/node_modules/playwright/index.js";
 import { mkdirSync } from "node:fs";
 const { chromium } = playwright;
-const baseURL = process.env.YUMENO_BASE_URL || "http://127.0.0.1:17000";
+const baseURL = process.env.CHARACTOID_BASE_URL || "http://127.0.0.1:17000";
 const outDir = new URL("../docs/images/", import.meta.url).pathname.replace(/^\/+([A-Z]:)/, "$1");
 mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true, channel: "msedge" }).catch(() => chromium.launch({ headless: true }));
@@ -48,5 +48,5 @@ try {
     .rvc-wave { display:flex; align-items:center; gap:3px; width:210px; height:34px; padding:0 7px; border-radius:7px; background:#eefafa; } .rvc-wave span { width:4px; border-radius:4px; background:#27b7b2; } .rvc-wave span:nth-child(3n) { height:26px; } .rvc-wave span:nth-child(3n+1) { height:14px; } .rvc-wave span:nth-child(3n+2) { height:21px; }
     .rvc-result .play { margin-left:auto; width:34px; height:34px; border:0; border-radius:50%; background:#2bbab5; color:#fff; font-size:14px; } .rvc-meta { display:flex; gap:18px; padding:14px 0 18px; color:#718492; font-size:12px; border-bottom:1px solid #edf2f5; white-space:nowrap; } .rvc-demo-card footer { color:#82919d; font-size:12px; margin-top:16px; } .rvc-demo-card footer button { border:1px solid #b9dedd; border-radius:8px; padding:8px 12px; color:#148f8c; background:#f4fffe; font-weight:600; }
   `});
-  await page.screenshot({ path: `${outDir}/yumeno-rvc-conversation-demo.raw.png`, fullPage: true });
+  await page.screenshot({ path: `${outDir}/charactoid-rvc-conversation-demo.raw.png`, fullPage: true });
 } finally { await browser.close(); }

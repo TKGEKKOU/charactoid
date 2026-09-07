@@ -95,7 +95,7 @@ def test_napcat_send_text_calls_onebot(client):
     response = client.post(
         "/api/integrations/napcat/send",
         json={"target_type": "private", "target_id": "20001", "text": "你好"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 200
     assert response.json()["sent"]["text"] is True
@@ -106,7 +106,7 @@ def test_napcat_send_rejects_empty_payload(client):
     response = client.post(
         "/api/integrations/napcat/send",
         json={"target_type": "group", "target_id": "30001"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 422
 
@@ -115,7 +115,7 @@ def test_onebot_connection_test_calls_login_info(client):
     manager = client.app.state.onebot
     manager.status = lambda: {"connected": True}
     manager.request_action = AsyncMock(return_value={"user_id": 3828435165, "nickname": "napcat"})
-    response = client.post("/api/integrations/onebot11/test", headers={"X-YUMENO-Request": "web"})
+    response = client.post("/api/integrations/onebot11/test", headers={"X-CHARACTOID-Request": "web"})
     assert response.status_code == 200
     assert response.json()["user_id"] == 3828435165
     manager.request_action.assert_awaited_once_with("get_login_info", {})
@@ -134,7 +134,7 @@ def test_disconnect_onebot_closes_active_websocket_without_server_error(
 
     response = client.post(
         "/api/integrations/onebot11/disconnect",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200
@@ -159,7 +159,7 @@ def test_clear_onebot_window_memory_clears_all_persona_threads(
     client.app.state.agent_service.checkpointer = Checkpointer()
     response = client.post(
         "/api/integrations/onebot11/conversation/clear",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"target_type": "group", "target_id": "123456"},
     )
 
@@ -177,7 +177,7 @@ def test_observation_endpoint_updates_group_authorization(client, tmp_path, monk
     monkeypatch.setattr(integrations_router, "INTEGRATIONS_PATH", path)
     response = client.put(
         "/api/integrations/onebot11/observation",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"target_type": "group", "target_id": "30001", "enabled": True},
     )
     assert response.status_code == 200
@@ -206,11 +206,11 @@ def test_bilibili_pause_and_resume_use_manager_lifecycle(client):
 
     paused = client.post(
         "/api/integrations/bilibili/pause",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     resumed = client.post(
         "/api/integrations/bilibili/resume",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert paused.status_code == 200
@@ -225,7 +225,7 @@ def test_bilibili_clear_session_uses_manager_lifecycle(client):
 
     response = client.post(
         "/api/integrations/bilibili/session/clear",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200

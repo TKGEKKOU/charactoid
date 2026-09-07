@@ -1,4 +1,4 @@
-"""YUMENO 的轻量 Agent Runtime 领域层。
+"""CHARACTOID 的轻量 Agent Runtime 领域层。
 
 该包只定义运行记录、结果和事件合同，不依赖 FastAPI 或数据库实现。
 """

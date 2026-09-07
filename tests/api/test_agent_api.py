@@ -61,7 +61,7 @@ def test_agent_stream_returns_sse_events(client):
     response = client.post(
         f"/api/personas/{persona['id']}/agent/stream",
         json={"question": "资料", "conversation_id": "conversation-a"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200
@@ -131,7 +131,7 @@ def test_agent_query_passes_attachment_ids_into_context(client):
     client.app.state.agent_service = FakeAgentService()
     uploaded = client.post(
         "/api/conversations/conversation-a/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[("files", ("input.wav", b"RIFFdemo", "audio/wav"))],
     ).json()["attachments"][0]
     response = client.post(
@@ -182,7 +182,7 @@ def test_agent_stream_forwards_workflow_update(client):
     response = client.post(
         f"/api/personas/{persona['id']}/agent/stream",
         json={"question": "用 RVC 处理", "conversation_id": "conv-flow-sse"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 200
@@ -196,7 +196,7 @@ def test_agent_resume_passes_structured_waiting_input_values_and_managed_attachm
     captured = {}
     uploaded = client.post(
         "/api/conversations/conversation-resume/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[("files", ("input.wav", b"RIFFdemo", "audio/wav"))],
     ).json()["attachments"][0]
 

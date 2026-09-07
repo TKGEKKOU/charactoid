@@ -74,7 +74,7 @@ def vts_connection_config(request: Request) -> dict:
         "url": VTS_URL,
         "host": "127.0.0.1",
         "port": 8001,
-        "plugin_name": "YUMENO",
+        "plugin_name": "CHARACTOID",
         "protocol": "VTubeStudioPublicAPI 1.0",
     }
 
@@ -82,10 +82,10 @@ def vts_connection_config(request: Request) -> dict:
 @router.post("/model-directory")
 def open_live2d_model_directory(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ) -> dict:
     require_local(request)
-    if x_yumeno_request != "web":
+    if x_charactoid_request != "web":
         raise HTTPException(status_code=403, detail="Missing same-origin request header")
     from voice.resource_directory import open_resource_directory
 

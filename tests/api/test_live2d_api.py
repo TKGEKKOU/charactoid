@@ -20,7 +20,7 @@ def test_vts_connection_config_endpoint(client):
     payload = response.json()
     assert payload["url"] == "ws://127.0.0.1:8001"
     assert payload["port"] == 8001
-    assert payload["plugin_name"] == "YUMENO"
+    assert payload["plugin_name"] == "CHARACTOID"
 
 
 def test_open_live2d_model_directory(client, monkeypatch):
@@ -31,7 +31,7 @@ def test_open_live2d_model_directory(client, monkeypatch):
     )
     response = client.post(
         "/api/live2d/model-directory",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 200
     assert response.json()["opened_directory"].endswith("data\\live2d")

@@ -173,10 +173,10 @@ def synthesize(
     conversation_id: str,
     payload: TTSSynthesisRequest,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
     session: Session = Depends(get_session),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     persona = local_persona_or_404(session, persona_id)
     text = payload.text.strip()
     if not text:
@@ -210,10 +210,10 @@ def synthesize_stream(
     conversation_id: str,
     payload: TTSSynthesisRequest,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
     session: Session = Depends(get_session),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     persona = local_persona_or_404(session, persona_id)
     text = payload.text.strip()
     if not text:

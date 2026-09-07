@@ -1,7 +1,7 @@
-# YUMENO 项目简历描述（面试版）
+# CHARACTOID 项目简历描述（面试版）
 
 ## 一句话总结
-**YUMENO - 企业级 Multi-Agent RAG 编排引擎**，专为知识密集场景设计，将 LangGraph 多智能体协作与自适应纠错式 RAG 深度融合。
+**CHARACTOID - 企业级 Multi-Agent RAG 编排引擎**，专为知识密集场景设计，将 LangGraph 多智能体协作与自适应纠错式 RAG 深度融合。
 
 ---
 
@@ -70,7 +70,7 @@
 ### Q1: 你的多 Agent 架构和 AstrBot 有什么区别？
 **A**: 
 - **AstrBot** 是单 Agent + 工具集，适合多平台消息集成
-- **YUMENO** 是 Supervisor 编排的领域子图：knowledge 是 Planner + 确定性 RAG/SQL/联网管线，其余 Worker 只能访问受限工具集
+- **CHARACTOID** 是 Supervisor 编排的领域子图：knowledge 是 Planner + 确定性 RAG/SQL/联网管线，其余 Worker 只能访问受限工具集
 - 我们通过 **LangGraph Handoff** 实现 Agent 间状态交接，变更操作需要 **HITL 中断恢复**
 - 核心差异：**我们专注知识密集场景的 RAG 质量和系统韧性**，有完整的评测体系
 

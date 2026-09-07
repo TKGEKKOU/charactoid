@@ -118,7 +118,7 @@ async function ensureApiKeyValue(inputId) {
   }
   const result = await api(fetch("/api/settings/reveal-key", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+    headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
     body: JSON.stringify({ field: config.field }),
   }));
   input.value = result.value || "";
@@ -236,7 +236,7 @@ async function testLlmConnection() {
   try {
     const result = await api(fetch("/api/settings/llm/test", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({
         api_key: $("openai-api-key").value.trim(),
         base_url: baseUrl,
@@ -287,14 +287,14 @@ async function installEmbedding() {
   const installButton = $("install-embedding");
   if (installButton) installButton.textContent = "安装中…";
   try {
-    await api(fetch("/api/embedding/install", { method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body: JSON.stringify(embeddingResourcePayload()) }));
+    await api(fetch("/api/embedding/install", { method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify(embeddingResourcePayload()) }));
     await loadEmbeddingStatus();
   } catch (reason) { setText("embedding-status", `安装失败：${friendlyError(reason)}`, true); setDisabled("install-embedding", false); }
 }
 async function cancelEmbedding() {
   setDisabled("cancel-embedding", true);
   try {
-    await api(fetch("/api/embedding/install/cancel", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/embedding/install/cancel", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadEmbeddingStatus();
   } catch (reason) { setText("embedding-status", `取消失败：${friendlyError(reason)}`, true); setDisabled("cancel-embedding", false); }
 }
@@ -302,14 +302,14 @@ async function removeEmbedding() {
   if (!confirm("删除当前本地 Embedding 模型？Milvus 中的资料不会被删除。")) return;
   setDisabled("remove-embedding", true);
   try {
-    await api(fetch("/api/embedding/model", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/embedding/model", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadEmbeddingStatus();
   } catch (reason) { setText("embedding-status", `删除失败：${friendlyError(reason)}`, true); setDisabled("remove-embedding", false); }
 }
 async function openEmbeddingDirectory() {
   setDisabled("open-embedding-directory", true);
   try {
-    const result = await api(fetch("/api/embedding/model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    const result = await api(fetch("/api/embedding/model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     setText("embedding-status", `已打开：${result.opened_directory}`);
   } catch (reason) { setText("embedding-status", `打开失败：${friendlyError(reason)}`, true); }
   finally { setDisabled("open-embedding-directory", false); }
@@ -351,7 +351,7 @@ async function loadAsrStatus() {
 async function saveAsrConfig() {
   setDisabled("save-asr", true);
   try {
-    await api(fetch("/api/asr/config", { method: "PATCH", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body: JSON.stringify({ enabled: $("asr-enabled").checked, python_path: $("asr-python-path").value.trim(), model_path: $("asr-model-path").value.trim(), ffmpeg_path: $("asr-ffmpeg-path").value.trim() }) }));
+    await api(fetch("/api/asr/config", { method: "PATCH", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ enabled: $("asr-enabled").checked, python_path: $("asr-python-path").value.trim(), model_path: $("asr-model-path").value.trim(), ffmpeg_path: $("asr-ffmpeg-path").value.trim() }) }));
     await loadAsrStatus();
   } catch (reason) { setText("asr-status", `保存失败：${friendlyError(reason)}`, true); }
   finally { setDisabled("save-asr", false); }
@@ -363,7 +363,7 @@ async function installAsr() {
   if (installButton) installButton.textContent = "安装中…";
   try {
     await saveAsrConfig();
-    await api(fetch("/api/asr/install", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/asr/install", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadAsrStatus();
   } catch (reason) { setText("asr-status", `安装失败：${friendlyError(reason)}`, true); setDisabled("install-asr", false); }
 }
@@ -371,14 +371,14 @@ async function removeAsr() {
   if (!confirm("删除项目自动下载的 ASR 环境和模型？外部目录不会被删除。")) return;
   setDisabled("remove-asr", true);
   try {
-    await api(fetch("/api/asr/install", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/asr/install", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadAsrStatus();
   } catch (reason) { setText("asr-status", `删除失败：${friendlyError(reason)}`, true); setDisabled("remove-asr", false); }
 }
 async function cancelAsr() {
   setDisabled("cancel-asr", true);
   try {
-    await api(fetch("/api/asr/install/cancel", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/asr/install/cancel", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadAsrStatus();
   } catch (reason) { setText("asr-status", `取消失败：${friendlyError(reason)}`, true); setDisabled("cancel-asr", false); }
 }
@@ -387,14 +387,14 @@ async function openAsrDirectory() {
   if (!button) return;
   button.disabled = true;
   try {
-    const result = await api(fetch("/api/asr/model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    const result = await api(fetch("/api/asr/model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     setText("asr-status", `已打开：${result.opened_directory}`);
   } catch (reason) { setText("asr-status", `打开失败：${friendlyError(reason)}`, true); }
   finally { button.disabled = false; }
 }
 async function loadSeparatorStatus() {
   try {
-    const config = await api(fetch("/api/tts/separator/status", { headers: { "X-YUMENO-Request": "web" } }));
+    const config = await api(fetch("/api/tts/separator/status", { headers: { "X-CHARACTOID-Request": "web" } }));
     if (!$("separator-state")) return;
     const phaseNames = { preparing: "准备下载", model: "下载人声分离模型", cancelling: "正在取消", complete: "安装完成", error: "安装失败" };
     $("separator-state").textContent = config.installing ? (phaseNames[config.phase] || "正在安装") : config.ready ? "已就绪" : "尚未安装";
@@ -420,14 +420,14 @@ async function installSeparator() {
   if (!confirm("将下载约 165 MB 的 HT-Demucs 人声分离模型（纯 ONNX，不引入 PyTorch）。是否继续？")) return;
   setDisabled("install-separator", true);
   try {
-    await api(fetch("/api/tts/separator/install", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/tts/separator/install", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadSeparatorStatus();
   } catch (reason) { setText("separator-status", `安装失败：${friendlyError(reason)}`, true); setDisabled("install-separator", false); }
 }
 async function cancelSeparator() {
   setDisabled("cancel-separator", true);
   try {
-    await api(fetch("/api/tts/separator/install/cancel", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/tts/separator/install/cancel", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadSeparatorStatus();
   } catch (reason) { setText("separator-status", `取消失败：${friendlyError(reason)}`, true); setDisabled("cancel-separator", false); }
 }
@@ -435,14 +435,14 @@ async function removeSeparator() {
   if (!confirm("删除已下载的人声分离模型？下次从视频提取音色前需重新安装。")) return;
   setDisabled("remove-separator", true);
   try {
-    await api(fetch("/api/tts/separator/install", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch("/api/tts/separator/install", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadSeparatorStatus();
   } catch (reason) { setText("separator-status", `删除失败：${friendlyError(reason)}`, true); setDisabled("remove-separator", false); }
 }
   async function openSeparatorDirectory() {
     setDisabled("open-separator-directory", true);
     try {
-      const result = await api(fetch("/api/tts/separator/model-directory", { headers: { "X-YUMENO-Request": "web" } }));
+      const result = await api(fetch("/api/tts/separator/model-directory", { headers: { "X-CHARACTOID-Request": "web" } }));
       setText("separator-status", `已打开：${result.opened_directory}`);
     } catch (reason) { setText("separator-status", `打开失败：${friendlyError(reason)}`, true); }
     finally { setDisabled("open-separator-directory", false); }
@@ -553,7 +553,7 @@ async function removeSeparator() {
       const url = $("gptsovits-download-url").value.trim();
       await api(fetch("/api/gpt-sovits/config", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+        headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
         body: JSON.stringify({ install_dir: dir || null, download_url: url || null }),
       }));
       await loadGptSoVitsStatus();
@@ -587,7 +587,7 @@ async function removeSeparator() {
   async function detectGptSoVits() {
     setDisabled("detect-gptsovits", true);
     try {
-      const status = await api(fetch("/api/gpt-sovits/detect", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+      const status = await api(fetch("/api/gpt-sovits/detect", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
       if (status.install_dir) setText("gptsovits-status", `已检测到：${status.install_dir}`);
       else setText("gptsovits-status", "未检测到可用安装", true);
       await loadGptSoVitsStatus();
@@ -603,7 +603,7 @@ async function removeSeparator() {
     try {
       await api(fetch("/api/gpt-sovits/install", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+        headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
         body: JSON.stringify({ url }),
       }));
       await loadGptSoVitsStatus();
@@ -614,7 +614,7 @@ async function removeSeparator() {
   }
   async function cancelGptSoVitsInstall() {
     try {
-      await api(fetch("/api/gpt-sovits/install/cancel", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch("/api/gpt-sovits/install/cancel", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
       await loadGptSoVitsStatus();
     } catch (reason) {
       setText("gptsovits-status", `取消失败：${friendlyError(reason)}`, true);
@@ -623,7 +623,7 @@ async function removeSeparator() {
   async function startGptSoVitsService() {
     setDisabled("start-gptsovits-service", true);
     try {
-      await api(fetch("/api/gpt-sovits/service/start", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch("/api/gpt-sovits/service/start", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
       await loadGptSoVitsStatus();
     } catch (reason) {
       setText("gptsovits-status", `启动失败：${friendlyError(reason)}`, true);
@@ -633,7 +633,7 @@ async function removeSeparator() {
   async function stopGptSoVitsService() {
     setDisabled("stop-gptsovits-service", true);
     try {
-      await api(fetch("/api/gpt-sovits/service/stop", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch("/api/gpt-sovits/service/stop", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
       await loadGptSoVitsStatus();
     } catch (reason) {
       setText("gptsovits-status", `停止失败：${friendlyError(reason)}`, true);
@@ -643,7 +643,7 @@ async function removeSeparator() {
   async function openGptSoVitsDirectory() {
     setDisabled("open-gptsovits-directory", true);
     try {
-      const result = await api(fetch("/api/gpt-sovits/model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+      const result = await api(fetch("/api/gpt-sovits/model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
       setText("gptsovits-status", `已打开：${result.opened_directory}`);
     } catch (reason) {
       setText("gptsovits-status", `打开失败：${friendlyError(reason)}`, true);
@@ -655,7 +655,7 @@ async function removeSeparator() {
     if (!confirm("删除项目内的 GPT-SoVITS 引擎（约 12GB）？删除后需要重新下载或复制整合包才能恢复。")) return;
     setDisabled("remove-gptsovits", true);
     try {
-      await api(fetch("/api/gpt-sovits/install", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch("/api/gpt-sovits/install", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
       await loadGptSoVitsStatus();
     } catch (reason) {
       setText("gptsovits-status", `删除失败：${friendlyError(reason)}`, true);
@@ -708,7 +708,7 @@ async function removeSeparator() {
     try {
       const response = await fetch(`/api/voice-assets/${assetId}/synthesize`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+        headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
         body: JSON.stringify({ text: "你好，这是我的声音。很高兴认识你。" }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail || "试听失败");
@@ -722,7 +722,7 @@ async function removeSeparator() {
   async function deleteVoiceAsset(assetId) {
     if (!confirm("删除该训练音色？项目内的模型文件将一并移除。")) return;
     try {
-      await api(fetch(`/api/voice-assets/${assetId}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch(`/api/voice-assets/${assetId}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
       await loadGptSoVitsAssets();
     } catch (reason) {
       setText("gptsovits-status", `删除失败：${friendlyError(reason)}`, true);

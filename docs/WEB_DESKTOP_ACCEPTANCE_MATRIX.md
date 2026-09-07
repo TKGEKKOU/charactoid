@@ -1,4 +1,4 @@
-# YUMENO Web / Desktop 最小验收矩阵
+# CHARACTOID Web / Desktop 最小验收矩阵
 
 > 版本基线：`main` @ `c1b4ae7`（2026-09-02）
 >

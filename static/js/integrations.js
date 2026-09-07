@@ -291,7 +291,7 @@ function setCommandFailure(reason, fallback) {
 }
 
 async function postBili(path) {
-  return api(fetch(`/api/integrations/bilibili/${path}`, { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+  return api(fetch(`/api/integrations/bilibili/${path}`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
 }
 
 function connectBilibiliEvents() {

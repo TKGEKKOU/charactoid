@@ -8,7 +8,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / ".screenshots" / "source"
-OUTPUT = ROOT / "docs" / "images" / "yumeno-rvc-workflow.gif"
+OUTPUT = ROOT / "docs" / "images" / "charactoid-rvc-workflow.gif"
 FRAMES = [
     ("01-upload-video.png", 1900),
     ("02-separated-vocals-instrumental.png", 1900),

@@ -10,7 +10,7 @@ def _context():
         workspace_id="workspace-1",
         knowledge_space_ids=("space-1",),
         conversation_id="conversation-1",
-        persona_name="Yumeno",
+        persona_name="Charactoid",
         persona_type="companion",
     )
 

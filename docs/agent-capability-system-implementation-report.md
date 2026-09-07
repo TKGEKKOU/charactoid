@@ -1,11 +1,11 @@
-# YUMENO 能力系统长计划成果报告
+# CHARACTOID 能力系统长计划成果报告
 
 报告日期：2026-08-10
 实施范围：多 Agent、Skill、Tool、MCP、RAG、能力控制台与相关进程生命周期
 
 ## 1. 执行结论
 
-本轮改造已经完成能力系统的主体落地。YUMENO 现在以统一 Tool 注册表为执行基础，以 Capability 作为稳定的授权标识，以 Skill 组织提示词和工具集合，以 MCP 接入外部标准工具，并继续由 Milvus 承担 RAG 向量检索。
+本轮改造已经完成能力系统的主体落地。CHARACTOID 现在以统一 Tool 注册表为执行基础，以 Capability 作为稳定的授权标识，以 Skill 组织提示词和工具集合，以 MCP 接入外部标准工具，并继续由 Milvus 承担 RAG 向量检索。
 
 主要成果如下：
 
@@ -305,7 +305,7 @@ Supervisor 仍是唯一生成最终用户回复的 Agent。Knowledge、Web、Mem
 ```mermaid
 flowchart TD
     D[desktop_main.py 可选桌面壳] --> F[main.py / FastAPI 主进程]
-    F --> MCP[yumeno-mcp-runtime 线程]
+    F --> MCP[charactoid-mcp-runtime 线程]
     MCP --> MS[MCP stdio 子进程]
     F --> EMB[Embedding Worker]
     F --> ASR[ASR Worker / Watchdog]
@@ -403,7 +403,7 @@ Docker Compose 在此前清理检查中没有运行容器。本报告生成时�
 
 ## 15. 最终评价
 
-本轮改造已经把 YUMENO 从“能够接入 Skill 和 MCP”推进到“具有统一能力目录、安全边界、角色策略和可控生命周期的标准能力系统”。整体结构保持轻量：没有新增独立网关、权限服务或 Agent 编排进程，仍由现有 FastAPI、LangGraph 和 Tool 注册表完成协调。
+本轮改造已经把 CHARACTOID 从“能够接入 Skill 和 MCP”推进到“具有统一能力目录、安全边界、角色策略和可控生命周期的标准能力系统”。整体结构保持轻量：没有新增独立网关、权限服务或 Agent 编排进程，仍由现有 FastAPI、LangGraph 和 Tool 注册表完成协调。
 
 当前最重要的后续工作不是继续增加框架，而是用固定真实知识库和同一外部 LLM 完成 Recall@3、MRR@3、检索 P95 与 TTFT A/B，形成可审计的业务质量基线。这套结构已经可以作为后续 Skill、MCP 服务和多 Agent 协作能力的稳定基础。
 

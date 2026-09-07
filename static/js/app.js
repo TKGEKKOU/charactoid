@@ -219,7 +219,7 @@ function closeTransientOverlays() {
 }
 
 function reportViewError(error) {
-  console.error("[YUMENO] 页面切换失败", error);
+  console.error("[CHARACTOID] 页面切换失败", error);
   const message = error?.message || "页面加载失败，请重试";
   if (typeof window.showToast === "function") window.showToast(message, "error");
 }
@@ -260,13 +260,13 @@ async function switchView(view, tabTarget = null) {
   if (switchEpoch !== viewSwitchEpoch) return false;
   Object.entries(VIEW_NODES).forEach(([key, viewNode]) => viewNode.classList.toggle("is-hidden", key !== view));
   currentView = view;
-  if (!node.dataset.yumenoInitialized) {
-    node.dataset.yumenoInitialized = "pending";
+  if (!node.dataset.charactoidInitialized) {
+    node.dataset.charactoidInitialized = "pending";
     try {
       await entry.init?.();
-      node.dataset.yumenoInitialized = "true";
+      node.dataset.charactoidInitialized = "true";
     } catch (error) {
-      node.dataset.yumenoInitialized = "error";
+      node.dataset.charactoidInitialized = "error";
       console.error(`[${view}.init]`, error);
       reportViewError(new Error(`${entry.view} 页面初始化失败：${error?.message || "未知错误"}`));
     }

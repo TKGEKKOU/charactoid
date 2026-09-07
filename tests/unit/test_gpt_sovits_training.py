@@ -6,7 +6,7 @@ from voice.gpt_sovits.config import GPTSoVITSConfig
 from voice.gpt_sovits.training import TrainingService
 
 
-INSTALL = Path(r"D:\CodePython\YUMENO\runtime\gpt_sovits")
+INSTALL = Path(r"D:\CodePython\CHARACTOID\runtime\gpt_sovits")
 
 
 @pytest.mark.skipif(

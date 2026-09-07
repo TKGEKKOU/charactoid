@@ -61,7 +61,7 @@ class MiMoSTT(STTProvider):
         except Exception as exc:
             raise STTConfigurationError("MiMo STT 处理浏览器音频需要可用的 ffmpeg") from exc
         suffix = Path(filename).suffix or ".audio"
-        with tempfile.TemporaryDirectory(prefix="yumeno-mimo-stt-") as temp_dir:
+        with tempfile.TemporaryDirectory(prefix="charactoid-mimo-stt-") as temp_dir:
             source = Path(temp_dir) / f"input{suffix}"
             target = Path(temp_dir) / "output.wav"
             source.write_bytes(audio)

@@ -12,7 +12,7 @@ def _wait(client, url, headers):
 
 
 def test_rvc_session_accepts_audio_extracts_managed_wav(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     monkeypatch.setattr("app.routers.voice_rvc.find_ffmpeg", lambda _: Path("ffmpeg"), raising=False)
     session = client.post("/api/voice/rvc/sessions", headers=headers)
     assert session.status_code == 201
@@ -33,7 +33,7 @@ def test_rvc_session_accepts_audio_extracts_managed_wav(client, tmp_path, monkey
 
 
 def test_rvc_session_separation_exposes_vocals_and_instrumental(client, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     app = client.app
     session = client.post("/api/voice/rvc/sessions", headers=headers).json()
     sid = session["session_id"]
@@ -72,7 +72,7 @@ def _prepare_managed_rvc_input(client, monkeypatch, headers):
 
 
 def test_rvc_convert_accepts_managed_session_file_without_reupload(client, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     sid, file_id = _prepare_managed_rvc_input(client, monkeypatch, headers)
     captured = {}
 
@@ -117,7 +117,7 @@ def test_rvc_convert_accepts_managed_session_file_without_reupload(client, monke
 
 
 def test_rvc_convert_rejects_speaker_outside_model_range(client, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     sid, file_id = _prepare_managed_rvc_input(client, monkeypatch, headers)
     monkeypatch.setattr(client.app.state.rvc_resources, "status", lambda: {"ready": True})
     monkeypatch.setattr(client.app.state.rvc_adapter, "resolve_model", lambda model: Path("voice.pth"))
@@ -135,7 +135,7 @@ def test_rvc_convert_rejects_speaker_outside_model_range(client, monkeypatch):
 
 
 def test_rvc_convert_requires_index_when_index_rate_is_positive(client, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     sid, file_id = _prepare_managed_rvc_input(client, monkeypatch, headers)
     monkeypatch.setattr(client.app.state.rvc_resources, "status", lambda: {"ready": True})
     monkeypatch.setattr(client.app.state.rvc_adapter, "resolve_model", lambda model: Path("voice.pth"))
@@ -152,7 +152,7 @@ def test_rvc_convert_requires_index_when_index_rate_is_positive(client, monkeypa
 
 
 def test_rvc_convert_rejects_instrumental_as_managed_input(client, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     sid, _ = _prepare_managed_rvc_input(client, monkeypatch, headers)
     manager = client.app.state.rvc_sessions
     work = manager._dir(sid) / "work"

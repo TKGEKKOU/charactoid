@@ -2,7 +2,7 @@
 
 ## Open-LLM-VTuber
 
-YUMENO's realtime interaction work references selected designs and
+CHARACTOID's realtime interaction work references selected designs and
 MIT-licensed code from:
 
 - Project: Open-LLM-VTuber

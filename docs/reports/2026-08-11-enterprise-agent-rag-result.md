@@ -1,7 +1,7 @@
-# YUMENO 企业级 Agent/RAG 优化成果报告
+# CHARACTOID 企业级 Agent/RAG 优化成果报告
 
 日期：2026-08-11
-环境：Windows，本地 Python 3.11，YUMENO 工作区
+环境：Windows，本地 Python 3.11，CHARACTOID 工作区
 
 ## 结论
 

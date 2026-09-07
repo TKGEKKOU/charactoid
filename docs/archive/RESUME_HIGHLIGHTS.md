@@ -1,4 +1,4 @@
-# YUMENO 项目 - 简历技术亮点总结
+# CHARACTOID 项目 - 简历技术亮点总结
 
 ## 🎯 项目定位
 **面向企业级应用的多智能体 RAG 对话系统**
@@ -330,7 +330,7 @@ xxx
 ## 🎯 简历上怎么写
 
 ### 项目标题
-**YUMENO - 企业级多智能体 RAG 对话系统**
+**CHARACTOID - 企业级多智能体 RAG 对话系统**
 
 ### 技术栈
 Python, FastAPI, LangChain, LangGraph, Milvus, SQLite, Vue.js, WebSocket

@@ -162,10 +162,10 @@ def get_settings(request: Request, response: Response) -> LocalSettingsResponse:
 def test_llm_connection(
     payload: LLMConnectionTestPayload,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ) -> LLMConnectionTestResponse:
     require_local(request)
-    if x_yumeno_request != "web":
+    if x_charactoid_request != "web":
         raise HTTPException(status_code=403, detail="缺少同源请求标识")
     values = read_settings(SETTINGS_PATH)
     api_key = configured_api_key(payload.api_key) or configured_api_key(values.get("openai_api_key"))
@@ -199,10 +199,10 @@ def reveal_api_key(
     payload: ApiKeyRevealRequest,
     request: Request,
     response: Response,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ) -> ApiKeyRevealResponse:
     require_local(request)
-    if x_yumeno_request != "web":
+    if x_charactoid_request != "web":
         raise HTTPException(status_code=403, detail="Missing same-origin request header")
     response.headers["Cache-Control"] = "no-store"
     values = read_settings(SETTINGS_PATH)

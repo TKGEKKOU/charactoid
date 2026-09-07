@@ -55,7 +55,7 @@ def patch_ffmpeg(monkeypatch):
 
 
 def test_session_lifecycle_and_video_flow(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     manager = install_manager(client, tmp_path, monkeypatch)
     audio = tmp_path / "audio_44k.wav"
     audio.write_bytes(wav_bytes(rate=44100))
@@ -119,7 +119,7 @@ def test_session_lifecycle_and_video_flow(client, tmp_path, monkeypatch):
 
 
 def test_audio_upload_requires_separate_confirm(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     patch_ffmpeg(monkeypatch)
     manager = install_manager(client, tmp_path, monkeypatch)
     audio = tmp_path / "audio_44k.wav"
@@ -175,7 +175,7 @@ def test_audio_upload_requires_separate_confirm(client, tmp_path, monkeypatch):
 
 
 def test_batch_audio_and_user_uploaded_segments(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     patch_ffmpeg(monkeypatch)
     manager = install_manager(client, tmp_path, monkeypatch)
 
@@ -228,7 +228,7 @@ def test_batch_audio_and_user_uploaded_segments(client, tmp_path, monkeypatch):
 
 
 def test_voice_studio_rejects_bad_files(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     install_manager(client, tmp_path, monkeypatch)
     session_id = client.post("/api/voice-studio/sessions", headers=headers).json()["session_id"]
     bad = client.post(
@@ -242,8 +242,8 @@ def test_voice_studio_rejects_bad_files(client, tmp_path, monkeypatch):
 
 
 def test_chat_created_session_can_upload_and_is_claimed(client, tmp_path, monkeypatch):
-    headers = {"X-YUMENO-Request": "web"}
-    chat_headers = {"X-YUMENO-Request": "web", "X-YUMENO-Chat-Session": "chat"}
+    headers = {"X-CHARACTOID-Request": "web"}
+    chat_headers = {"X-CHARACTOID-Request": "web", "X-CHARACTOID-Chat-Session": "chat"}
     install_manager(client, tmp_path, monkeypatch)
     session_id = client.post("/api/voice-studio/sessions", headers=chat_headers).json()["session_id"]
     assert client.post(f"/api/voice-studio/sessions/{session_id}/audio", headers=chat_headers).status_code == 422

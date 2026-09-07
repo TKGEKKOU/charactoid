@@ -1,10 +1,10 @@
-# YUMENO 开发者文档
+# CHARACTOID 开发者文档
 
-YUMENO 是一个**本地优先、角色驱动、可恢复执行**的 Agent 工作台。
+CHARACTOID 是一个**本地优先、角色驱动、可恢复执行**的 Agent 工作台。
 
 它把角色设定、知识检索、声音生成、工具调用、Live2D 表现和长任务状态放进同一个可追踪运行过程。
 
-<div class="tip custom-block"><p class="custom-block-title">项目状态</p><p>YUMENO 正在持续开发中。文档优先描述当前代码结构和可接入边界，实验性能力会单独标注。</p></div>
+<div class="tip custom-block"><p class="custom-block-title">项目状态</p><p>CHARACTOID 正在持续开发中。文档优先描述当前代码结构和可接入边界，实验性能力会单独标注。</p></div>
 
 ## 从这里开始
 

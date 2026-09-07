@@ -1,4 +1,4 @@
-# YUMENO 部署方案
+# CHARACTOID 部署方案
 
 > 根据你的使用场景，选择最适合的部署方式
 
@@ -26,7 +26,7 @@
 ## ⚡ 方案 1：云端版（快速体验）
 
 ### 适用人群
-- 首次体验 YUMENO
+- 首次体验 CHARACTOID
 - 个人轻量使用
 - 不需要语音克隆功能
 
@@ -35,8 +35,8 @@
 #### Windows 源码启动（推荐）
 
 ```powershell
-git clone https://github.com/TKGEKKOU/yumeno.git
-Set-Location yumeno
+git clone https://github.com/TKGEKKOU/charactoid.git
+Set-Location charactoid
 .\scripts\start.ps1
 ```
 
@@ -47,7 +47,7 @@ Set-Location yumeno
 #### Windows 安装包
 ```bash
 # 1. 下载安装包
-https://github.com/TKGEKKOU/yumeno/releases/download/v0.2.0/YUMENO-Lite-Setup.exe
+https://github.com/TKGEKKOU/charactoid/releases/download/v0.2.0/CHARACTOID-Lite-Setup.exe
 
 # 2. 运行安装向导（一键安装）
 
@@ -59,8 +59,8 @@ https://github.com/TKGEKKOU/yumeno/releases/download/v0.2.0/YUMENO-Lite-Setup.ex
 #### macOS/Linux
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/TKGEKKOU/yumeno.git
-cd yumeno
+git clone https://github.com/TKGEKKOU/charactoid.git
+cd charactoid
 
 # 2. 安装依赖（仅核心包）
 pip install -r requirements-lite.txt
@@ -113,7 +113,7 @@ OPENAI_API_KEY=sk-xxx
 #### 自动安装（推荐）
 ```bash
 # 1. 下载完整安装包（含 GPT-SoVITS）
-https://github.com/TKGEKKOU/yumeno/releases/download/v0.2.0/YUMENO-Full-Setup.exe
+https://github.com/TKGEKKOU/charactoid/releases/download/v0.2.0/CHARACTOID-Full-Setup.exe
 
 # 2. 安装过程会自动下载：
 #    - GPT-SoVITS 模型（350MB）
@@ -125,8 +125,8 @@ https://github.com/TKGEKKOU/yumeno/releases/download/v0.2.0/YUMENO-Full-Setup.ex
 #### 手动安装
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/TKGEKKOU/yumeno.git
-cd yumeno
+git clone https://github.com/TKGEKKOU/charactoid.git
+cd charactoid
 
 # 2. 安装完整依赖
 pip install -r requirements.txt
@@ -181,8 +181,8 @@ LOCAL_RERANKER_MODEL=BAAI/bge-reranker-base
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/TKGEKKOU/yumeno.git
-cd yumeno
+git clone https://github.com/TKGEKKOU/charactoid.git
+cd charactoid
 
 # 2. 下载完整模型（一次性）
 ./scripts/download_all_models.sh
@@ -191,7 +191,7 @@ cd yumeno
 docker-compose -f docker-compose.full.yml up -d
 
 # 服务说明：
-# - app: YUMENO 主应用（端口 17000）
+# - app: CHARACTOID 主应用（端口 17000）
 # - milvus: 向量数据库（端口 19530）
 # - ollama: 本地 LLM（端口 11434）
 # - gpt-sovits: 语音服务（端口 9880）
@@ -317,6 +317,6 @@ A: 非必须。CPU 可运行，GPU 加速（推理速度提升 3-5 倍）。
 
 ## 📞 技术支持
 
-- GitHub Issues: https://github.com/TKGEKKOU/yumeno/issues
-- 文档: https://github.com/TKGEKKOU/yumeno/blob/main/README.md
+- GitHub Issues: https://github.com/TKGEKKOU/charactoid/issues
+- 文档: https://github.com/TKGEKKOU/charactoid/blob/main/README.md
 - 示例配置: `config/examples/`

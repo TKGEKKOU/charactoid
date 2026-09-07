@@ -1,8 +1,8 @@
-# YUMENO 内置 Agent Runtime
+# CHARACTOID 内置 Agent Runtime
 
 ## 设计目标
 
-YUMENO 将 Harness 的核心运行抽象内置在 Python 项目中：
+CHARACTOID 将 Harness 的核心运行抽象内置在 Python 项目中：
 
 - Session：以 persona 与 conversation 作为会话边界；
 - Job：每次对话或恢复请求都有独立的运行任务；
@@ -16,12 +16,12 @@ YUMENO 将 Harness 的核心运行抽象内置在 Python 项目中：
 ## 启动
 
 ```powershell
-cd D:\CodePython\YUMENO
+cd D:\CodePython\CHARACTOID
 .\.venv\Scripts\python.exe -m agents.runtime serve
 
 # 安装项目后也可使用
 pip install -e .
-yumeno serve
+charactoid serve
 
 # 查看内置运行内核
 .\.venv\Scripts\python.exe -m agents.runtime runtime-status

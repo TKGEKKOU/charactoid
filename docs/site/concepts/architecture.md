@@ -1,6 +1,6 @@
 # 系统架构
 
-YUMENO 将一次请求拆成可观察的运行过程：
+CHARACTOID 将一次请求拆成可观察的运行过程：
 
 ```mermaid
 flowchart LR

@@ -1,6 +1,6 @@
 <div align="center">
 
-# YUMENO
+# CHARACTOID
 
 **本地优先的角色化 Agent 运行平台：让角色能够理解意图、编排工具、调用领域 Worker，并在对话中完成可恢复的真实任务。**
 
@@ -9,29 +9,29 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20workflow-1C3C3C)](https://langchain-ai.github.io/langgraph/)
 [![Milvus Lite](https://img.shields.io/badge/Milvus%20Lite-Local%20RAG-00A1EA)](https://milvus.io/)
 [![License](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/TKGEKKOU/yumeno?style=flat)](https://github.com/TKGEKKOU/yumeno)
+[![GitHub stars](https://img.shields.io/github/stars/TKGEKKOU/charactoid?style=flat)](https://github.com/TKGEKKOU/charactoid)
 
 [快速开始](#快速开始) · [核心能力](#核心能力) · [系统架构](#系统架构) · [项目结构](#项目结构) · [测试](#测试与验证)
 
 </div>
 
-YUMENO 是一个**本地优先的角色 Agent 工作台**。它把角色对话、工具调用、知识检索、语音能力和长任务执行组织在同一条可恢复的 Agent 链路中。
+CHARACTOID 是一个**本地优先的角色 Agent 工作台**。它把角色对话、工具调用、知识检索、语音能力和长任务执行组织在同一条可恢复的 Agent 链路中。
 
-与“聊天页 + 一组互相独立的设置页”不同，YUMENO 的对话不仅用于回答问题，也可以作为实际操作入口：用户可以直接提出“检查资源”“安装模型”“启动 GPT-SoVITS”“把资料加入知识库”或“用这段音频做 RVC 变声”，系统会根据真实状态完成检查、配置、执行和结果回收，并在对话中展示可继续操作的任务卡片。
+与“聊天页 + 一组互相独立的设置页”不同，CHARACTOID 的对话不仅用于回答问题，也可以作为实际操作入口：用户可以直接提出“检查资源”“安装模型”“启动 GPT-SoVITS”“把资料加入知识库”或“用这段音频做 RVC 变声”，系统会根据真实状态完成检查、配置、执行和结果回收，并在对话中展示可继续操作的任务卡片。
 
 ## 界面预览
 
-以下 GIF 均由 YUMENO 的真实页面截图按实际操作阶段整理而成，用于展示对话式任务执行和资源诊断流程。
+以下 GIF 均由 CHARACTOID 的真实页面截图按实际操作阶段整理而成，用于展示对话式任务执行和资源诊断流程。
 
 ### 对话与资源管理
 
-![运行资源检查与结果](docs/images/yumeno-agent-status-workflow.gif)
+![运行资源检查与结果](docs/images/charactoid-agent-status-workflow.gif)
 
 ### RVC 变声工作流
 
 从素材上传、音频准备、人声与伴奏分离，到参数配置和最终音频生成：
 
-![RVC 完整任务过程](docs/images/yumeno-rvc-workflow-full.gif)
+![RVC 完整任务过程](docs/images/charactoid-rvc-workflow-full.gif)
 
 核心使用主线：
 
@@ -48,7 +48,7 @@ YUMENO 是一个**本地优先的角色 Agent 工作台**。它把角色对话�
 
 ### 对话即控制台
 
-对话是 YUMENO 的主要工作区，设置页用于查看状态和精细配置，但不是完成任务的唯一入口。资源、服务和文件任务都可以由角色 Agent 统一调度：
+对话是 CHARACTOID 的主要工作区，设置页用于查看状态和精细配置，但不是完成任务的唯一入口。资源、服务和文件任务都可以由角色 Agent 统一调度：
 
 | 对话请求 | 负责执行的 Worker | 用户得到的结果 |
 | --- | --- | --- |
@@ -97,8 +97,8 @@ GPT-SoVITS、RVC、RAG、文档、记忆、Live2D、Skill、MCP、QQ 和 B站不
 ### 推荐方式：Windows PowerShell
 
 ```powershell
-git clone git@github.com:TKGEKKOU/yumeno.git
-cd yumeno
+git clone git@github.com:TKGEKKOU/charactoid.git
+cd charactoid
 .\scripts\start.ps1
 ```
 
@@ -139,7 +139,7 @@ Copy-Item .env.example .env
 Embedding、Reranker、GPT-SoVITS、RVC、FFmpeg 等能力按需准备；未安装或未启动不等于系统错误，系统会在任务卡片中提示可执行的下一步。
 ### Windows 资源安装边界
 
-首次启动只安装 YUMENO 主程序依赖；大模型和独立运行时由设置页或对话中的资源任务按需下载。请按以下顺序操作：
+首次启动只安装 CHARACTOID 主程序依赖；大模型和独立运行时由设置页或对话中的资源任务按需下载。请按以下顺序操作：
 
 1. 在资源页执行“检查所有运行资源”。
 2. 先安装 **FFmpeg**；安装完成后状态必须显示可执行路径。
@@ -147,12 +147,12 @@ Embedding、Reranker、GPT-SoVITS、RVC、FFmpeg 等能力按需准备；未安�
 4. 需要人声分离时安装 **Separator**；需要 RVC 时安装 **RVC 运行时与基础资源**。
 5. GPT-SoVITS 是独立的大型 Windows 整合包，只有执行安装并通过 API 探针后才能启动。
 
-FFmpeg 安装会把已验证的可执行文件复制到 `runtime/ffmpeg/ffmpeg.exe`；如果此前下载中断，请重新执行安装，不要手动把网页保存内容改名为 exe。RVC 默认使用 `YUMENO_RVC_DEVICE=auto`：有可用 CUDA 时选择 GPU，否则使用 CPU；可在 `.env` 中明确设置 `cuda` 或 `cpu`。
+FFmpeg 安装会把已验证的可执行文件复制到 `runtime/ffmpeg/ffmpeg.exe`；如果此前下载中断，请重新执行安装，不要手动把网页保存内容改名为 exe。RVC 默认使用 `CHARACTOID_RVC_DEVICE=auto`：有可用 CUDA 时选择 GPU，否则使用 CPU；可在 `.env` 中明确设置 `cuda` 或 `cpu`。
 
 **可选用户资产**：RVC 音色 `.pth`/`.index`、GPT-SoVITS 训练权重、LLM/API Key 和远程 Provider 不由仓库自动分发，也不属于“基础资源安装”。安装基础资源后，仍需在 Web 端配置这些用户自己的资产或服务。
 ## 系统架构
 
-YUMENO 的核心不是把多个功能页堆在一起，而是让**角色 Agent 成为统一入口**：用户从对话提出目标，Core Agent 负责理解，Supervisor 负责调度，领域 Worker 负责执行，Runtime 负责把长任务变成可观察、可恢复、可停止的运行过程。
+CHARACTOID 的核心不是把多个功能页堆在一起，而是让**角色 Agent 成为统一入口**：用户从对话提出目标，Core Agent 负责理解，Supervisor 负责调度，领域 Worker 负责执行，Runtime 负责把长任务变成可观察、可恢复、可停止的运行过程。
 
 从产品主线看，系统围绕这一条闭环展开：
 
@@ -168,7 +168,7 @@ YUMENO 的核心不是把多个功能页堆在一起，而是让**角色 Agent �
 ### 系统边界
 
 ```mermaid
-%% YUMENO 系统上下文：多入口进入同一套角色 Agent 服务
+%% CHARACTOID 系统上下文：多入口进入同一套角色 Agent 服务
 flowchart LR
   U[用户] --> WEB[Web / Desktop]
   QQ[QQ / OneBot] --> API[FastAPI 应用层]
@@ -190,7 +190,7 @@ LLM / TTS / 搜索 / 接入]
 ### Agent 主流程
 
 ```mermaid
-%% YUMENO Supervisor-centric 父图（与 build_persona_workflow 对齐）
+%% CHARACTOID Supervisor-centric 父图（与 build_persona_workflow 对齐）
 flowchart TD
   START([START]) --> S[persona_supervisor
 Core + Supervisor]
@@ -233,7 +233,7 @@ Core + Supervisor]
 
 ### 以 RVC 为例：对话如何完成一个真实文件任务
 
-RVC 是当前最完整的文件型 Worker 样板，也最能体现 YUMENO 与普通“聊天 + 独立工具页”的区别：文件、资源、确认、长任务和结果都在同一个对话任务里闭环完成。
+RVC 是当前最完整的文件型 Worker 样板，也最能体现 CHARACTOID 与普通“聊天 + 独立工具页”的区别：文件、资源、确认、长任务和结果都在同一个对话任务里闭环完成。
 
 ```mermaid
 %% RVC 文件型长任务：引用 ID 在各阶段传递，不暴露本地路径
@@ -327,7 +327,7 @@ SQLite 存在知识空间、文档任务或 RAG 查询记录，并不代表向�
 ## 项目结构
 
 ```text
-YUMENO/
+CHARACTOID/
 ├─ agents/
 │  ├─ graph/              LangGraph 父图、Supervisor、knowledge 子图
 │  ├─ runtime/            Native Runtime、Run/Job、事件和生命周期适配
@@ -401,11 +401,11 @@ git diff --check
 - GitHub：[@TKGEKKOU](https://github.com/TKGEKKOU)
 - QQ：`3198260896`
 - 邮箱：`3198260896@qq.com`
-- 项目问题：请优先提交 [GitHub Issues](https://github.com/TKGEKKOU/yumeno/issues)
+- 项目问题：请优先提交 [GitHub Issues](https://github.com/TKGEKKOU/charactoid/issues)
 
 ## 许可证与第三方声明
 
-YUMENO 自有代码采用 [MIT License](LICENSE)。第三方依赖、模型、GPT-SoVITS、RVC、FFmpeg、Milvus Lite、Live2D Cubism Core 和用户提供的资产不自动继承 MIT License，请同时阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 及对应上游许可证。
+CHARACTOID 自有代码采用 [MIT License](LICENSE)。第三方依赖、模型、GPT-SoVITS、RVC、FFmpeg、Milvus Lite、Live2D Cubism Core 和用户提供的资产不自动继承 MIT License，请同时阅读 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 及对应上游许可证。
 
 ## 贡献
 

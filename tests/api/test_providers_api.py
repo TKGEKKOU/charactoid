@@ -21,7 +21,7 @@ def test_provider_list_returns_explicit_api_key(tmp_path, monkeypatch):
     )
 
     with TestClient(create_app(initialize_database=False), base_url="http://localhost") as client:
-        response = client.get("/api/providers/list", headers={"X-YUMENO-Request": "web"})
+        response = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
@@ -168,8 +168,8 @@ def test_stt_alias_and_local_provider_apply_resource_settings(tmp_path, monkeypa
     calls = []
     app.state.asr_resources.configure = lambda **changes: calls.append(changes) or {"ready": False, **changes}
     with TestClient(app, base_url="http://localhost") as client:
-        stt = client.get("/api/stt/status", headers={"X-YUMENO-Request": "web"})
-        legacy = client.get("/api/asr/status", headers={"X-YUMENO-Request": "web"})
+        stt = client.get("/api/stt/status", headers={"X-CHARACTOID-Request": "web"})
+        legacy = client.get("/api/asr/status", headers={"X-CHARACTOID-Request": "web"})
         response = client.post(
             "/api/providers/configure",
             json={"provider_type": "stt", "provider_id": "local_stt", "enabled": True},
@@ -234,7 +234,7 @@ def test_provider_list_falls_back_to_legacy_local_settings(tmp_path, monkeypatch
     )
 
     with TestClient(create_app(initialize_database=False), base_url="http://localhost") as client:
-        response = client.get("/api/providers/list", headers={"X-YUMENO-Request": "web"})
+        response = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     assert response.status_code == 200
     provider = next(item for item in response.json()["providers"] if item["id"] == "zhipu")
@@ -262,7 +262,7 @@ def test_invalid_provider_key_does_not_override_legacy_real_key(tmp_path, monkey
     monkeypatch.setattr(providers, "_resource_status", lambda request, provider_id, resource_kind: None)
 
     with TestClient(create_app(initialize_database=False), base_url="http://localhost") as client:
-        response = client.get("/api/providers/list", headers={"X-YUMENO-Request": "web"})
+        response = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     provider = next(item for item in response.json()["providers"] if item["id"] == "zhipu")
     assert provider["current_api_key"] == "legacy-key"
@@ -347,7 +347,7 @@ def test_embedding_active_id_is_not_lost_between_provider_and_runtime_names(tmp_
                 "enabled": True,
             },
         )
-        listing = client.get("/api/providers/list", headers={"X-YUMENO-Request": "web"})
+        listing = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     assert response.status_code == 200
     assert listing.status_code == 200
@@ -373,7 +373,7 @@ def test_custom_search_active_id_is_not_confused_with_runtime_alias(tmp_path, mo
                 "enabled": True,
             },
         )
-        listing = client.get("/api/providers/list", headers={"X-YUMENO-Request": "web"})
+        listing = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     assert response.status_code == 200
     assert listing.status_code == 200

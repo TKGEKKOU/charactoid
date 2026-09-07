@@ -85,7 +85,7 @@ def _store_upload(request: Request, session_id: str, suffix: str, payload: bytes
 
 
 def _claim_chat_session(request: Request, session_id: str) -> dict:
-    if request.headers.get("X-YUMENO-Chat-Session") != "chat":
+    if request.headers.get("X-CHARACTOID-Chat-Session") != "chat":
         return {}
     state = manager(request).session_state(session_id)
     if not state:
@@ -97,20 +97,20 @@ def _claim_chat_session(request: Request, session_id: str) -> dict:
 
 
 @router.post("/sessions", status_code=status.HTTP_201_CREATED)
-def create_session(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def create_session(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return manager(request).create_session(origin="chat")
 
 
 @router.get("/sessions")
-def list_sessions(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def list_sessions(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return {"sessions": manager(request).list_sessions()}
 
 
 @router.get("/sessions/{session_id}")
-def get_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def get_session(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     state = manager(request).session_state(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -118,8 +118,8 @@ def get_session(session_id: str, request: Request, x_yumeno_request: str = Heade
 
 
 @router.delete("/sessions/{session_id}")
-def delete_session(session_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def delete_session(session_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return {"deleted": manager(request).delete_session(session_id)}
 
 
@@ -127,9 +127,9 @@ def delete_session(session_id: str, request: Request, x_yumeno_request: str = He
 async def upload_video(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     _claim_chat_session(request, session_id)
     current = manager(request).session_state(session_id)
     if current and current.get("source_kind") and current.get("phase") not in {"idle", "failed", "cancelled"}:
@@ -144,9 +144,9 @@ async def upload_video(
 async def upload_audio(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     _claim_chat_session(request, session_id)
     current = manager(request).session_state(session_id)
     if current and current.get("source_kind") and current.get("phase") not in {"idle", "failed", "cancelled"}:
@@ -160,9 +160,9 @@ async def upload_audio(
 def start_separation(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     try:
         return manager(request).start_separation(session_id)
     except VoiceStudioError as exc:
@@ -173,9 +173,9 @@ def start_separation(
 async def upload_segments(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     files = await _form_files(request)
     targets = [_store_upload(request, session_id, suffix, payload) for suffix, payload in _read_uploads(files, MAX_AUDIO_BYTES, AUDIO_EXTENSIONS)]
     try:
@@ -189,9 +189,9 @@ def delete_segment(
     session_id: str,
     segment_index: int,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     return {"deleted": manager(request).delete_segment(session_id, segment_index)}
 
 
@@ -200,9 +200,9 @@ def segment_audio(
     session_id: str,
     segment_index: int,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     path = manager(request).segment_path(session_id, segment_index)
     if path is None:
         raise HTTPException(status_code=404, detail="Segment not found")
@@ -213,9 +213,9 @@ def segment_audio(
 def session_reference_audio(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     path = manager(request).reference_path(session_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Reference not ready")
@@ -231,9 +231,9 @@ def select_segments(
     session_id: str,
     payload: SegmentSelection,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     try:
         return manager(request).select_segments(session_id, payload.indices)
     except (VoiceStudioError, ValueError) as exc:
@@ -244,9 +244,9 @@ def select_segments(
 async def upload_reference(
     session_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     audio = (await _form_files(request, "audio") or [None])[0]
     suffix, payload = _read_upload(audio, MAX_AUDIO_BYTES, AUDIO_EXTENSIONS)
     target = _store_upload(request, session_id, suffix, payload)
@@ -265,9 +265,9 @@ def complete_session(
     session_id: str,
     payload: CompleteRequest,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     try:
         return manager(request).complete_session(session_id, payload.name)
     except VoiceStudioError as exc:
@@ -275,14 +275,14 @@ def complete_session(
 
 
 @router.get("/voices")
-def list_voices(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def list_voices(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return {"voices": manager(request).list_voices()}
 
 
 @router.get("/voices/{voice_id}/audio")
-def voice_audio(voice_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def voice_audio(voice_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     path = manager(request).voice_path(voice_id)
     if path is None:
         raise HTTPException(status_code=404, detail="Voice not found")
@@ -290,6 +290,6 @@ def voice_audio(voice_id: str, request: Request, x_yumeno_request: str = Header(
 
 
 @router.delete("/voices/{voice_id}")
-def delete_voice(voice_id: str, request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def delete_voice(voice_id: str, request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return {"deleted": manager(request).delete_voice(voice_id)}

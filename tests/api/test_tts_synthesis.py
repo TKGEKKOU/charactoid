@@ -27,7 +27,7 @@ def test_tts_synthesis_requires_trained_voice(client, tmp_path, monkeypatch):
     response = client.post(
         f"/api/tts/personas/{persona['id']}/conversations/c1/synthesize",
         json={"text": "你好"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 409
@@ -154,7 +154,7 @@ def test_tts_synthesis_routes_to_gpt_sovits_when_persona_binds_trained_voice(
     response = client.post(
         f"/api/tts/personas/{persona['id']}/conversations/c1/synthesize",
         json={"text": "你好"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
 
     assert response.status_code == 201

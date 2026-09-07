@@ -8,7 +8,7 @@ def test_embedding_resource_api_uses_managed_resource_manager(client, tmp_path, 
     initial = client.get("/api/embedding/status")
     install = client.post(
         "/api/embedding/install",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"model_id": "Qwen/Qwen3-Embedding-0.6B", "source": "modelscope", "device": "auto"},
     )
 
@@ -25,7 +25,7 @@ def test_embedding_install_rejects_unsafe_model_id(client, tmp_path, monkeypatch
 
     response = client.post(
         "/api/embedding/install",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"model_id": "../outside", "source": "modelscope", "device": "auto"},
     )
 

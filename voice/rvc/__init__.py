@@ -1,4 +1,4 @@
-"""Managed RVC integration for YUMENO."""
+"""Managed RVC integration for CHARACTOID."""
 from .resources import RVCResourceManager
 from .adapter import RVCAdapter, RVCError
 from .tasks import RVCTaskManager

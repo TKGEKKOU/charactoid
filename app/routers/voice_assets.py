@@ -161,9 +161,9 @@ def create_asset(
     payload: VoiceAssetCreate,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="名称不能为空")
@@ -200,9 +200,9 @@ def update_asset(
     payload: VoiceAssetUpdate,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     asset = session.get(VoiceAsset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="音色不存在")
@@ -221,9 +221,9 @@ def delete_asset(
     asset_id: str,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     asset = session.get(VoiceAsset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="音色不存在")
@@ -303,9 +303,9 @@ def import_assets(
     payload: VoiceAssetImport,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     project_root = Path(request.app.state.gpt_sovits_config.project_root)
     language = normalize_language(payload.reference_language) if payload.reference_language else None
     imported = _import_asset_from_directory(
@@ -323,9 +323,9 @@ def synthesize_asset(
     payload: VoiceAssetSynthesize,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     asset = session.get(VoiceAsset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="音色不存在")
@@ -354,9 +354,9 @@ async def start_training(
     session: Session = Depends(get_session),
     files: list[UploadFile] = File(default=[]),
     language: str = Form(default="zh"),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     asset = session.get(VoiceAsset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="音色不存在")
@@ -400,11 +400,11 @@ def train_from_studio(
     payload: VoiceAssetTrainFromStudio,
     request: Request,
     session: Session = Depends(get_session),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
     """Train a voice asset from segments already sliced in the voice studio."""
 
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="名称不能为空")
@@ -468,9 +468,9 @@ def gpt_sovits_status(request: Request):
 def update_gpt_sovits_config(
     payload: GPTSoVITSConfigUpdate,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     config: GPTSoVITSConfig = request.app.state.gpt_sovits_config
     config.save(
         install_dir=payload.install_dir,
@@ -483,9 +483,9 @@ def update_gpt_sovits_config(
 @router.post("/gpt-sovits/detect")
 def detect_gpt_sovits(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     config: GPTSoVITSConfig = request.app.state.gpt_sovits_config
     found = detect_install_dir()
     if found:
@@ -497,9 +497,9 @@ def detect_gpt_sovits(
 def install_gpt_sovits(
     payload: GPTSoVITSInstallRequest,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     try:
         started = request.app.state.gpt_sovits_install.start_install(payload.url)
     except ValueError as exc:
@@ -512,9 +512,9 @@ def install_gpt_sovits(
 @router.delete("/gpt-sovits/install/cancel", status_code=202)
 def cancel_gpt_sovits_install(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     request.app.state.gpt_sovits_install.cancel_install()
     return request.app.state.gpt_sovits_install.status()
 
@@ -522,9 +522,9 @@ def cancel_gpt_sovits_install(
 @router.delete("/gpt-sovits/install")
 def remove_gpt_sovits_install(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     request.app.state.gpt_sovits.stop_service()
     request.app.state.gpt_sovits_install.remove_install()
     return request.app.state.gpt_sovits_install.status()
@@ -533,9 +533,9 @@ def remove_gpt_sovits_install(
 @router.post("/gpt-sovits/service/start")
 def start_gpt_sovits_service(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     try:
         request.app.state.gpt_sovits.ensure_service()
     except GPTSoVITSNotInstalled as exc:
@@ -548,9 +548,9 @@ def start_gpt_sovits_service(
 @router.post("/gpt-sovits/service/stop")
 def stop_gpt_sovits_service(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     request.app.state.gpt_sovits.stop_service()
     return request.app.state.gpt_sovits.status()
 
@@ -558,9 +558,9 @@ def stop_gpt_sovits_service(
 @router.post("/gpt-sovits/model-directory")
 def open_gpt_sovits_directory(
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     from voice.resource_directory import open_resource_directory
 
     install_dir = request.app.state.gpt_sovits_install.install_dir

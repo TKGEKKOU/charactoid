@@ -135,7 +135,7 @@ onMounted(refresh);
     <p v-if="error" class="eval-dataset-error">{{ error }}</p>
     <div v-if="editorOpen" class="eval-dataset-editor">
       <div class="eval-dataset-editor-head"><strong>{{ editing ? "编辑题目" : "新增题目" }}</strong><button class="icon-button" type="button" title="关闭" :disabled="saving" @click="closeEditor"><X :size="15" /></button></div>
-      <label class="yv-field"><span>问题</span><textarea name="question" v-model="draft.question" rows="2" maxlength="4000" placeholder="例如：YUMENO 如何选择知识检索路径？"></textarea></label>
+      <label class="yv-field"><span>问题</span><textarea name="question" v-model="draft.question" rows="2" maxlength="4000" placeholder="例如：CHARACTOID 如何选择知识检索路径？"></textarea></label>
       <label class="yv-field"><span>预期答案 <em>可选</em></span><textarea name="expected_answer" v-model="draft.expectedAnswer" rows="3" maxlength="8000" placeholder="用于人工复核与后续答案对比"></textarea></label>
       <div class="eval-dataset-form-grid">
         <label class="yv-field"><span>相关资料 ID <em>每行一个，也可用逗号分隔</em></span><textarea v-model="draft.documentIds" rows="2" placeholder="上传资料列表中的 ID"></textarea></label>

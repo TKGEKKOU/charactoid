@@ -11,5 +11,5 @@ export function mountManageApp(target: string | Element = "#role-workbench-root"
   if (!element) throw new Error("角色工作台挂载点不存在");
   app = createApp(App); app.mount(element); return app;
 }
-export function showManageApp() { document.querySelector("#role-workbench-root")?.dispatchEvent(new CustomEvent("yumeno:manage-show")); }
+export function showManageApp() { document.querySelector("#role-workbench-root")?.dispatchEvent(new CustomEvent("charactoid:manage-show")); }
 export function destroyManageApp() { if (app) { app.unmount(); app = null; } }

@@ -56,10 +56,10 @@ def import_reference_from_video(
     persona_id: str,
     request: Request,
     video: UploadFile | None = File(default=None),
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
     session: Session = Depends(get_session),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     local_persona_or_404(session, persona_id)
     if video is None:
         raise HTTPException(status_code=422, detail="Video file is required")
@@ -88,9 +88,9 @@ def import_reference_from_video(
 def get_clone_task(
     task_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     record = request.app.state.clone_tasks.get(task_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -110,9 +110,9 @@ def get_clone_task(
 def cancel_clone_task(
     task_id: str,
     request: Request,
-    x_yumeno_request: str = Header(default=""),
+    x_charactoid_request: str = Header(default=""),
 ):
-    protected(request, x_yumeno_request)
+    protected(request, x_charactoid_request)
     manager = request.app.state.clone_tasks
     record = manager.get(task_id)
     if record is None:
@@ -124,32 +124,32 @@ def cancel_clone_task(
 
 
 @router.get("/separator/status")
-def separator_status(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def separator_status(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.separator_resources.status()
 
 
 @router.post("/separator/install", status_code=status.HTTP_202_ACCEPTED)
-def separator_install(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def separator_install(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     request.app.state.separator_resources.start_install()
     return request.app.state.separator_resources.status()
 
 
 @router.delete("/separator/install/cancel", status_code=status.HTTP_202_ACCEPTED)
-def separator_cancel_install(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def separator_cancel_install(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     request.app.state.separator_resources.cancel_install()
     return request.app.state.separator_resources.status()
 
 
 @router.delete("/separator/install")
-def separator_remove(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def separator_remove(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.separator_resources.remove_models()
 
 
 @router.get("/separator/model-directory")
-def separator_model_directory(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def separator_model_directory(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.separator_resources.open_model_directory()

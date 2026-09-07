@@ -1,7 +1,7 @@
 "use strict";
 
 /*
- * YUMENO Live2D core controller.
+ * CHARACTOID Live2D core controller.
  * Renders a Cubism 2 / Cubism 4 model on a PIXI canvas, drives lip sync
  * from text-derived visemes blended with real-time audio energy
  * (Web Audio AnalyserNode; see viseme.js for the phoneme model).
@@ -21,19 +21,19 @@
  *   PLLive2D.setVoiceState("listening" | "idle" | "connecting")
  *   PLLive2D.setLipSyncText(text, language?)
  *   PLLive2D.destroy()
- * Events (CustomEvent "yumeno:live2d" on document):
+ * Events (CustomEvent "charactoid:live2d" on document):
  *   { type: "state", state } | { type: "models", models, current } |
  *   { type: "model", name, id } | { type: "config", ... } |
  *   { type: "status", level, message }
  */
 window.PLLive2D = (function () {
   const LS = {
-    model: "yumeno:live2d:model",
-    flip: "yumeno:live2d:flip",
-    scale: "yumeno:live2d:scale",
-    mode: "yumeno:live2d:mode",
-    posX: "yumeno:live2d:posx",
-    posY: "yumeno:live2d:posy",
+    model: "charactoid:live2d:model",
+    flip: "charactoid:live2d:flip",
+    scale: "charactoid:live2d:scale",
+    mode: "charactoid:live2d:mode",
+    posX: "charactoid:live2d:posx",
+    posY: "charactoid:live2d:posy",
   };
 
   const LIP_IDS = ["ParamMouthOpenY", "ParamMouthForm"];
@@ -631,7 +631,7 @@ window.PLLive2D = (function () {
     /* ---------- events ---------- */
 
     _emit(payload) {
-      document.dispatchEvent(new CustomEvent("yumeno:live2d", { detail: payload }));
+      document.dispatchEvent(new CustomEvent("charactoid:live2d", { detail: payload }));
     }
   }
 

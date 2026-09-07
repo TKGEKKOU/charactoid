@@ -10,7 +10,7 @@ function ensureExitDialog() {
   dialog.setAttribute("aria-labelledby", "exit-confirm-title");
   dialog.innerHTML = [
     '<form method="dialog">',
-    '<h2 id="exit-confirm-title">退出 YUMENO？</h2>',
+    '<h2 id="exit-confirm-title">退出 CHARACTOID？</h2>',
     '<p class="exit-confirm-subtitle">选择退出后如何处理服务</p>',
     '<div class="exit-confirm-detail">',
     '<label class="exit-option"><input type="radio" name="exit-policy" value="pause" checked><i data-lucide="power"></i><span><b>停止服务</b><em>停止 FastAPI、GPT-SoVITS，并暂停 Docker</em></span><em class="exit-recommend">推荐</em></label>',
@@ -196,7 +196,7 @@ function renderSetupCue(status) {
   const cue = $("setup-cue");
   if (!cue) return;
   let dismissed = false;
-  try { dismissed = window.sessionStorage.getItem("yumeno-setup-cue-dismissed") === "1"; } catch (e) {}
+  try { dismissed = window.sessionStorage.getItem("charactoid-setup-cue-dismissed") === "1"; } catch (e) {}
   const setupView = "providers";
   const needsSetup = status?.config?.llm_provider === "未配置";
   if (needsSetup && !dismissed) {
@@ -206,7 +206,7 @@ function renderSetupCue(status) {
   cue.hidden = dismissed || !needsSetup;
 }
 function dismissSetupCue() {
-  try { window.sessionStorage.setItem("yumeno-setup-cue-dismissed", "1"); } catch (e) {}
+  try { window.sessionStorage.setItem("charactoid-setup-cue-dismissed", "1"); } catch (e) {}
   const cue = $("setup-cue");
   if (cue) cue.hidden = true;
 }

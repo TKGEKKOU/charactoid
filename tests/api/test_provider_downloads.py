@@ -28,7 +28,7 @@ def test_unified_resource_install_persists_task_and_exposes_status(client, monke
     response = client.post(
         "/api/providers/resources/rvc/install",
         json={"source": "local"},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 202
     body = response.json()
@@ -38,12 +38,12 @@ def test_unified_resource_install_persists_task_and_exposes_status(client, monke
 
     detail = client.get(
         f"/api/providers/resources/tasks/{task_id}",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert detail.status_code == 200
     assert detail.json()["resource_status"]["installing"] is True
 
-    listing = client.get("/api/providers/resources/tasks", headers={"X-YUMENO-Request": "web"})
+    listing = client.get("/api/providers/resources/tasks", headers={"X-CHARACTOID-Request": "web"})
     assert listing.status_code == 200
     assert any(item["task_id"] == task_id for item in listing.json()["items"])
 
@@ -57,7 +57,7 @@ def test_unified_resource_install_persists_task_and_exposes_status(client, monke
 
     cancelled = client.delete(
         f"/api/providers/resources/tasks/{task_id}",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert cancelled.status_code == 202
 
@@ -65,7 +65,7 @@ def test_unified_resource_install_persists_task_and_exposes_status(client, monke
 def test_unified_resource_cancel_and_retry(client):
     separator = FakeResource()
     client.app.state.separator_resources = separator
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
     created = client.post("/api/providers/resources/separator/install", headers=headers)
     assert created.status_code == 202
     task_id = created.json()["task_id"]
@@ -84,7 +84,7 @@ def test_unified_resource_cancel_and_retry(client):
 def test_unified_resource_status_supports_provider_aliases(client):
     client.app.state.rvc_resources = FakeResource()
     client.app.state.separator_resources = FakeResource()
-    headers = {"X-YUMENO-Request": "web"}
+    headers = {"X-CHARACTOID-Request": "web"}
 
     listing = client.get("/api/providers/resources", headers=headers)
     assert listing.status_code == 200
@@ -96,7 +96,7 @@ def test_unified_resource_status_supports_provider_aliases(client):
 
 
 def test_new_resources_alias_lists_persisted_tasks(client):
-    response = client.get("/api/resources/tasks", headers={"X-YUMENO-Request": "web"})
+    response = client.get("/api/resources/tasks", headers={"X-CHARACTOID-Request": "web"})
     assert response.status_code == 200
     assert "items" in response.json()
 
@@ -106,7 +106,7 @@ def test_new_resources_install_accepts_nested_parameters(client):
     response = client.post(
         "/api/resources/rvc/install",
         json={"parameters": {"source": "local", "device": "cuda"}},
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert response.status_code == 202
     assert response.json()["provider_id"] == "rvc"

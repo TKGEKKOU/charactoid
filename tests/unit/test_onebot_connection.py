@@ -25,12 +25,12 @@ def test_request_action_matches_echo_response():
         await manager._handle_action_response({
             "status": "ok",
             "retcode": 0,
-            "data": {"user_id": 12345, "nickname": "YUMENO"},
+            "data": {"user_id": 12345, "nickname": "CHARACTOID"},
             "echo": echo,
         })
         return await request
 
-    assert asyncio.run(scenario()) == {"user_id": 12345, "nickname": "YUMENO"}
+    assert asyncio.run(scenario()) == {"user_id": 12345, "nickname": "CHARACTOID"}
 
 
 def test_request_action_reports_api_error():

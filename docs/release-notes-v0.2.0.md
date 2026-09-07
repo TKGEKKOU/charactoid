@@ -1,6 +1,6 @@
-# YUMENO v0.2.0
+# CHARACTOID v0.2.0
 
-YUMENO v0.2.0 将项目收束为本地优先的角色化 Agent/RAG 工作台：知识库与记忆是默认能力，Skill、MCP、Tool 作为角色级可授权扩展；QQ、B站、语音和 Live2D 继续作为独立接入层复用同一角色运行时。
+CHARACTOID v0.2.0 将项目收束为本地优先的角色化 Agent/RAG 工作台：知识库与记忆是默认能力，Skill、MCP、Tool 作为角色级可授权扩展；QQ、B站、语音和 Live2D 继续作为独立接入层复用同一角色运行时。
 
 ## 主要变化
 

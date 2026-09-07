@@ -197,13 +197,13 @@ class Settings:
             app_host=get("APP_HOST", "127.0.0.1"),
             app_port=int(get("APP_PORT", "17000")),
             workspace_id="local-default",
-            sqlite_path=project_root / str(get("DB_PATH", "data/yumeno.db")),
+            sqlite_path=project_root / str(get("DB_PATH", "data/charactoid.db")),
             milvus_uri=normalize_milvus_uri(
                 get("MILVUS_DB_URI", "./data/milvus_local.db"), project_root
             ),
             milvus_user=get("MILVUS_USER", ""),
             milvus_password=get("MILVUS_PASSWORD", ""),
-            collection_name=get("COLLECTION_NAME", "yumeno_knowledge_v1"),
+            collection_name=get("COLLECTION_NAME", "charactoid_knowledge_v1"),
             embedding_provider=embedding_provider,
             embedding_model_source=embedding_model_source,
             embedding_device=embedding_device,

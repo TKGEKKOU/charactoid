@@ -602,7 +602,7 @@ async function saveMCPGrants(name, value) {
   try {
     await api(fetch(`/api/mcp/servers/${encodeURIComponent(name)}/grants`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ allowed_persona_ids: ids }),
     }));
     await renderMCPServers();

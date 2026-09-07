@@ -107,7 +107,7 @@ class SeparatorResourceManager:
         return True
 
     def _download(self, url: str, target: Path) -> None:
-        request = urllib.request.Request(url, headers={"User-Agent": "YUMENO/0.1"})
+        request = urllib.request.Request(url, headers={"User-Agent": "CHARACTOID/0.1"})
         chunk_size = 1024 * 1024
         with urllib.request.urlopen(request, timeout=60) as response:
             content_length = int(response.headers.get("Content-Length") or 0)

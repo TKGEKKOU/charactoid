@@ -1,6 +1,6 @@
 """GPT-SoVITS installation discovery and per-install configuration.
 
-YUMENO never bundles a GPT-SoVITS distribution. It detects an existing
+CHARACTOID never bundles a GPT-SoVITS distribution. It detects an existing
 installation (official release or integrated package), validates that it can
 serve the HTTP API (``api_v2.py`` / ``api.py``), and remembers the path in
 ``data/gpt_sovits/config.json``.

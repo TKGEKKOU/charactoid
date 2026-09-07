@@ -72,7 +72,7 @@ def get_llm(settings: Settings | None = None) -> ChatOpenAI:
 def probe_llm(api_key: str, base_url: str, model: str) -> str:
     """用一次最小文本请求验证 OpenAI-compatible Chat Completions 连接。"""
     client = _create_llm(api_key, base_url, model, timeout=20, max_retries=0)
-    response = client.invoke([HumanMessage(content="Reply with exactly: YUMENO_OK")])
+    response = client.invoke([HumanMessage(content="Reply with exactly: CHARACTOID_OK")])
     content = response.content
     if isinstance(content, list):
         content = "".join(

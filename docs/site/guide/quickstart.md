@@ -2,7 +2,7 @@
 
 ## 启动服务
 
-YUMENO 的主服务入口是 `main.py`。推荐在项目根目录创建并激活虚拟环境：
+CHARACTOID 的主服务入口是 `main.py`。推荐在项目根目录创建并激活虚拟环境：
 
 ```powershell
 .\.venv\Scripts\python.exe -B main.py
@@ -44,4 +44,4 @@ pytest
 python -m compileall agents rag runtime voice
 ```
 
-> 当前文档描述的是 YUMENO 实际项目；与产品展示站中的视觉演示不同，真实模型、文件处理和服务连接以仓库配置为准。
+> 当前文档描述的是 CHARACTOID 实际项目；与产品展示站中的视觉演示不同，真实模型、文件处理和服务连接以仓库配置为准。

@@ -28,34 +28,34 @@ def get_status(request: Request):
 
 
 @router.patch("/config")
-def update_config(payload: ASRConfigUpdate, request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def update_config(payload: ASRConfigUpdate, request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.asr_resources.configure(**payload.model_dump(exclude_unset=True))
 
 
 @router.post("/install", status_code=status.HTTP_202_ACCEPTED)
-def install(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def install(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     request.app.state.asr_resources.start_install()
     return request.app.state.asr_resources.status()
 
 
 @router.delete("/install")
-def remove(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def remove(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.asr_resources.remove_managed()
 
 
 @router.delete("/install/cancel", status_code=status.HTTP_202_ACCEPTED)
-def cancel_install(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def cancel_install(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     request.app.state.asr_resources.cancel_install()
     return request.app.state.asr_resources.status()
 
 
 @router.post("/model-directory")
-def open_model_directory(request: Request, x_yumeno_request: str = Header(default="")):
-    protected(request, x_yumeno_request)
+def open_model_directory(request: Request, x_charactoid_request: str = Header(default="")):
+    protected(request, x_charactoid_request)
     return request.app.state.asr_resources.open_model_directory()
 
 
@@ -66,25 +66,25 @@ def get_stt_status(request: Request):
 
 
 @stt_router.patch("/config")
-def update_stt_config(payload: ASRConfigUpdate, request: Request, x_yumeno_request: str = Header(default="")):
-    return update_config(payload, request, x_yumeno_request)
+def update_stt_config(payload: ASRConfigUpdate, request: Request, x_charactoid_request: str = Header(default="")):
+    return update_config(payload, request, x_charactoid_request)
 
 
 @stt_router.post("/install", status_code=status.HTTP_202_ACCEPTED)
-def install_stt(request: Request, x_yumeno_request: str = Header(default="")):
-    return install(request, x_yumeno_request)
+def install_stt(request: Request, x_charactoid_request: str = Header(default="")):
+    return install(request, x_charactoid_request)
 
 
 @stt_router.delete("/install")
-def remove_stt(request: Request, x_yumeno_request: str = Header(default="")):
-    return remove(request, x_yumeno_request)
+def remove_stt(request: Request, x_charactoid_request: str = Header(default="")):
+    return remove(request, x_charactoid_request)
 
 
 @stt_router.delete("/install/cancel", status_code=status.HTTP_202_ACCEPTED)
-def cancel_stt_install(request: Request, x_yumeno_request: str = Header(default="")):
-    return cancel_install(request, x_yumeno_request)
+def cancel_stt_install(request: Request, x_charactoid_request: str = Header(default="")):
+    return cancel_install(request, x_charactoid_request)
 
 
 @stt_router.post("/model-directory")
-def open_stt_model_directory(request: Request, x_yumeno_request: str = Header(default="")):
-    return open_model_directory(request, x_yumeno_request)
+def open_stt_model_directory(request: Request, x_charactoid_request: str = Header(default="")):
+    return open_model_directory(request, x_charactoid_request)

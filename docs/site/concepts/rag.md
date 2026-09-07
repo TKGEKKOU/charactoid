@@ -1,6 +1,6 @@
 # RAG 与知识资源
 
-RAG 在 YUMENO 中不是独立聊天机器人，而是角色 Agent 的一个可调用知识能力：
+RAG 在 CHARACTOID 中不是独立聊天机器人，而是角色 Agent 的一个可调用知识能力：
 
 1. 摄取 Markdown、PDF、网页或项目文档；
 2. 清洗并按语义边界切分；

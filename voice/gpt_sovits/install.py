@@ -1,6 +1,6 @@
 """GPT-SoVITS distribution installer.
 
-YUMENO does not bundle the 14 GB+ distribution. A user-provided archive URL
+CHARACTOID does not bundle the 14 GB+ distribution. A user-provided archive URL
 (zip of an integrated package, e.g. the nvidia50 build) is downloaded with
 progress/resume, extracted into ``runtime/gpt_sovits``, and registered in the
 GPT-SoVITS config. Optional project-bundled patches under
@@ -29,7 +29,7 @@ from voice.gpt_sovits.config import DEFAULT_DOWNLOAD_URL, GPTSoVITSConfig, probe
 #   - tools/asr + tools/uvr5: the pack's own ASR/vocal-separation, replaced by
 #     the app's Qwen3-ASR and HT-Demucs separator;
 #   - v1/v2/v3/v4 pretrained variants: only used when switching the engine to
-#     those versions, which YUMENO never does (it uses v2Pro + trained assets).
+#     those versions, which CHARACTOID never does (it uses v2Pro + trained assets).
 _SLIM_PATHS = (
     "tools/asr",
     "tools/uvr5",
@@ -163,7 +163,7 @@ class GPTSoVITSInstallManager:
         with self._lock:
             if self.state.installing:
                 return False
-            url = (url or os.getenv("YUMENO_GPT_SOVITS_DOWNLOAD_URL") or DEFAULT_DOWNLOAD_URL).strip()
+            url = (url or os.getenv("CHARACTOID_GPT_SOVITS_DOWNLOAD_URL") or DEFAULT_DOWNLOAD_URL).strip()
             if not url.startswith(("https://", "http://")):
                 raise ValueError("GPT-SoVITS 下载地址必须是 HTTP(S) URL")
             self.config.save(download_url=url)
@@ -194,7 +194,7 @@ class GPTSoVITSInstallManager:
             archive = self.download_dir / filename
             self.state.set_progress("download", filename, 0, 0, detail="准备下载…")
             candidates = [url]
-            for fallback in os.getenv("YUMENO_GPT_SOVITS_FALLBACK_URLS", "").split(","):
+            for fallback in os.getenv("CHARACTOID_GPT_SOVITS_FALLBACK_URLS", "").split(","):
                 fallback = fallback.strip()
                 if fallback and fallback not in candidates:
                     candidates.append(fallback)
@@ -253,7 +253,7 @@ class GPTSoVITSInstallManager:
             if self.state.cancel_requested.is_set():
                 raise GPTSoVITSInstallCancelled()
             resume = destination.with_suffix(destination.suffix + ".part").stat().st_size if destination.with_suffix(destination.suffix + ".part").is_file() else 0
-            headers = {"User-Agent": "YUMENO"}
+            headers = {"User-Agent": "CHARACTOID"}
             if resume > 0:
                 headers["Range"] = f"bytes={resume}-"
             request = urllib.request.Request(url, headers=headers)

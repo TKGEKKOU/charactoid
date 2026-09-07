@@ -7,7 +7,7 @@ from typing import Sequence
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="yumeno", description="YUMENO 统一运行入口")
+    parser = argparse.ArgumentParser(prog="charactoid", description="CHARACTOID 统一运行入口")
     sub = parser.add_subparsers(dest="command")
     serve = sub.add_parser("serve", help="启动 Web 服务")
     serve.add_argument("--host", default=None)
@@ -22,7 +22,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if command == "runtime-status":
         import json
         print(json.dumps({
-            "engine": "yumeno-native",
+            "engine": "charactoid-native",
             "external_runtime_required": False,
             "session_job_event_cancel_resume": True,
             "service": "Core → Supervisor → Worker",

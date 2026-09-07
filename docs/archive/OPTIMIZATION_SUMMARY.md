@@ -1,4 +1,4 @@
-# YUMENO 优化完成总结
+# CHARACTOID 优化完成总结
 
 ## ✅ 已完成的优化（可直接写入简历）
 
@@ -124,7 +124,7 @@
 ## 📝 更新后的简历描述（直接复制）
 
 ```
-YUMENO - 企业级 Multi-Agent RAG 编排引擎
+CHARACTOID - 企业级 Multi-Agent RAG 编排引擎
 
 核心贡献：
 
@@ -154,7 +154,7 @@ YUMENO - 企业级 Multi-Agent RAG 编排引擎
 
 ## 🎯 与竞品（AstrBot）的差异化
 
-| 特性 | AstrBot | YUMENO（优化后） |
+| 特性 | AstrBot | CHARACTOID（优化后） |
 |------|---------|-----------------|
 | Multi-Agent 架构 | ❌ 单 Agent | ✅ Supervisor + 6 Worker |
 | RAG 深度 | ⚠️ 简单检索 | ✅ 自适应纠错 + 质量门 + 评测数据 |

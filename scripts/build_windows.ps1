@@ -3,7 +3,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  throw "npm was not found. Install Node.js 20 or newer before building YUMENO."
+  throw "npm was not found. Install Node.js 20 or newer before building CHARACTOID."
 }
 Write-Host "Building Vue frontend..."
 Push-Location (Join-Path $projectRoot "frontend")
@@ -23,7 +23,7 @@ try {
   --windowed `
   --onedir `
   --contents-directory "." `
-  --name YUMENO `
+  --name CHARACTOID `
   --collect-all webview `
   --exclude-module speech_recognition `
   --exclude-module tensorboard `
@@ -39,7 +39,7 @@ try {
   --add-data ".env.example;." `
   desktop_main.py
 
-Write-Host "Built:" (Join-Path $projectRoot "dist\YUMENO\YUMENO.exe")
+Write-Host "Built:" (Join-Path $projectRoot "dist\CHARACTOID\CHARACTOID.exe")
 
 # Build the optional Inno Setup installer.
 $isccCandidates = @(
@@ -53,7 +53,7 @@ if (-not $iscc) {
   Write-Warning "Inno Setup was not found; skipping installer generation. Install it from https://jrsoftware.org/isdl.php and retry."
 } else {
   Write-Host "Building Inno Setup installer..."
-  & $iscc (Join-Path $projectRoot "scripts\YUMENO.iss")
+  & $iscc (Join-Path $projectRoot "scripts\CHARACTOID.iss")
   if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
-  Write-Host "Installer:" (Join-Path $projectRoot "dist\YUMENO-Setup-0.3.2.exe")
+  Write-Host "Installer:" (Join-Path $projectRoot "dist\CHARACTOID-Setup-1.0.0.exe")
 }

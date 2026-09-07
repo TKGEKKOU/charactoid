@@ -147,20 +147,20 @@ def import_structured_file(
     tables: list[StructuredTable] = []
     try:
         connection.execute(
-            "CREATE TABLE IF NOT EXISTS _yumeno_datasets ("
+            "CREATE TABLE IF NOT EXISTS _charactoid_datasets ("
             "physical_name TEXT PRIMARY KEY, document_id TEXT NOT NULL, "
             "workspace_id TEXT NOT NULL, knowledge_space_id TEXT NOT NULL, "
             "display_name TEXT NOT NULL, schema_json TEXT NOT NULL, row_count INTEGER NOT NULL)"
         )
         previous = connection.execute(
-            "SELECT physical_name FROM _yumeno_datasets WHERE document_id = ?",
+            "SELECT physical_name FROM _charactoid_datasets WHERE document_id = ?",
             (document_id,),
         ).fetchall()
         for (table_name,) in previous:
             if table_name.startswith("t_"):
                 connection.execute(f'DROP TABLE IF EXISTS "{table_name}"')
         connection.execute(
-            "DELETE FROM _yumeno_datasets WHERE document_id = ?", (document_id,)
+            "DELETE FROM _charactoid_datasets WHERE document_id = ?", (document_id,)
         )
 
         for sheet_index, (sheet_name, headers, rows) in enumerate(sheets):
@@ -193,7 +193,7 @@ def import_structured_file(
             table = StructuredTable(physical_name, sheet_name, columns, len(rows))
             tables.append(table)
             connection.execute(
-                "INSERT INTO _yumeno_datasets VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO _charactoid_datasets VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     physical_name,
                     document_id,

@@ -85,7 +85,7 @@ async def evaluate_single_question(question: Dict) -> Dict[str, Any]:
 async def run_benchmark():
     """运行完整基准测试"""
     print("=" * 60)
-    print("YUMENO RAG 质量基准测试")
+    print("CHARACTOID RAG 质量基准测试")
     print("=" * 60)
     print(f"测试问题数: {len(TEST_QUESTIONS)}")
     print()

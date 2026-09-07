@@ -32,7 +32,7 @@ def delete_structured_document(
     empty = False
     try:
         tables = connection.execute(
-            "SELECT physical_name FROM _yumeno_datasets WHERE document_id = ?",
+            "SELECT physical_name FROM _charactoid_datasets WHERE document_id = ?",
             (document_id,),
         ).fetchall()
         for (table_name,) in tables:
@@ -40,10 +40,10 @@ def delete_structured_document(
                 connection.execute(f'DROP TABLE IF EXISTS "{table_name}"')
                 removed += 1
         connection.execute(
-            "DELETE FROM _yumeno_datasets WHERE document_id = ?", (document_id,)
+            "DELETE FROM _charactoid_datasets WHERE document_id = ?", (document_id,)
         )
         empty = (
-            connection.execute("SELECT COUNT(*) FROM _yumeno_datasets").fetchone()[0]
+            connection.execute("SELECT COUNT(*) FROM _charactoid_datasets").fetchone()[0]
             == 0
         )
         connection.commit()

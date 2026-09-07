@@ -1,1 +1,1 @@
-"""YUMENO realtime conversation infrastructure."""
+"""CHARACTOID realtime conversation infrastructure."""

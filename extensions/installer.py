@@ -143,7 +143,7 @@ class ExtensionInstaller:
         state_path = Path(skills.USER_SKILL_DIR) / "skills_state.json"
         old_state = state_path.read_bytes() if state_path.is_file() else None
         try:
-            with tempfile.TemporaryDirectory(prefix="yumeno-skill-") as raw:
+            with tempfile.TemporaryDirectory(prefix="charactoid-skill-") as raw:
                 workdir = Path(raw)
                 source = item.source
                 if self.skill_fetcher is not None:

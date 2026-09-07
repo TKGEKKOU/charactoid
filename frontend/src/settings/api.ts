@@ -27,19 +27,19 @@ export function getRerankerStatus(): Promise<RerankerStatus> {
 export function installReranker(device: string): Promise<RerankerStatus> {
   return fetchJson("/api/reranker/install", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+    headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
     body: JSON.stringify({ model_id: "Qwen/Qwen3-Reranker-0.6B", source: "modelscope", device }),
   });
 }
 
 export function cancelRerankerInstall(): Promise<RerankerStatus> {
-  return fetchJson("/api/reranker/install/cancel", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } });
+  return fetchJson("/api/reranker/install/cancel", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } });
 }
 
 export function removeReranker(): Promise<RerankerStatus> {
-  return fetchJson("/api/reranker/model", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } });
+  return fetchJson("/api/reranker/model", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } });
 }
 
 export function openRerankerDirectory(): Promise<RerankerStatus> {
-  return fetchJson("/api/reranker/model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } });
+  return fetchJson("/api/reranker/model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } });
 }

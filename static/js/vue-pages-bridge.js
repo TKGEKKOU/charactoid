@@ -2,11 +2,11 @@
 window.PL = window.PL || { modules: {} };
 let vuePagesPromise = null;
 function ensureVuePageStyles() {
-  if (document.querySelector('link[data-yumeno-vue-pages]')) return;
+  if (document.querySelector('link[data-charactoid-vue-pages]')) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
   link.href = "/static/vue/style.css";
-  link.dataset.yumenoVuePages = "true";
+  link.dataset.charactoidVuePages = "true";
   document.head.append(link);
 }
 function loadVuePages() {

@@ -148,12 +148,12 @@ def test_saved_api_key_can_only_be_revealed_by_protected_whitelisted_endpoint(cl
     denied = client.post("/api/settings/reveal-key", json={"field": "openai_api_key"})
     revealed = client.post(
         "/api/settings/reveal-key",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"field": "embedding_api_key"},
     )
     invalid = client.post(
         "/api/settings/reveal-key",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"field": "unknown_field"},
     )
 
@@ -177,12 +177,12 @@ def test_llm_connection_probe_uses_unsaved_openai_compatible_values(client, tmp_
 
     def fake_probe(api_key, base_url, model):
         observed.update(api_key=api_key, base_url=base_url, model=model)
-        return "YUMENO_OK"
+        return "CHARACTOID_OK"
 
     monkeypatch.setattr(settings_router, "probe_llm", fake_probe)
     response = client.post(
         "/api/settings/llm/test",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={
             "api_key": "temporary-key",
             "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -214,14 +214,14 @@ def test_llm_connection_probe_falls_back_to_saved_key_and_requires_same_origin_h
     monkeypatch.setattr(
         settings_router,
         "probe_llm",
-        lambda api_key, base_url, model: observed.update(api_key=api_key) or "YUMENO_OK",
+        lambda api_key, base_url, model: observed.update(api_key=api_key) or "CHARACTOID_OK",
     )
     payload = {"api_key": "", "base_url": "https://api.deepseek.com", "model": "deepseek-chat"}
 
     denied = client.post("/api/settings/llm/test", json=payload)
     allowed = client.post(
         "/api/settings/llm/test",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json=payload,
     )
 
@@ -263,7 +263,7 @@ def test_llm_connection_probe_does_not_use_placeholder_saved_key(client, tmp_pat
 
     response = client.post(
         "/api/settings/llm/test",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"api_key": "", "base_url": "https://api.example.test/v1", "model": "model"},
     )
 

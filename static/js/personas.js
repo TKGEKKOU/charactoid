@@ -819,7 +819,7 @@ async function previewEditAsset() {
     };
     const response = await fetch(`/api/voice-assets/${assetId}/synthesize`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ text: samples[language], text_lang: language }),
     });
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail || "试听失败");

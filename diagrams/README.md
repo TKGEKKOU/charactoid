@@ -1,11 +1,11 @@
-# YUMENO 架构图
+# CHARACTOID 架构图
 
 README 只保留三张必要图，分别说明系统边界、Agent 主流程，以及以 RVC 为例的真实文件型任务。其它 Worker 复用相同的委派、资源和任务协议，不再为每个功能重复维护二级跳转图。
 
 ## 1. 系统边界
 
 ```mermaid
-%% YUMENO 系统上下文：多入口进入同一套角色 Agent 服务
+%% CHARACTOID 系统上下文：多入口进入同一套角色 Agent 服务
 flowchart LR
   U[用户] --> WEB[Web / Desktop]
   QQ[QQ / OneBot] --> API[FastAPI 应用层]
@@ -27,7 +27,7 @@ LLM / TTS / 搜索 / 接入]
 ## 2. Agent 主流程
 
 ```mermaid
-%% YUMENO Supervisor-centric 父图（与 build_persona_workflow 对齐）
+%% CHARACTOID Supervisor-centric 父图（与 build_persona_workflow 对齐）
 flowchart TD
   START([START]) --> S[persona_supervisor
 Core + Supervisor]

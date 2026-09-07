@@ -179,7 +179,7 @@ async function previewEditAssetById(assetId) {
   try {
     const response = await fetch(`/api/voice-assets/${assetId}/synthesize`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ text: "你好，这是我的声音。很高兴认识你。" }),
     });
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail || "试听失败");
@@ -228,7 +228,7 @@ async function startVoiceTraining() {
   try {
     const result = await api(fetch("/api/voice-assets/train-from-studio", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({
         name,
         session_id: voiceSessionId,
@@ -316,7 +316,7 @@ function bindVoiceDrop(zoneId, inputId) {
 
 async function checkVoiceResources() {
   try {
-    const separator = await api(fetch("/api/tts/separator/status", { headers: { "X-YUMENO-Request": "web" } }));
+    const separator = await api(fetch("/api/tts/separator/status", { headers: { "X-CHARACTOID-Request": "web" } }));
     voiceSeparatorReady = separator.ready;
     voiceSeparatorInstalling = Boolean(separator.installing);
     voiceSeparatorProgress = separator.progress_percent ?? null;
@@ -326,7 +326,7 @@ async function checkVoiceResources() {
     voiceSeparatorProgress = null;
   }
   try {
-    const tts = await api(fetch("/api/tts/status", { headers: { "X-YUMENO-Request": "web" } }));
+    const tts = await api(fetch("/api/tts/status", { headers: { "X-CHARACTOID-Request": "web" } }));
     voiceTtsReady = tts.ready;
     voiceTtsInstalling = Boolean(tts.installing);
     voiceTtsProgress = tts.progress_percent ?? null;
@@ -435,7 +435,7 @@ function renderVoiceResourceGates() {
 
 async function resumeVoiceSession() {
   try {
-    const data = await api(fetch("/api/voice-studio/sessions", { headers: { "X-YUMENO-Request": "web" } }));
+    const data = await api(fetch("/api/voice-studio/sessions", { headers: { "X-CHARACTOID-Request": "web" } }));
     const drafts = data.sessions || [];
     if (drafts.length) {
       voiceSessionId = drafts[0].session_id;
@@ -453,7 +453,7 @@ async function createVoiceSession() {
   voiceSessionId = null;
   clearVoicePanels();
   try {
-    const state = await api(fetch("/api/voice-studio/sessions", { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    const state = await api(fetch("/api/voice-studio/sessions", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     voiceSessionId = state.session_id;
     await loadVoiceSession();
   } catch (reason) {
@@ -465,7 +465,7 @@ async function resetVoiceSession() {
   if (!window.confirm("重置当前草稿？已上传的音频、片段与参考音色都会被清除。")) return;
   if (voiceSessionId) {
     try {
-      await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+      await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     } catch (reason) {
       /* 继续创建新草稿 */
     }
@@ -501,7 +501,7 @@ function clearVoicePanels() {
 
 async function loadVoiceSession() {
   if (!voiceSessionId) return;
-  const headers = { "X-YUMENO-Request": "web" };
+  const headers = { "X-CHARACTOID-Request": "web" };
   const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}`, { headers }));
   renderVoiceState(state);
   if (state.running) startVoicePolling();
@@ -512,7 +512,7 @@ function startVoicePolling() {
   voicePollTimer = setInterval(async () => {
     if (!voiceSessionId) return stopVoicePolling();
     try {
-      const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}`, { headers: { "X-YUMENO-Request": "web" } }));
+      const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}`, { headers: { "X-CHARACTOID-Request": "web" } }));
       renderVoiceState(state);
       if (!state.running && !["queued", "extract", "convert", "separate", "slice", "write"].includes(state.phase)) {
         stopVoicePolling();
@@ -728,7 +728,7 @@ function renderVoiceSegments(state) {
 
 async function deleteVoiceSegment(sessionId, index) {
   try {
-    await api(fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadVoiceSession();
   } catch (reason) {
     setText("voice-segments-status", `移除失败：${reason.message || reason}`, true);
@@ -764,7 +764,7 @@ function toggleSelectAllVoiceSegments() {
 
 async function playVoiceSegment(sessionId, index) {
   try {
-    const response = await fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}/audio`, { headers: { "X-YUMENO-Request": "web" } });
+    const response = await fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}/audio`, { headers: { "X-CHARACTOID-Request": "web" } });
     if (!response.ok) throw new Error("片段不可用");
     if (window.PL && window.PL.unlockAudio) window.PL.unlockAudio();
     const audio = new Audio(URL.createObjectURL(await response.blob()));
@@ -777,7 +777,7 @@ async function playVoiceSegment(sessionId, index) {
 
 async function downloadVoiceSegment(sessionId, index) {
   try {
-    const response = await fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}/audio`, { headers: { "X-YUMENO-Request": "web" } });
+    const response = await fetch(`/api/voice-studio/sessions/${sessionId}/segments/${index}/audio`, { headers: { "X-CHARACTOID-Request": "web" } });
     if (!response.ok) throw new Error("片段不可用");
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
@@ -805,7 +805,7 @@ async function uploadVoiceVideo() {
   const form = new FormData();
   form.append("video", file);
   try {
-    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/video`, { method: "POST", headers: { "X-YUMENO-Request": "web" }, body: form }));
+    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/video`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" }, body: form }));
     voiceSessionId = state.session_id;
     voiceActionStep = "video";
     await loadVoiceSession();
@@ -825,7 +825,7 @@ async function uploadVoiceAudio() {
   const form = new FormData();
   files.forEach((file) => form.append("files", file));
   try {
-    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/audio`, { method: "POST", headers: { "X-YUMENO-Request": "web" }, body: form }));
+    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/audio`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" }, body: form }));
     voiceSessionId = state.session_id;
     await loadVoiceSession();
   } catch (reason) {
@@ -839,7 +839,7 @@ async function startVoiceSeparation() {
   if (button) button.disabled = true;
   setText("voice-audio-status", "正在分离人声…");
   try {
-    await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/separate`, { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/separate`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     voiceActionStep = "audio";
     await loadVoiceSession();
   } catch (reason) {
@@ -858,7 +858,7 @@ async function uploadVoiceSegments() {
   const form = new FormData();
   files.forEach((file) => form.append("files", file));
   try {
-    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/segments/upload`, { method: "POST", headers: { "X-YUMENO-Request": "web" }, body: form }));
+    const state = await api(fetch(`/api/voice-studio/sessions/${voiceSessionId}/segments/upload`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" }, body: form }));
     setText("voice-segments-status", `已添加 ${files.length} 个上传片段，可勾选用于生成参考音色`);
     await loadVoiceSession();
   } catch (reason) {
@@ -869,7 +869,7 @@ async function uploadVoiceSegments() {
 async function deleteVoiceAsset(assetId, name) {
   if (!window.confirm(`删除音色「${name}」？使用该音色的角色将需要重新选择。`)) return;
   try {
-    await api(fetch(`/api/voice-assets/${assetId}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
+    await api(fetch(`/api/voice-assets/${assetId}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
     await loadVoiceTrainLibrary();
   } catch (reason) {
     setText("voice-library-status", `删除失败：${reason.message || reason}`, true);

@@ -159,7 +159,7 @@ function taskStatusLabel(task: DownloadTask) {
 async function fetchDownloadTasks() {
   downloadsLoading.value = true;
   try {
-    const response = await fetch("/api/resources/tasks?limit=30", { headers: { "X-YUMENO-Request": "web" }, cache: "no-store" });
+    const response = await fetch("/api/resources/tasks?limit=30", { headers: { "X-CHARACTOID-Request": "web" }, cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
     const items = Array.isArray(data) ? data : (data.tasks || data.items || []);
@@ -174,13 +174,13 @@ async function fetchDownloadTasks() {
 }
 async function cancelDownload(task: DownloadTask) {
   try {
-    await fetch(`/api/resources/tasks/${encodeURIComponent(task.task_id)}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } });
+    await fetch(`/api/resources/tasks/${encodeURIComponent(task.task_id)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } });
     await fetchDownloadTasks();
   } catch (e) { error.value = e instanceof Error ? e.message : "取消下载失败"; }
 }
 async function clearFinishedDownloads() {
   try {
-    const response = await fetch("/api/resources/tasks?finished=true", { method: "DELETE", headers: { "X-YUMENO-Request": "web" } });
+    const response = await fetch("/api/resources/tasks?finished=true", { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } });
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || `HTTP ${response.status}`); }
     await fetchDownloadTasks();
   } catch (e) { error.value = e instanceof Error ? e.message : "清理下载记录失败"; }
@@ -188,7 +188,7 @@ async function clearFinishedDownloads() {
 
 async function retryDownload(task: DownloadTask) {
   try {
-    const response = await fetch(`/api/resources/tasks/${encodeURIComponent(task.task_id)}/retry`, { method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" } });
+    const response = await fetch(`/api/resources/tasks/${encodeURIComponent(task.task_id)}/retry`, { method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" } });
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || `HTTP ${response.status}`); }
     await fetchDownloadTasks();
   } catch (e) { error.value = e instanceof Error ? e.message : "重试下载失败"; }
@@ -196,7 +196,7 @@ async function retryDownload(task: DownloadTask) {
 
 async function fetchFfmpegStatus() {
   try {
-    const response = await fetch("/api/providers/resources/ffmpeg/status", { headers: { "X-YUMENO-Request": "web" }, cache: "no-store" });
+    const response = await fetch("/api/providers/resources/ffmpeg/status", { headers: { "X-CHARACTOID-Request": "web" }, cache: "no-store" });
     if (response.ok) ffmpegStatus.value = await response.json();
   } catch { /* 音频资源接口不可用时保留已有状态 */ }
 }
@@ -204,7 +204,7 @@ async function callFfmpeg(action: "install" | "remove" | "directory") {
   const urls = { install: "/api/providers/resources/ffmpeg/install", remove: "/api/providers/resources/ffmpeg", directory: "/api/providers/resources/ffmpeg/directory" };
   resourceAction.value = `ffmpeg:${action}`; error.value = "";
   try {
-    const response = await fetch(urls[action], { method: action === "remove" ? "DELETE" : action === "directory" ? "GET" : "POST", headers: { "X-YUMENO-Request": "web" } });
+    const response = await fetch(urls[action], { method: action === "remove" ? "DELETE" : action === "directory" ? "GET" : "POST", headers: { "X-CHARACTOID-Request": "web" } });
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || `HTTP ${response.status}`); }
     ffmpegStatus.value = await response.json();
   } catch (e) { error.value = e instanceof Error ? e.message : "FFmpeg 操作失败"; }
@@ -272,7 +272,7 @@ async function saveConfig() {
   loading.value = true; error.value = ""; saveStatus.value = "";
   try {
     const response = await fetch("/api/providers/configure", {
-      method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify(providerConfigPayload()),
     });
     if (!response.ok) {
@@ -316,11 +316,11 @@ async function callResource(provider: Provider, action: "install" | "cancel" | "
     let response: Response;
     if (action === "install" && provider.mode === "local") {
       const unifiedUrl = `/api/resources/${encodeURIComponent(provider.id)}/install`;
-      response = await fetch(unifiedUrl, { method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body: JSON.stringify({ parameters: provider.id === "gsv_tts_local" ? { url: installUrl.value.trim() } : resourcePayload() }) });
+      response = await fetch(unifiedUrl, { method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ parameters: provider.id === "gsv_tts_local" ? { url: installUrl.value.trim() } : resourcePayload() }) });
       // 老版本后端没有统一资源路由时，回退到原 Provider 安装接口。
-      if (response.status === 404 || response.status === 405) response = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body });
+      if (response.status === 404 || response.status === 405) response = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body });
     } else {
-      response = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body });
+      response = await fetch(url, { method, headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body });
     }
     if (!response.ok) {
       const data = await response.json().catch(() => ({})); throw new Error(data.detail || `HTTP ${response.status}`);
@@ -334,7 +334,7 @@ async function toggleProvider(provider: Provider) {
   loading.value = true; error.value = "";
   try {
     const response = await fetch("/api/providers/configure", {
-      method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ provider_type: provider.type, provider_id: provider.id, api_key: provider.current_api_key, base_url: provider.current_base_url || provider.default_base_url, model: provider.current_model || provider.default_model, source: provider.resource_status?.source, device: provider.resource_status?.device, enabled: !provider.is_active }),
     });
     if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.detail || `HTTP ${response.status}`); }
@@ -347,7 +347,7 @@ async function testProvider(provider: Provider) {
   testing.value = provider.id; error.value = ""; testStatus.value = "";
   try {
     const response = await fetch("/api/providers/test", {
-      method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ provider_type: provider.type, provider_id: provider.id, api_key: provider.current_api_key, base_url: provider.current_base_url, model: provider.current_model }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -457,11 +457,11 @@ onBeforeUnmount(() => {
         <div class="drawer-body rvc-workspace-body">
           <div class="rvc-workspace-summary"><div><span class="section-label">推理可用性</span><strong>{{ rvcProvider.resource_status?.ready ? '可以开始生成变声音频' : '还需要补完资源' }}</strong></div><span :class="['status-chip', { on: rvcProvider.resource_status?.ready }]">{{ rvcProvider.resource_status?.ready ? 'READY' : 'INCOMPLETE' }}</span></div>
           <div class="rvc-component-list" aria-label="RVC 资源状态">
-            <div v-for="item in [{ key: 'source', title: 'YUMENO 内置 RVC 核心', detail: '项目内置推理核心' }, { key: 'runtime', title: '独立 Python 运行时', detail: 'YUMENO/runtime/rvc' }, { key: 'hubert', title: 'Hubert 特征模型', detail: '用于音频特征提取' }, { key: 'rmvpe', title: 'RMVPE 音高模型', detail: '用于 F0 提取' }]" :key="item.key" class="rvc-component-row">
+            <div v-for="item in [{ key: 'source', title: 'CHARACTOID 内置 RVC 核心', detail: '项目内置推理核心' }, { key: 'runtime', title: '独立 Python 运行时', detail: 'CHARACTOID/runtime/rvc' }, { key: 'hubert', title: 'Hubert 特征模型', detail: '用于音频特征提取' }, { key: 'rmvpe', title: 'RMVPE 音高模型', detail: '用于 F0 提取' }]" :key="item.key" class="rvc-component-row">
               <div class="rvc-component-icon"><Check v-if="rvcComponentReady(item.key)" :size="16" /><span v-else>·</span></div><div class="rvc-component-copy"><strong>{{ item.title }}</strong><span>{{ item.detail }}</span></div><b :class="{ ready: rvcComponentReady(item.key) }">{{ rvcComponentLabel(item.key) }}</b>
             </div>
           </div>
-          <div class="rvc-install-block"><div><strong>{{ rvcProvider.resource_status?.installing ? '正在准备 RVC 运行时' : '补完推理环境' }}</strong><p>{{ rvcProvider.resource_status?.detail || rvcProvider.resource_status?.note }}</p></div><div v-if="rvcProvider.resource_status?.installing" class="rvc-progress"><span>{{ Math.round(rvcProgressPercent()) }}%</span><i><em :style="{ width: `${rvcProgressPercent()}%` }"></em></i></div><div class="production-actions"><button v-if="rvcProvider.resource_status?.installing" class="button button-secondary" type="button" @click="callResource(rvcProvider, 'cancel')" :disabled="resourceAction !== null">取消准备</button><button v-else-if="!rvcProvider.resource_status?.ready" class="button button-primary" type="button" @click="callResource(rvcProvider, 'install')" :disabled="resourceAction !== null"><Download :size="15" />准备运行时与基础模型</button><button v-if="rvcProvider.resource_status?.ready" class="button button-secondary" type="button" @click="callResource(rvcProvider, 'remove')" :disabled="resourceAction !== null"><Trash2 :size="15" />移除 YUMENO 运行时</button><button class="button button-secondary" type="button" @click="callResource(rvcProvider, 'directory')" :disabled="resourceAction !== null"><FolderOpen :size="15" />查看资源目录</button></div></div>
+          <div class="rvc-install-block"><div><strong>{{ rvcProvider.resource_status?.installing ? '正在准备 RVC 运行时' : '补完推理环境' }}</strong><p>{{ rvcProvider.resource_status?.detail || rvcProvider.resource_status?.note }}</p></div><div v-if="rvcProvider.resource_status?.installing" class="rvc-progress"><span>{{ Math.round(rvcProgressPercent()) }}%</span><i><em :style="{ width: `${rvcProgressPercent()}%` }"></em></i></div><div class="production-actions"><button v-if="rvcProvider.resource_status?.installing" class="button button-secondary" type="button" @click="callResource(rvcProvider, 'cancel')" :disabled="resourceAction !== null">取消准备</button><button v-else-if="!rvcProvider.resource_status?.ready" class="button button-primary" type="button" @click="callResource(rvcProvider, 'install')" :disabled="resourceAction !== null"><Download :size="15" />准备运行时与基础模型</button><button v-if="rvcProvider.resource_status?.ready" class="button button-secondary" type="button" @click="callResource(rvcProvider, 'remove')" :disabled="resourceAction !== null"><Trash2 :size="15" />移除 CHARACTOID 运行时</button><button class="button button-secondary" type="button" @click="callResource(rvcProvider, 'directory')" :disabled="resourceAction !== null"><FolderOpen :size="15" />查看资源目录</button></div></div>
 
           <p v-if="rvcProvider.resource_status?.error" class="config-error">{{ rvcProvider.resource_status.error }}</p><p v-if="error" class="config-error">{{ error }}</p>
           <div class="rvc-workspace-note"><strong>下一步</strong><span>将自己的 .pth 音色模型放入受管的 weights 目录；.index 文件不是必需项。完成后到独立的“RVC”页面上传音频并生成文件。</span></div>

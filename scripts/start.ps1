@@ -1,4 +1,4 @@
-﻿# YUMENO 一键从零启动（Windows / PowerShell）
+﻿# CHARACTOID 一键从零启动（Windows / PowerShell）
 #
 # 用法：
 #   .\scripts\start.ps1              # Web 工作台（默认）：本地 milvus-lite + FastAPI，并打开 Edge
@@ -22,7 +22,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host ""
-Write-Host "== YUMENO 一键启动 ==" -ForegroundColor Cyan
+Write-Host "== CHARACTOID 一键启动 ==" -ForegroundColor Cyan
 
 # ---- 1. 检测 Python 3.11 ----
 $pyLauncher = ""
@@ -58,7 +58,7 @@ if (-not $NoInstall) {
   # Do not infer a complete environment from a few imports.  A fresh clone,
   # an old .venv, or a changed requirements file must all trigger a full
   # dependency reconciliation before the Web server is allowed to start.
-  $dependencyMarker = Join-Path $root ".venv\.yumeno-requirements.sha256"
+  $dependencyMarker = Join-Path $root ".venv\.charactoid-requirements.sha256"
   $fingerprintInput = @(
     (Get-FileHash (Join-Path $root "requirements.txt") -Algorithm SHA256).Hash
     (Get-FileHash (Join-Path $root "pyproject.toml") -Algorithm SHA256).Hash
@@ -102,12 +102,12 @@ if (-not (Test-Path (Join-Path $root ".env"))) {
   Write-Host "[3/4] .env 已存在"
 }
 
-function Open-YumenoWorkbench {
+function Open-CharactoidWorkbench {
   if ($NoBrowser) { return }
   & $venvPy -c "from desktop.browser import open_app, app_url, setup_fragment; from settings import Settings; s = Settings.load(); open_app(app_url(port=s.app_port, fragment=setup_fragment(s.openai_api_key, s.openai_base_url)))"
 }
 
-function Test-YumenoRunning {
+function Test-CharactoidRunning {
   $code = @'
 import httpx
 try:
@@ -130,9 +130,9 @@ if ($Desktop) {
 }
 
 Write-Host "[4/4] 启动 Web 工作台"
-if (Test-YumenoRunning) {
+if (Test-CharactoidRunning) {
   Write-Host "     服务已在 17000 端口运行，正在打开浏览器"
-  Open-YumenoWorkbench
+  Open-CharactoidWorkbench
   exit 0
 }
 

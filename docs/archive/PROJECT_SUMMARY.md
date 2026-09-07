@@ -1,4 +1,4 @@
-# YUMENO 项目优化总结
+# CHARACTOID 项目优化总结
 
 > 现行架构以 [ARCHITECTURE.md](ARCHITECTURE.md) 和 [diagrams/](diagrams/) 为准。`agents/security.py`、`agents/worker_registry.py`、`agents/monitoring.py` 均已删除或从未接入生产图。下文若与现行文档冲突，以现行文档为准。
 
@@ -261,7 +261,7 @@ health = global_monitor.get_health_status()
 ## 🎓 简历上怎么写
 
 ### 项目标题
-**YUMENO - 企业级多智能体 RAG 对话系统**
+**CHARACTOID - 企业级多智能体 RAG 对话系统**
 
 ### 技术栈
 Python, FastAPI, LangChain, LangGraph, Milvus, SQLite, Vue.js, WebSocket

@@ -883,7 +883,7 @@ def export_eval(request: Request) -> Response:
     return Response(
         content=json.dumps(payload, ensure_ascii=False, indent=2, default=str),
         media_type="application/json; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="yumeno-rag-eval.json"'},
+        headers={"Content-Disposition": 'attachment; filename="charactoid-rag-eval.json"'},
     )
 
 

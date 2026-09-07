@@ -163,7 +163,7 @@ def test_web_workbench_exposes_shell_and_module_views(client):
     app_js = client.get("/static/js/app.js").text
     assert 'live2d: { view: "live2d"' not in app_js
     live2d_panel = client.get("/static/live2d/live2d-panel.js").text
-    assert 'new CustomEvent("yumeno:manage-select-node"' in live2d_panel
+    assert 'new CustomEvent("charactoid:manage-select-node"' in live2d_panel
     assert "text-embedding-v4" not in client.get("/static/js/common.js").text
     assert "Qwen3-Embedding-0.6B" in client.get("/static/js/settings.js").text
     assert "请输入 API Key" in client.get("/static/js/settings.js").text

@@ -1,4 +1,4 @@
-# YUMENO LangGraph 多 Agent 设计说明
+# CHARACTOID LangGraph 多 Agent 设计说明
 
 本文回答四件事：四个抽象层面各选了什么、为什么是现在这张图、宏观到微观如何同构，以及它怎样同时改进任务效能、协作效率、系统属性和资源成本。现行运行图见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -30,7 +30,7 @@
 
 ### 2.1 拓扑：为什么选 State Graph，而通信仍是中心辐射
 
-YUMENO 需要分支、回环、HITL 中断和按会话恢复。State Graph 把这些变成图上的边和检查点，而不是 prompt 约定。
+CHARACTOID 需要分支、回环、HITL 中断和按会话恢复。State Graph 把这些变成图上的边和检查点，而不是 prompt 约定。
 
 通信约束必须额外收紧：任意 Worker 之间没有边。handoff 只从 `persona_supervisor` 发出，`finalize_*` 只回到 `persona_supervisor`。也就是说：
 

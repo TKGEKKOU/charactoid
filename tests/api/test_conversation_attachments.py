@@ -9,7 +9,7 @@ from app.models import ConversationAttachment, ConversationMessageAttachment
 def _upload(client, conversation_id: str, name: str = "sample.wav", data: bytes = b"RIFFdemo"):
     return client.post(
         f"/api/conversations/{conversation_id}/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[("files", (name, data, "audio/wav"))],
     )
 
@@ -32,7 +32,7 @@ def test_attachment_upload_list_download_rename_and_delete(client, tmp_path):
 
     renamed = client.patch(
         f"/api/conversations/conversation-a/attachments/{item['file_id']}",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         json={"name": "renamed.wav"},
     )
     assert renamed.status_code == 200
@@ -41,7 +41,7 @@ def test_attachment_upload_list_download_rename_and_delete(client, tmp_path):
     assert client.get(f"/api/conversations/conversation-b/attachments/{item['file_id']}").status_code == 404
     deleted = client.delete(
         f"/api/conversations/conversation-a/attachments/{item['file_id']}",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert deleted.status_code == 204
     assert client.get(f"/api/conversations/conversation-a/attachments/{item['file_id']}").status_code == 404
@@ -56,7 +56,7 @@ def test_attachment_upload_rejects_unsupported_and_requires_same_origin(client, 
     assert forbidden.status_code == 403
     unsupported = client.post(
         "/api/conversations/c/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[("files", ("script.exe", b"MZ", "application/octet-stream"))],
     )
     assert unsupported.status_code == 415
@@ -67,13 +67,13 @@ def test_attachment_explicit_worker_targets_validate_file_kind(client, tmp_path)
     audio = _upload(client, "c").json()["attachments"][0]
     rvc = client.post(
         f"/api/conversations/c/attachments/{audio['file_id']}/send-to-rvc",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert rvc.status_code == 200
     assert rvc.json()["target"] == "rvc"
     rag = client.post(
         f"/api/conversations/c/attachments/{audio['file_id']}/send-to-rag",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
     )
     assert rag.status_code == 415
 
@@ -106,7 +106,7 @@ def test_attachment_rejects_executable_content_disguised_as_audio(client, tmp_pa
     client.app.state.settings = replace(client.app.state.settings, project_root=tmp_path)
     response = client.post(
         "/api/conversations/c/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[("files", ("not-audio.wav", b"MZ" + b"\x00" * 64, "audio/wav"))],
     )
     assert response.status_code == 415
@@ -134,7 +134,7 @@ def test_multi_attachment_upload_failure_removes_prior_file(client, tmp_path):
     client.app.state.settings = replace(client.app.state.settings, project_root=tmp_path)
     response = client.post(
         "/api/conversations/c/attachments",
-        headers={"X-YUMENO-Request": "web"},
+        headers={"X-CHARACTOID-Request": "web"},
         files=[
             ("files", ("ok.wav", b"RIFFdemo", "audio/wav")),
             ("files", ("bad.exe", b"MZ", "application/octet-stream")),

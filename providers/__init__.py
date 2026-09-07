@@ -1,5 +1,5 @@
 """
-YUMENO Provider System - 完整提供商配置
+CHARACTOID Provider System - 完整提供商配置
 支持 LLM、Embedding、Reranker、STT、TTS、WebSearch
 """
 
@@ -344,7 +344,7 @@ _RUNTIME_SUPPORT: dict[ProviderType, dict[str, str]] = {
     },
     ProviderType.VOICE_CONVERSION: {
         "rvc": "独立音频生产工具：将已有音频转换为目标音色并生成文件，不参与角色对话。",
-        "separator": "通过 YUMENO 人声分离任务管理器调用。",
+        "separator": "通过 CHARACTOID 人声分离任务管理器调用。",
     },
     ProviderType.WEB_SEARCH: {
         "tavily": "由 RAG 联网搜索适配器直接调用。",

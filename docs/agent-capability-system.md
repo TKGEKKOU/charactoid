@@ -1,6 +1,6 @@
-# YUMENO Agent 能力系统
+# CHARACTOID Agent 能力系统
 
-本文说明 YUMENO 中 Agent、Skill、Tool、MCP、RAG 和多 Agent 协作的边界、生命周期与操作接口。
+本文说明 CHARACTOID 中 Agent、Skill、Tool、MCP、RAG 和多 Agent 协作的边界、生命周期与操作接口。
 
 ## 1. 总体关系
 
@@ -47,7 +47,7 @@ Supervisor 是唯一面向用户生成最终答案的 Agent。Worker 只使用�
 
 ## 4. Worker Manifest 与统一结果合同
 
-YUMENO 的 Worker 能力边界由 `WorkerManifest` 描述。Manifest 不是第二套工具注册表，而是从 `ToolSpec` 自动生成的公开声明，确保“能做什么”和“实际挂载了哪些工具”不会漂移。
+CHARACTOID 的 Worker 能力边界由 `WorkerManifest` 描述。Manifest 不是第二套工具注册表，而是从 `ToolSpec` 自动生成的公开声明，确保“能做什么”和“实际挂载了哪些工具”不会漂移。
 
 当前内置 Worker：
 
@@ -115,7 +115,7 @@ RAG 证据合同使用三种状态：`accepted`、`insufficient`、`failed`。`f
 
 ## 6. MCP Runtime
 
-真实运行时使用官方 MCP SDK 2.x 的 `ClientSessionGroup`。FastAPI lifespan 创建 `MCPManager`，管理器在独立 `yumeno-mcp-runtime` 线程中持有事件循环、stdio 子进程和远程会话。同步 LangChain Tool 通过线程安全 future 调用该事件循环，因此不会为每次搜索重复启动 `uvx`。
+真实运行时使用官方 MCP SDK 2.x 的 `ClientSessionGroup`。FastAPI lifespan 创建 `MCPManager`，管理器在独立 `charactoid-mcp-runtime` 线程中持有事件循环、stdio 子进程和远程会话。同步 LangChain Tool 通过线程安全 future 调用该事件循环，因此不会为每次搜索重复启动 `uvx`。
 
 支持三种传输：
 
@@ -166,9 +166,9 @@ RAG 证据合同使用三种状态：`accepted`、`insufficient`、`failed`。`f
 
 扩展页的“在线扩展”使用固定 HTTPS JSON 清单，不执行 GitHub 全站搜索，也不把远程脚本直接交给本地 shell。默认清单地址为：
 
-`https://raw.githubusercontent.com/TKGEKKOU/yumeno/main/catalog/extension-catalog.json`
+`https://raw.githubusercontent.com/TKGEKKOU/charactoid/main/catalog/extension-catalog.json`
 
-可以通过环境变量 `YUMENO_EXTENSION_CATALOG_URL` 指向组织内部清单。清单格式见 `data/extension-catalog.example.json`，当前支持两类条目：
+可以通过环境变量 `CHARACTOID_EXTENSION_CATALOG_URL` 指向组织内部清单。清单格式见 `data/extension-catalog.example.json`，当前支持两类条目：
 
 - Skill：GitHub 目录或 HTTPS zip/文件，安装后写入 `data/skills/`。
 - MCP：声明式 `uvx`、`npx`、Docker stdio，或 HTTPS 的 streamable HTTP/SSE 地址。

@@ -10,7 +10,7 @@ MAX_ZIP_BYTES = 25 * 1024 * 1024
 MAX_EXTRACT_BYTES = 25 * 1024 * 1024
 MAX_FILES = 500
 DOWNLOAD_TIMEOUT = 60
-USER_AGENT = "YUMENO"
+USER_AGENT = "CHARACTOID"
 
 _GITHUB_URL_PATTERNS = (
     re.compile(r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$"),

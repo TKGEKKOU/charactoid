@@ -2,7 +2,7 @@
 window.PL = window.PL || { modules: {} };
 window.PL.modules.chat = { init: initChat, onShow: resumeChatView };
 
-const RECENT_PERSONA_STORAGE_KEY = "yumeno:recent-persona";
+const RECENT_PERSONA_STORAGE_KEY = "charactoid:recent-persona";
 function personaStorage(storage) {
   if (storage) return storage;
   try { return window.localStorage; } catch { return null; }
@@ -1118,11 +1118,11 @@ function flushPendingVoiceQuestion() {
 }
 function closePersonaMenu() { $("chat-persona-menu").classList.add("is-hidden"); $("chat-persona-toggle").setAttribute("aria-expanded", "false"); }
 const CHAT_PREFERENCE_KEYS = {
-  voice: "yumeno:assistant-voice",
-  live2d: "yumeno:chat-live2d",
-  thinking: "yumeno:chat-thinking-expanded",
-  workflow: "yumeno:chat-workflow-expanded",
-  debug: "yumeno:chat-debug-visible",
+  voice: "charactoid:assistant-voice",
+  live2d: "charactoid:chat-live2d",
+  thinking: "charactoid:chat-thinking-expanded",
+  workflow: "charactoid:chat-workflow-expanded",
+  debug: "charactoid:chat-debug-visible",
 };
 function readChatPreference(key, fallback = false) {
   try { return localStorage.getItem(key) === "on" ? true : localStorage.getItem(key) === "off" ? false : fallback; } catch { return fallback; }
@@ -1210,7 +1210,7 @@ function bindChatSettingsSidebar() {
   if (thinking) { thinking.checked = readChatPreference(CHAT_PREFERENCE_KEYS.thinking, false); syncThinkingPreference(thinking.checked); thinking.addEventListener("change", () => { writeChatPreference(CHAT_PREFERENCE_KEYS.thinking, thinking.checked); syncThinkingPreference(thinking.checked); }); }
   if (workflow) { workflow.checked = readChatPreference(CHAT_PREFERENCE_KEYS.workflow, false); workflow.addEventListener("change", () => { writeChatPreference(CHAT_PREFERENCE_KEYS.workflow, workflow.checked); syncWorkflowPreference(workflow.checked); }); }
   if (debug) { debug.checked = readChatPreference(CHAT_PREFERENCE_KEYS.debug, false); debug.addEventListener("change", () => { writeChatPreference(CHAT_PREFERENCE_KEYS.debug, debug.checked); syncDebugPreference(debug.checked); }); }
-  document.addEventListener("yumeno:live2d-visibility", (event) => {
+  document.addEventListener("charactoid:live2d-visibility", (event) => {
     const open = Boolean(event.detail?.open);
     if (live2d) live2d.checked = open;
     writeChatPreference(CHAT_PREFERENCE_KEYS.live2d, open);
@@ -1271,7 +1271,7 @@ async function loadChatProviderStatus() {
   const search = $("chat-setting-search");
   if (!stateLabel || !llmProvider) return;
   try {
-    const response = await fetch("/api/providers/list", { headers: { "X-YUMENO-Request": "web" } });
+    const response = await fetch("/api/providers/list", { headers: { "X-CHARACTOID-Request": "web" } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     const providers = Array.isArray(payload?.providers) ? payload.providers : [];
@@ -1329,7 +1329,7 @@ async function selectPersona(personaId = "") {
   state.activePersona = state.personas.find((item) => item.id === personaId) || null;
   rememberPersonaId(state.activePersona?.id);
   if (state.activePersona) {
-    const key = `yumeno:conversation:${state.activePersona.id}`;
+    const key = `charactoid:conversation:${state.activePersona.id}`;
     state.conversationId = localStorage.getItem(key) || crypto.randomUUID();
     localStorage.setItem(key, state.conversationId);
   } else state.conversationId = crypto.randomUUID();
@@ -1449,7 +1449,7 @@ async function streamAgentQuery(question, attachmentIds = []) {
   try {
     const response = await fetch(`/api/personas/${state.activePersona.id}/agent/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ question, conversation_id: state.conversationId, attachment_ids: attachmentIds }),
       signal: controller.signal,
     });
@@ -1662,7 +1662,7 @@ function updateAudioMessage(message) {
 }
 async function retryVoiceMessage(messageId) {
   try {
-    const result = await api(fetch(`/api/voice-messages/${messageId}/transcribe`, { method: "POST", headers: { "X-YUMENO-Request": "web" } }));
+    const result = await api(fetch(`/api/voice-messages/${messageId}/transcribe`, { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }));
     updateAudioMessage(result.message); handleAgentResult(result.turn);
   } catch (reason) { setText("chat-error", reason); await loadConversationMessages(); }
 }
@@ -1693,12 +1693,12 @@ async function clearConversation() {
     const oldConversationId = state.conversationId;
     // 会话删除是主操作；附件接口逐个清理作为兼容兜底，避免后端保留孤儿文件。
     const oldAttachments = [...(state.chatAttachments || [])];
-    await api(fetch(`/api/personas/${state.activePersona.id}/conversations/${oldConversationId}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }));
-    await Promise.allSettled(oldAttachments.filter((item) => item?.file_id && !String(item.file_id).startsWith("upload-")).map((item) => api(fetch(`/api/conversations/${encodeURIComponent(oldConversationId)}/attachments/${encodeURIComponent(item.file_id)}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } }))));
+    await api(fetch(`/api/personas/${state.activePersona.id}/conversations/${oldConversationId}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }));
+    await Promise.allSettled(oldAttachments.filter((item) => item?.file_id && !String(item.file_id).startsWith("upload-")).map((item) => api(fetch(`/api/conversations/${encodeURIComponent(oldConversationId)}/attachments/${encodeURIComponent(item.file_id)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } }))));
     clearRvcTaskPollers();
     closeRealtime();
     state.conversationId = crypto.randomUUID();
-    localStorage.setItem(`yumeno:conversation:${state.activePersona.id}`, state.conversationId);
+    localStorage.setItem(`charactoid:conversation:${state.activePersona.id}`, state.conversationId);
     clearChatLogContents("从一句话开始");
     state.chatAttachments = []; state.composerAttachmentIds = [];
     state.currentWorkflow = null;
@@ -2050,7 +2050,7 @@ async function synthesizeAnswer(text, node, options = {}) {
   try {
     const response = await fetch(`/api/tts/personas/${persona.id}/conversations/${conversationId}/synthesize/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ text }),
       signal: controller.signal,
     });
@@ -2130,7 +2130,7 @@ async function resourceSetupAction(resource, action, options = {}) {
   const normalized = String(action || "status").trim().toLowerCase();
   if (!key) return;
   if (normalized === "clean" && options.confirmed !== true && !window.confirm(`确定卸载该运行环境？不会删除你的模型、附件和历史结果。`)) return;
-  if ((normalized === "cancel" || normalized === "clean") && window.__yumenoResourceInstallTimer) { clearInterval(window.__yumenoResourceInstallTimer); window.__yumenoResourceInstallTimer = null; }
+  if ((normalized === "cancel" || normalized === "clean") && window.__charactoidResourceInstallTimer) { clearInterval(window.__charactoidResourceInstallTimer); window.__charactoidResourceInstallTimer = null; }
   // 卡片上的明确资源动作不再绕一圈生成工具确认卡；它调用同一个受保护
   // provider API，仍由后端资源管理器执行，避免 Core Agent 在 UI 操作中阻塞。
   if (key === "gpt_sovits" && ["start_service", "stop_service", "detect", "open_directory"].includes(normalized)) {
@@ -2172,7 +2172,7 @@ async function resourceSetupAction(resource, action, options = {}) {
     if (result?.status && typeof result.status === "object") result = { ...result.status, resource: key };
     if (node) renderResourceSetupCard(node, { ...result, resource: key, kind: "resource_setup", install: result });
     if (normalized === "install") {
-      if (window.__yumenoResourceInstallTimer) clearInterval(window.__yumenoResourceInstallTimer);
+      if (window.__charactoidResourceInstallTimer) clearInterval(window.__charactoidResourceInstallTimer);
       const timer = setInterval(async () => {
         try {
           result = await chatRvcApi(api.status, { cache: "no-store" });
@@ -2182,7 +2182,7 @@ async function resourceSetupAction(resource, action, options = {}) {
           const terminal = !result.installing && !["preparing", "downloading", "installing", "running"].includes(phase);
           if (terminal) {
             clearInterval(timer);
-            window.__yumenoResourceInstallTimer = null;
+            window.__charactoidResourceInstallTimer = null;
             const success = result.ready === true || (result.installed === true && !(result.missing || []).length);
             if (!node.dataset.resourceCompletionNotified) {
               node.dataset.resourceCompletionNotified = "1";
@@ -2195,7 +2195,7 @@ async function resourceSetupAction(resource, action, options = {}) {
           appendMessage("assistant", `${resourceSetupDescriptor(key).title}状态查询失败：${error?.message || error}`);
         }
       }, 500);
-      window.__yumenoResourceInstallTimer = timer;
+      window.__charactoidResourceInstallTimer = timer;
     }
   } catch (error) {
     if (node) renderResourceSetupCard(node, { resource: key, kind: "resource_setup", status: "failed", error: error?.message || String(error) });
@@ -2475,7 +2475,7 @@ function pollRvcTask(card, entry, refs) {
   const poll = async () => {
     if (!card.isConnected || generation !== (state.rvcTaskPollerGeneration || 0)) return;
     try {
-      const task = await api(fetch(entry.status_url, { headers: { "X-YUMENO-Request": "web" } }));
+      const task = await api(fetch(entry.status_url, { headers: { "X-CHARACTOID-Request": "web" } }));
       const data = task.task || task;
       const stateName = data.state || data.status || "running";
       const percent = Number(data.progress ?? data.progress_percent ?? 0);
@@ -2769,7 +2769,7 @@ function setChatAttachmentsDrawer(open) {
 }
 function toggleChatAttachmentsDrawer() { setChatAttachmentsDrawer(!state.chatAttachmentsOpen); }
 async function loadChatAttachments() { if (!state.activePersona) return; try { const result = await api(fetch(attachmentApiBase(), { cache: "no-store" })); state.chatAttachments = (Array.isArray(result) ? result : (result.attachments || result.files || [])).map(normalizeAttachment).filter((item) => item?.file_id); state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => state.chatAttachments.some((item) => item.file_id === id)); renderChatAttachments(); } catch (reason) { state.chatAttachments = []; renderChatAttachments(); if (reason?.status !== 404) setText("chat-error", `附件列表加载失败：${reason.message || reason}`); } }
-function uploadWithProgress(file, onProgress) { return new Promise((resolve, reject) => { const xhr = new XMLHttpRequest(); xhr.open("POST", attachmentApiBase()); xhr.setRequestHeader("X-YUMENO-Request", "web"); xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); }; xhr.onload = () => { let data = {}; try { data = JSON.parse(xhr.responseText || "{}"); } catch {} if (xhr.status >= 200 && xhr.status < 300) resolve(data); else reject(new Error(data.detail || `HTTP ${xhr.status}`)); }; xhr.onerror = () => reject(new Error("网络错误")); xhr.onabort = () => reject(new Error("上传已取消")); const form = new FormData(); form.append("files", file, file.name); xhr.send(form); }); }
+function uploadWithProgress(file, onProgress) { return new Promise((resolve, reject) => { const xhr = new XMLHttpRequest(); xhr.open("POST", attachmentApiBase()); xhr.setRequestHeader("X-CHARACTOID-Request", "web"); xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); }; xhr.onload = () => { let data = {}; try { data = JSON.parse(xhr.responseText || "{}"); } catch {} if (xhr.status >= 200 && xhr.status < 300) resolve(data); else reject(new Error(data.detail || `HTTP ${xhr.status}`)); }; xhr.onerror = () => reject(new Error("网络错误")); xhr.onabort = () => reject(new Error("上传已取消")); const form = new FormData(); form.append("files", file, file.name); xhr.send(form); }); }
 async function uploadChatAttachment(file, options = {}) {
   if (!state.activePersona) return;
   if (file.size > 500 * 1024 * 1024) {
@@ -2845,9 +2845,9 @@ async function uploadChatAttachment(file, options = {}) {
   }
 }
 async function retryChatAttachment(item) { if (!item?.localFile) return setText("chat-error", "无法重试：浏览器未保留原文件，请重新上传", true); await uploadChatAttachment(item.localFile); }
-async function renameChatAttachment(item) { const name = prompt("输入新的文件名", item.name); if (!name || name === item.name) return; try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body: JSON.stringify({ name: name.trim() }) })); const saved = normalizeAttachment(result); Object.assign(item, saved || { name: name.trim() }); renderChatAttachments(); } catch (reason) { setText("chat-error", `重命名失败：${reason.message || reason}`, true); } }
-async function deleteChatAttachment(item) { if (!confirm(`删除附件“${item.name}”？`)) return; try { await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "DELETE", headers: { "X-YUMENO-Request": "web" } })); state.chatAttachments = state.chatAttachments.filter((entry) => entry.file_id !== item.file_id); state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== item.file_id); renderChatAttachments(); } catch (reason) { setText("chat-error", `删除失败：${reason.message || reason}`, true); } }
-async function sendAttachmentTo(item, target) { try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}/send-to-${target}`, { method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" }, body: JSON.stringify({ file_id: item.file_id }) })); setText("question-status", result.message || (target === "rvc" ? "已发送到 RVC" : "已发送到知识库")); } catch (reason) { setText("chat-error", `发送失败：${reason.message || reason}`, true); } }
+async function renameChatAttachment(item) { const name = prompt("输入新的文件名", item.name); if (!name || name === item.name) return; try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ name: name.trim() }) })); const saved = normalizeAttachment(result); Object.assign(item, saved || { name: name.trim() }); renderChatAttachments(); } catch (reason) { setText("chat-error", `重命名失败：${reason.message || reason}`, true); } }
+async function deleteChatAttachment(item) { if (!confirm(`删除附件“${item.name}”？`)) return; try { await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } })); state.chatAttachments = state.chatAttachments.filter((entry) => entry.file_id !== item.file_id); state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== item.file_id); renderChatAttachments(); } catch (reason) { setText("chat-error", `删除失败：${reason.message || reason}`, true); } }
+async function sendAttachmentTo(item, target) { try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}/send-to-${target}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ file_id: item.file_id }) })); setText("question-status", result.message || (target === "rvc" ? "已发送到 RVC" : "已发送到知识库")); } catch (reason) { setText("chat-error", `发送失败：${reason.message || reason}`, true); } }
 
 function pendingResourceAction() {
   const pending = state.pendingAction;
@@ -2997,7 +2997,7 @@ function appendPendingOptions(select, options) {
 
 async function loadPendingRvcOptions(select, item) {
   try {
-    const payload = await api(fetch("/api/voice/rvc/models", { headers: { "X-YUMENO-Request": "web" } }));
+    const payload = await api(fetch("/api/voice/rvc/models", { headers: { "X-CHARACTOID-Request": "web" } }));
     const options = /index/.test(String(item.kind || "").toLowerCase()) ? payload.indices : payload.models;
     appendPendingOptions(select, Array.isArray(options) ? options : []);
     if (!select.options.length) {
@@ -3465,7 +3465,7 @@ async function cancelActiveChatTask() {
   try {
     if (isRvc) {
       await api(fetch(`/api/voice/rvc/tasks/${encodeURIComponent(taskId)}`, {
-        method: "DELETE", headers: { "X-YUMENO-Request": "web" },
+        method: "DELETE", headers: { "X-CHARACTOID-Request": "web" },
       }));
       state.rvcTaskPollers?.delete?.(String(taskId));
     } else if (state.realtimeTurnId) {
@@ -4212,7 +4212,7 @@ async function startInlineRvcWorkflow(attachments = []) {
   const file = attachments.find((item) => ["audio", "video"].includes(attachmentKind(item)));
   if (file) await attachInlineRvcSource(file);
 }
-function chatRvcHeaders(json = false) { const headers = { "X-YUMENO-Request": "web" }; if (json) headers["Content-Type"] = "application/json"; return headers; }
+function chatRvcHeaders(json = false) { const headers = { "X-CHARACTOID-Request": "web" }; if (json) headers["Content-Type"] = "application/json"; return headers; }
 async function chatRvcApi(url, options = {}) { const response = await fetch(url, { ...options, headers: { ...chatRvcHeaders(Boolean(options.body && typeof options.body === "string")), ...(options.headers || {}) } }); let data = {}; try { data = await response.json(); } catch {} if (!response.ok) throw new Error(data.detail || data.message || `HTTP ${response.status}`); return data; }
 function rvcWorkspaceNode() {
   if (state.rvcInline?.node?.isConnected) return state.rvcInline.node;
@@ -4391,7 +4391,7 @@ function renderRvcConversionControls(box) {
     const directoryButton = rvcButton("打开文件夹", async () => {
       directoryButton.disabled = true;
       try {
-        const opened = await chatRvcApi("/api/providers/rvc/open-model-directory", { method: "POST", headers: { "X-YUMENO-Request": "web" } });
+        const opened = await chatRvcApi("/api/providers/rvc/open-model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } });
         setText("chat-error", opened?.opened ? `已打开音色目录：${opened.directory || "RVC 音色目录"}` : `音色目录：${opened?.directory || "RVC 音色目录"}`);
       } catch (error) {
         setText("chat-error", `打开音色目录失败：${error?.message || error}`, true);
@@ -4510,7 +4510,7 @@ async function directRvcConvert(data, answers) {
   if (!data?.sessionId || !inputFileId) throw new Error("还没有可用来变声的人声");
   if (!answers?.model_id) throw new Error("请选择音色");
   const result = await chatRvcApi("/api/voice/rvc/convert", {
-    method: "POST", headers: { "Content-Type": "application/json", "X-YUMENO-Request": "web" },
+    method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
     body: JSON.stringify({ session_id: data.sessionId, input_file_id: inputFileId, model_id: answers.model_id, index_id: answers.index_id || null, speaker_id: 0, pitch: Number(answers.pitch || 0), f0_method: "rmvpe", index_rate: answers.index_id ? 0.75 : 0, protect: 0.33, resample_sr: 0, rms_mix_rate: 1, mix_instrumental: Boolean(answers.mix_instrumental) }),
   });
   data.taskId = result.task_id; data.task = null; data.state = { ...session, phase: "converting", progress: 0, message: "正在变声" };

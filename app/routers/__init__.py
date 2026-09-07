@@ -1,1 +1,1 @@
-"""HTTP routers for the YUMENO application."""
+"""HTTP routers for the CHARACTOID application."""

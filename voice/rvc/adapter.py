@@ -118,7 +118,7 @@ class RVCAdapter:
         index_path = self.resolve_index(index)
         python = self.resources.python_path()
         if not python.is_file():
-            raise RVCError("RVC 独立 Python 运行时未准备，不能回退到 YUMENO 主环境")
+            raise RVCError("RVC 独立 Python 运行时未准备，不能回退到 CHARACTOID 主环境")
         cli = self.resources.runner_path
         if not cli.is_file():
             raise RVCError("RVC 受管 runner 未准备，请先在提供商配置中完成安装")
@@ -134,12 +134,12 @@ class RVCAdapter:
     def environment(self) -> dict[str, str]:
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
-        # RVC 的推理核心会调用 ffmpeg-python/系统 ffmpeg。YUMENO 自带
+        # RVC 的推理核心会调用 ffmpeg-python/系统 ffmpeg。CHARACTOID 自带
         # 的 ffmpeg 不依赖全局 PATH，避免用户机器上未安装 ffmpeg 时失败。
         ffmpeg_dir = self.resources.project_root / "runtime" / "ffmpeg"
         if ffmpeg_dir.is_dir():
             env["PATH"] = str(ffmpeg_dir) + os.pathsep + env.get("PATH", "")
-        env["YUMENO_RVC_DEVICE"] = os.getenv("YUMENO_RVC_DEVICE", "cuda")
+        env["CHARACTOID_RVC_DEVICE"] = os.getenv("CHARACTOID_RVC_DEVICE", "cuda")
         # CUDA Graph 会为 HubERT 建立长期 private pool；在 8 GiB 级显卡上，
         # 处理较长音频时容易把可用显存吃光。RVC 仍默认使用 CUDA，
         # 但关闭 Graph 以优先保证稳定完成；可由高级用户显式覆盖。
@@ -148,11 +148,11 @@ class RVCAdapter:
         env["weight_root"] = str(self.resources.managed_assets("weights") if self.resources.managed_assets("weights").is_dir() else self.resources.source_root / "assets" / "weights")
         env["index_root"] = str(self.resources.source_root / "logs")
         env["outside_index_root"] = str(self.resources.managed_assets("indices") if self.resources.managed_assets("indices").is_dir() else self.resources.source_root / "assets" / "indices")
-        env["YUMENO_RVC_SOURCE_DIR"] = str(self.resources.source_root)
-        env["YUMENO_RVC_CORE_DIR"] = str(self.resources.core_root)
+        env["CHARACTOID_RVC_SOURCE_DIR"] = str(self.resources.source_root)
+        env["CHARACTOID_RVC_CORE_DIR"] = str(self.resources.core_root)
         hubert = self.resources.hubert_dir()
         if hubert:
-            env["YUMENO_RVC_HUBERT_DIR"] = str(hubert)
+            env["CHARACTOID_RVC_HUBERT_DIR"] = str(hubert)
         rmvpe = self.resources.rmvpe_dir()
         if rmvpe:
             env["rmvpe_root"] = str(rmvpe)

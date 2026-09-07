@@ -73,7 +73,7 @@ class OneBotConnectionManager:
     async def request_action(self, action: str, params: dict, timeout: float = 15) -> dict:
         if not self._connections:
             raise RuntimeError("NapCat 尚未连接")
-        echo = f"yumeno-{uuid4().hex}"
+        echo = f"charactoid-{uuid4().hex}"
         future = asyncio.get_running_loop().create_future()
         self._pending_actions[echo] = future
         try:

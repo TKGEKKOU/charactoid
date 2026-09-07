@@ -47,7 +47,7 @@ class LocalSTTManager:
             resolved = self.resources.resolve()
             env = os.environ.copy()
             env["HF_HOME"] = str(self.project_root / "data" / "models")
-            env["YUMENO_STT_MODEL"] = str(resolved.model)
+            env["CHARACTOID_STT_MODEL"] = str(resolved.model)
             if resolved.ffmpeg:
                 env["PATH"] = f"{resolved.ffmpeg.parent}{os.pathsep}{env.get('PATH', '')}"
             self.process = subprocess.Popen(

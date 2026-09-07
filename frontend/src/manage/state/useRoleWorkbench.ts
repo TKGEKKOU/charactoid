@@ -25,7 +25,7 @@ export function useRoleWorkbench() {
     loading.value = true; error.value = "";
     try {
       personas.value = await listPersonas();
-      const preferred = selectedPersonaId.value || sessionStorage.getItem("yumeno.manage.persona");
+      const preferred = selectedPersonaId.value || sessionStorage.getItem("charactoid.manage.persona");
       const initial = personas.value.find((item) => item.id === preferred) || personas.value[0];
       if (initial) await selectPersona(initial.id, true);
     } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
@@ -50,7 +50,7 @@ export function useRoleWorkbench() {
       selectedPersonaId.value = personaId;
       selectedNodeId.value = `persona:${personaId}`;
       dirtyDomains.value = new Set();
-      sessionStorage.setItem("yumeno.manage.persona", personaId);
+      sessionStorage.setItem("charactoid.manage.persona", personaId);
     } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
     finally { loading.value = false; }
   }

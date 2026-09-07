@@ -60,7 +60,7 @@ class LocalEmbeddingResourceManager:
 
     @staticmethod
     def _metadata_path(directory: Path) -> Path:
-        return directory / ".yumeno-model.json"
+        return directory / ".charactoid-model.json"
 
     def _read_metadata(self, directory: Path) -> dict:
         path = self._metadata_path(directory)
@@ -220,10 +220,10 @@ class LocalEmbeddingResourceManager:
                 return
         except (OSError, json.JSONDecodeError):
             pass
-        pypi = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
-        indexes = [(pypi, os.getenv("YUMENO_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/"))] if actual == "cuda" else [(pypi, None)]
+        pypi = os.getenv("CHARACTOID_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
+        indexes = [(pypi, os.getenv("CHARACTOID_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/"))] if actual == "cuda" else [(pypi, None)]
         if actual == "cuda":
-            indexes.append((os.getenv("YUMENO_PYPI_FALLBACK_INDEX", "https://pypi.org/simple/"), os.getenv("YUMENO_PYTORCH_FALLBACK_INDEX", "https://download.pytorch.org/whl/cu128")))
+            indexes.append((os.getenv("CHARACTOID_PYPI_FALLBACK_INDEX", "https://pypi.org/simple/"), os.getenv("CHARACTOID_PYTORCH_FALLBACK_INDEX", "https://download.pytorch.org/whl/cu128")))
         last_error = None
         for pypi_index, torch_index in indexes:
             command = [str(self.runtime_python), "-m", "pip", "install", "--timeout", "60", "--retries", "2", "--index-url", pypi_index]

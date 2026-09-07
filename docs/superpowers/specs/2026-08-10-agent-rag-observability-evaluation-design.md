@@ -1,8 +1,8 @@
-# YUMENO Agent 与 RAG 可观测评测闭环设计
+# CHARACTOID Agent 与 RAG 可观测评测闭环设计
 
 ## 背景
 
-YUMENO 已经具备可工作的 Supervisor 多 Agent、角色隔离的短期会话与长期记忆、Milvus 混合检索、自适应纠错 RAG，以及基础离线 RAG 评测。本轮不增加新的 Agent 框架，也不以覆盖技术名词为目标，而是把现有运行数据连接成可观察、可评测、可持续改进的闭环。
+CHARACTOID 已经具备可工作的 Supervisor 多 Agent、角色隔离的短期会话与长期记忆、Milvus 混合检索、自适应纠错 RAG，以及基础离线 RAG 评测。本轮不增加新的 Agent 框架，也不以覆盖技术名词为目标，而是把现有运行数据连接成可观察、可评测、可持续改进的闭环。
 
 当前已有基础：
 

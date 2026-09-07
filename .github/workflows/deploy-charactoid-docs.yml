@@ -1,15 +1,15 @@
-name: Deploy YUMENO developer docs
+name: Deploy CHARACTOID developer docs
 on:
   push:
     branches: [main]
-    paths: ['docs/site/**', '.github/workflows/deploy-yumeno-docs.yml']
+    paths: ['docs/site/**', '.github/workflows/deploy-charactoid-docs.yml']
   workflow_dispatch:
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
-  group: yumeno-pages
+  group: charactoid-pages
   cancel-in-progress: true
 jobs:
   deploy:

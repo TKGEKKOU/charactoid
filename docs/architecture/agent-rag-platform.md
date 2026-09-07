@@ -1,8 +1,8 @@
-# YUMENO Agent/RAG 平台架构
+# CHARACTOID Agent/RAG 平台架构
 
 ## 1. 目标与边界
 
-YUMENO 是本地优先的角色对话应用。本文件描述 Agent、Workflow、Tool、Skill、MCP、记忆、Milvus RAG 与结构化数据查询的主链路。TTS、Live2D、B站和 NapCat/QQ 保持为接入适配层，不承担 Agent 核心编排职责。
+CHARACTOID 是本地优先的角色对话应用。本文件描述 Agent、Workflow、Tool、Skill、MCP、记忆、Milvus RAG 与结构化数据查询的主链路。TTS、Live2D、B站和 NapCat/QQ 保持为接入适配层，不承担 Agent 核心编排职责。
 
 核心约束：
 

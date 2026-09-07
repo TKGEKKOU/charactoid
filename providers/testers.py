@@ -65,10 +65,10 @@ async def test_tts_provider(provider_id: str, api_key: str, base_url: str, model
         return {"success": False, "message": "本地 GPT-SoVITS 请使用资源状态检查"}
     if provider_id == "openai_tts":
         endpoint = f"{base_url.rstrip('/')}/audio/speech"
-        payload = {"model": model, "voice": "alloy", "input": "YUMENO 测试", "response_format": "wav"}
+        payload = {"model": model, "voice": "alloy", "input": "CHARACTOID 测试", "response_format": "wav"}
     elif provider_id == "mimo_tts":
         endpoint = f"{base_url.rstrip('/')}/chat/completions"
-        payload = {"model": model, "messages": [{"role": "assistant", "content": "YUMENO 测试"}], "audio": {"format": "wav", "voice": "mimo_default"}}
+        payload = {"model": model, "messages": [{"role": "assistant", "content": "CHARACTOID 测试"}], "audio": {"format": "wav", "voice": "mimo_default"}}
     else:
         return {"success": False, "message": "该 TTS Provider 尚未接入正式运行适配器"}
     if not api_key or not base_url or not model:

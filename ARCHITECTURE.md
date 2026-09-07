@@ -1,4 +1,4 @@
-# YUMENO Multi-Agent 架构
+# CHARACTOID Multi-Agent 架构
 
 本文描述**当前正在运行的图**，不是历史方案。设计论证、选型比较和四维改进见 [架构设计存档](docs/archive/ARCHITECTURE_DESIGN.md)。请求主链路与 RAG/SQL 细节见 [docs/architecture/agent-rag-platform.md](docs/architecture/agent-rag-platform.md)。
 
@@ -11,7 +11,7 @@
 
 ## 1. 目标与边界
 
-YUMENO 是本地优先的角色对话系统。Agent 图要同时满足三件事：
+CHARACTOID 是本地优先的角色对话系统。Agent 图要同时满足三件事：
 
 - 只有外层 Supervisor 对用户说话，并保持人设。
 - 领域执行可审计：检索、SQL、写操作都不能靠自由总结蒙混过关。
@@ -22,7 +22,7 @@ YUMENO 是本地优先的角色对话系统。Agent 图要同时满足三件事�
 ## 2. 宏观总图
 
 ```mermaid
-%% YUMENO 完整 Multi-Agent 父图
+%% CHARACTOID 完整 Multi-Agent 父图
 %% 强意图由 intent_route 直达 Worker；其余交给 Supervisor
 flowchart TD
   START([START]) --> R[intent_route]

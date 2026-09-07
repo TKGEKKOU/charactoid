@@ -87,9 +87,9 @@ class STTResourceManager:
     def resolve(self) -> STTResources:
         values = self.config()
         return STTResources(
-            python=self._file(values["python_path"] or os.getenv("YUMENO_STT_PYTHON", os.getenv("YUMENO_ASR_PYTHON", "")), self.runtime_python),
-            model=self._model(values["model_path"] or os.getenv("YUMENO_STT_MODEL", os.getenv("YUMENO_ASR_MODEL", "")), self.managed_model),
-            ffmpeg=self._file(values["ffmpeg_path"] or os.getenv("YUMENO_STT_FFMPEG", os.getenv("YUMENO_ASR_FFMPEG", "")), self.managed_ffmpeg, "ffmpeg"),
+            python=self._file(values["python_path"] or os.getenv("CHARACTOID_STT_PYTHON", os.getenv("CHARACTOID_ASR_PYTHON", "")), self.runtime_python),
+            model=self._model(values["model_path"] or os.getenv("CHARACTOID_STT_MODEL", os.getenv("CHARACTOID_ASR_MODEL", "")), self.managed_model),
+            ffmpeg=self._file(values["ffmpeg_path"] or os.getenv("CHARACTOID_STT_FFMPEG", os.getenv("CHARACTOID_ASR_FFMPEG", "")), self.managed_ffmpeg, "ffmpeg"),
         )
 
     def status(self) -> dict:
@@ -158,7 +158,7 @@ class STTResourceManager:
 
     @staticmethod
     def _asr_device() -> str:
-        requested = os.getenv("YUMENO_ASR_DEVICE", "auto").strip().lower()
+        requested = os.getenv("CHARACTOID_ASR_DEVICE", "auto").strip().lower()
         if requested in {"cpu", "cuda"}:
             return requested
         # Avoid installing the 2.8GB CUDA wheel on ordinary Windows machines.
@@ -172,9 +172,9 @@ class STTResourceManager:
         try:
             if not self.runtime_python.is_file():
                 subprocess.run([sys.executable, "-m", "venv", str(self.runtime_dir)], check=True)
-            pypi_index = os.getenv("YUMENO_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
+            pypi_index = os.getenv("CHARACTOID_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
             pytorch_index = os.getenv(
-                "YUMENO_PYTORCH_INDEX",
+                "CHARACTOID_PYTORCH_INDEX",
                 "https://mirrors.aliyun.com/pytorch-wheels/cu128/",
             )
             device = self._asr_device()
@@ -208,7 +208,7 @@ class STTResourceManager:
                 except subprocess.CalledProcessError as fallback_error:
                     detail = fallback_error.stderr or domestic_error.stderr or "pip install failed"
                     raise RuntimeError(detail[-2000:]) from fallback_error
-            model_id = os.getenv("YUMENO_STT_MODEL_ID", os.getenv("YUMENO_ASR_MODEL_ID", "Qwen/Qwen3-ASR-0.6B"))
+            model_id = os.getenv("CHARACTOID_STT_MODEL_ID", os.getenv("CHARACTOID_ASR_MODEL_ID", "Qwen/Qwen3-ASR-0.6B"))
             script = (
                 "model_id=%r; target=%r; "
                 "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"

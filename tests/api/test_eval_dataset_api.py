@@ -35,7 +35,7 @@ def test_eval_case_crud_is_scoped_to_knowledge_space(client, db_session):
     created = client.post(
         f"/api/knowledge-spaces/{persona['knowledge_space_id']}/eval-cases",
         json={
-            "question": "YUMENO 如何处理资料？",
+            "question": "CHARACTOID 如何处理资料？",
             "expected_answer": "先转换为 Markdown，再切分并建立索引。",
             "relevant_document_ids": ["job-1"],
             "tags": ["ingestion", "happy-path"],
@@ -44,7 +44,7 @@ def test_eval_case_crud_is_scoped_to_knowledge_space(client, db_session):
     )
     assert created.status_code == 201
     item = created.json()
-    assert item["question"] == "YUMENO 如何处理资料？"
+    assert item["question"] == "CHARACTOID 如何处理资料？"
     assert item["source"] == "manual"
     assert item["enabled"] is True
     assert item["relevant_document_ids"] == ["job-1"]

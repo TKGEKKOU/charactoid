@@ -54,7 +54,7 @@ def test_clear_conversation_deletes_summary(client, db_session):
     client.app.state.agent_service.checkpointer = RecordingCheckpointer()
     response = client.delete(
         f"/api/personas/{persona_id}/conversations/c1",
-        headers={"x-yumeno-request": "web"},
+        headers={"x-charactoid-request": "web"},
     )
     assert response.status_code == 204
     assert (

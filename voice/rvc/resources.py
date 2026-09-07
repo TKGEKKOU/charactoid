@@ -32,7 +32,7 @@ class RVCResourceManager:
     def __init__(self, project_root: Path, source_root: Path | None = None) -> None:
         self.project_root = Path(project_root).resolve()
         self._custom_source = source_root is not None
-        configured = source_root or os.getenv("YUMENO_RVC_SOURCE_DIR", "").strip()
+        configured = source_root or os.getenv("CHARACTOID_RVC_SOURCE_DIR", "").strip()
         # Only an explicit external tree may be used. Never guess a developer
         # checkout on another drive for a fresh GitHub installation.
         self.source_root = (
@@ -42,13 +42,13 @@ class RVCResourceManager:
         )
         # 个人音色目录只能在用户显式配置时启用；绝不把开发者机器路径
         # 作为新用户的隐式资源来源。
-        configured_models = os.getenv("YUMENO_RVC_MODEL_DIR") if source_root is None else None
+        configured_models = os.getenv("CHARACTOID_RVC_MODEL_DIR") if source_root is None else None
         self.external_model_root = (
             Path(configured_models).expanduser().resolve()
             if configured_models
             else Path("__disabled__")
         )
-        # 推理核心随 YUMENO 交付，外部 RVC 仓库只作为兼容的资源来源与参考。
+        # 推理核心随 CHARACTOID 交付，外部 RVC 仓库只作为兼容的资源来源与参考。
         self.core_root = self.project_root / "voice" / "rvc" / "vendor"
         self.managed_root = self.project_root / "data" / "providers" / "rvc"
         self.assets_root = self.managed_root / "assets"
@@ -103,20 +103,20 @@ class RVCResourceManager:
         return self.rmvpe_dir() is not None
 
     def requirements_file(self) -> Path | None:
-        """Return the YUMENO-owned inference dependency manifest.
+        """Return the CHARACTOID-owned inference dependency manifest.
 
         The bundled core must not select the external RVC WebUI requirements:
         those install Gradio/server/training dependencies and are tied to the
         source checkout rather than this process boundary.
         """
-        override = os.getenv("YUMENO_RVC_REQUIREMENTS")
+        override = os.getenv("CHARACTOID_RVC_REQUIREMENTS")
         if override:
             path = Path(override).expanduser().resolve()
             return path if path.is_file() else None
-        # 默认优先使用 YUMENO 自带的 CUDA 推理清单；只有明确指定 cpu
+        # 默认优先使用 CHARACTOID 自带的 CUDA 推理清单；只有明确指定 cpu
         # 或没有 CUDA 清单时才回退 CPU。外部 RVC 的完整 requirements
-        # 包含 Gradio/服务端/训练依赖，不应被 YUMENO 运行时直接使用。
-        device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
+        # 包含 Gradio/服务端/训练依赖，不应被 CHARACTOID 运行时直接使用。
+        device = os.getenv("CHARACTOID_RVC_DEVICE", "auto").strip().lower()
         cuda = self.core_root / "requirements-inference-cu128.txt"
         cpu = self.core_root / "requirements-inference-cpu.txt"
         if device in {"cuda", "gpu"} and cuda.is_file():
@@ -158,11 +158,11 @@ class RVCResourceManager:
             except (OSError, ValueError):
                 probe = {}
         missing = []
-        # YUMENO 已内置 infer 核心后，不应要求用户额外保留原版仓库；\n        # 外部源码只用于兼容资源发现，不能成为可用性门槛。\n        # The vendor inference core is the shipped runtime boundary; an
+        # CHARACTOID 已内置 infer 核心后，不应要求用户额外保留原版仓库；\n        # 外部源码只用于兼容资源发现，不能成为可用性门槛。\n        # The vendor inference core is the shipped runtime boundary; an
         # external RVC checkout is optional compatibility input only.
         if not cli_ok: missing.append("infer_cli")
         if not runtime_ready: missing.append("runtime")
-        selected_device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
+        selected_device = os.getenv("CHARACTOID_RVC_DEVICE", "auto").strip().lower()
         if runtime_ready and selected_device in {"cuda", "gpu"} and not bool(probe.get("cuda_available")):
             missing.append("cuda")
         if hubert is None: missing.append("hubert")
@@ -171,7 +171,7 @@ class RVCResourceManager:
         # Keep them visible in components but do not block base installation.
         indices = self.index_paths()
         components = {
-            "source": {"ready": source_component_ready, "label": "YUMENO 内置 RVC 核心", "path": str(self.core_root)},
+            "source": {"ready": source_component_ready, "label": "CHARACTOID 内置 RVC 核心", "path": str(self.core_root)},
             "runtime": {"ready": runtime_ready, "label": "RVC 运行环境", "path": str(self.runtime_root)},
             "hubert": {"ready": hubert is not None, "label": "Hubert", "path": str(hubert) if hubert else ""},
             "rmvpe": {"ready": rmvpe is not None, "label": "RMVPE", "path": str(rmvpe) if rmvpe else ""},
@@ -231,7 +231,7 @@ class RVCResourceManager:
             self._state.update({"installing": True, "cancelling": False, "phase": "preparing", "progress_percent": 0, "detail": "准备 RVC 独立运行时", "error": "", "started_at": time.time(), "current_file": "", "downloaded_bytes": 0, "total_bytes": 0, "speed_bytes_per_second": 0, "eta_seconds": None})
             self._cancel.clear()
             self.runtime_probe_path.unlink(missing_ok=True)
-        threading.Thread(target=self._install, daemon=True, name="yumeno-rvc-install").start()
+        threading.Thread(target=self._install, daemon=True, name="charactoid-rvc-install").start()
         return self.status()
 
     def cancel_install(self) -> dict:
@@ -244,7 +244,7 @@ class RVCResourceManager:
         return self.status()
 
     def remove_managed(self) -> dict:
-        """安全卸载 YUMENO 自己创建的 RVC 运行时，不触碰外部源码和用户资源。"""
+        """安全卸载 CHARACTOID 自己创建的 RVC 运行时，不触碰外部源码和用户资源。"""
         with self._lock:
             if self._state.get("installing"):
                 raise RuntimeError("请先取消安装")
@@ -287,7 +287,7 @@ class RVCResourceManager:
                 return
             for line in process.stdout:
                 output_queue.put(line.strip())
-        threading.Thread(target=drain_output, daemon=True, name="yumeno-rvc-install-output").start()
+        threading.Thread(target=drain_output, daemon=True, name="charactoid-rvc-install-output").start()
         started = time.monotonic()
         last_feedback = started
         try:
@@ -335,16 +335,16 @@ class RVCResourceManager:
         self.runner_path.write_text(
             "from pathlib import Path\n"
             "import os, sys\n"
-            "requested = os.environ.get('YUMENO_RVC_DEVICE', 'cuda').strip().lower()\n"
+            "requested = os.environ.get('CHARACTOID_RVC_DEVICE', 'cuda').strip().lower()\n"
             "if requested in {'cuda', 'gpu'}:\n"
             "    import torch\n"
             "    if not torch.cuda.is_available():\n"
-            "        raise RuntimeError('YUMENO_RVC_DEVICE=cuda but CUDA is unavailable; refusing CPU fallback')\n"
-            "core = Path(os.environ['YUMENO_RVC_CORE_DIR']).resolve()\n"
+            "        raise RuntimeError('CHARACTOID_RVC_DEVICE=cuda but CUDA is unavailable; refusing CPU fallback')\n"
+            "core = Path(os.environ['CHARACTOID_RVC_CORE_DIR']).resolve()\n"
             "os.chdir(core)\n"
             "sys.path.insert(0, str(core))\n"
             "from infer import hubert\n"
-            "hubert.HUBERT_MODEL_PATH = Path(os.environ['YUMENO_RVC_HUBERT_DIR']).resolve()\n"
+            "hubert.HUBERT_MODEL_PATH = Path(os.environ['CHARACTOID_RVC_HUBERT_DIR']).resolve()\n"
             "from infer.cli import main\n"
             "raise SystemExit(main())\n",
             encoding="utf-8",
@@ -353,7 +353,7 @@ class RVCResourceManager:
     @staticmethod
     def _download_urls(url: str) -> list[str]:
         """按原版 RVC 的 Hugging Face 仓库组织下载，并提供可切换镜像回退。"""
-        configured = os.getenv("YUMENO_RVC_HF_ENDPOINT", "").strip().rstrip("/")
+        configured = os.getenv("CHARACTOID_RVC_HF_ENDPOINT", "").strip().rstrip("/")
         urls = [url]
         if configured and "/resolve/" in url:
             suffix = url.split("/resolve/", 1)[1]
@@ -374,7 +374,7 @@ class RVCResourceManager:
         for candidate_url in self._download_urls(url):
             partial.unlink(missing_ok=True)
             try:
-                request = urllib.request.Request(candidate_url, headers={"User-Agent": "YUMENO-RVC/1.0"})
+                request = urllib.request.Request(candidate_url, headers={"User-Agent": "CHARACTOID-RVC/1.0"})
                 with urllib.request.urlopen(request, timeout=60) as response, partial.open("wb") as output:
                     total = int(response.headers.get("Content-Length") or 0)
                     received = 0
@@ -421,7 +421,7 @@ class RVCResourceManager:
             self.runtime_root.mkdir(parents=True, exist_ok=True)
             self._check_cancelled()
             if not self.core_cli_path.is_file():
-                raise RuntimeError(f"YUMENO 内置 RVC 推理核心不完整：{self.core_cli_path}")
+                raise RuntimeError(f"CHARACTOID 内置 RVC 推理核心不完整：{self.core_cli_path}")
             if not self.python_path().is_file():
                 self._set(phase="runtime", progress_percent=10, detail="创建独立 Python 运行时")
                 self._run([sys.executable, "-m", "venv", str(self.venv_dir)], 600)
@@ -445,7 +445,7 @@ class RVCResourceManager:
                 "print(json.dumps({'torch_version': torch.__version__, 'cuda_available': bool(torch.cuda.is_available()), "
                 "'cuda_version': torch.version.cuda, 'device': 'cuda' if torch.cuda.is_available() else 'cpu'}))")
             probe_output = self._run([str(self.python_path()), "-c", probe_code], 600)
-            device = os.getenv("YUMENO_RVC_DEVICE", "auto").strip().lower()
+            device = os.getenv("CHARACTOID_RVC_DEVICE", "auto").strip().lower()
             try:
                 probe = json.loads((probe_output or "").strip().splitlines()[-1])
             except (ValueError, IndexError):

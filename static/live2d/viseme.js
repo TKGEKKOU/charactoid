@@ -1,7 +1,7 @@
 "use strict";
 
 /*
- * YUMENO viseme lip-sync core.
+ * CHARACTOID viseme lip-sync core.
  *
  * Ported from BandoriPet's text→viseme model (tts_manager.py):
  *   - estimateVisemeUnits(): text → phoneme-class sequence (7 classes)

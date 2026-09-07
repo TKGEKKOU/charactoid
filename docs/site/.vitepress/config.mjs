@@ -1,15 +1,15 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'YUMENO',
+  title: 'CHARACTOID',
   description: '本地优先的角色 Agent 工作台',
   lang: 'zh-CN',
-  base: '/yumeno/',
+  base: '/charactoid/',
   cleanUrls: true,
   themeConfig: {
     logo: '/logo-mark.svg',
-    siteTitle: 'YUMENO',
-    socialLinks: [{ icon: 'github', link: 'https://github.com/TKGEKKOU/yumeno' }],
+    siteTitle: 'CHARACTOID',
+    socialLinks: [{ icon: 'github', link: 'https://github.com/TKGEKKOU/charactoid' }],
     search: { provider: 'local' },
     nav: [
       { text: '入门', link: '/guide/quickstart' },

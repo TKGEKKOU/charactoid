@@ -2211,12 +2211,12 @@ function canonicalResourceKey(resourceKey) {
 function resourceSetupDescriptor(resourceKey) {
   const key = canonicalResourceKey(resourceKey);
   const descriptors = {
-    rvc: { title: "RVC 运行环境", ready: "已就绪", fallback: "未就绪" },
-    gpt_sovits: { title: "GPT-SoVITS 运行环境", ready: "已就绪", fallback: "未就绪" },
-    separator: { title: "人声分离模型", ready: "已就绪", fallback: "未就绪" },
-    asr: { title: "语音识别", ready: "已就绪", fallback: "未就绪" },
-    embedding: { title: "检索模型", ready: "已就绪", fallback: "未就绪" },
-    ffmpeg: { title: "FFmpeg", ready: "已就绪", fallback: "未就绪" },
+    rvc: { title: "RVC 运行环境（可选）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
+    gpt_sovits: { title: "GPT-SoVITS 运行环境（可选）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
+    separator: { title: "人声分离模型（可选）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
+    asr: { title: "语音识别（可选）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
+    embedding: { title: "检索模型（可选）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
+    ffmpeg: { title: "FFmpeg（按需）", ready: "已就绪 · 可用", fallback: "未准备 · 可跳过" },
   };  return descriptors[key] || {
     title: `${String(resourceKey || "应用")} 运行资源`,
     ready: "已就绪",
@@ -2246,7 +2246,7 @@ function resourceStatusDetail(item) {
   const missing = Array.isArray(install.missing) ? install.missing : [];
   return [item?.error, install.error, item?.detail, item?.message, install.detail, install.message]
     .find((value) => String(value || "").trim())
-    || (missing.length ? `缺少：${missing.join("、")}` : (install.ready ? "运行所需组件完整" : (install.next_action === "start_service" ? "安装完整，服务尚未启动" : "等待检查")));
+    || (missing.length ? `缺少：${missing.join("、")}` : (install.ready ? "已准备，使用对应功能时会自动调用" : (install.next_action === "start_service" ? "已安装；使用语音功能时再启动服务" : "未准备；不使用该功能可以跳过")));
 }
 function appendResourceOverviewRow(grid, item) {
   const key = canonicalResourceKey(item?.resource || item?.provider_id || item?.resource_kind);
@@ -4341,7 +4341,7 @@ function renderRvcResourceCard(box, status) {
   const card = document.createElement("section"); card.className = "rvc-inline-resource-card";
   const ready = chatRvcRuntimeReady(status);
   const title = document.createElement("strong"); title.textContent = status?.installing ? "下载中" : (status?.error ? "下载失败" : (ready ? "已就绪" : "未就绪"));
-  const detail = document.createElement("p"); detail.textContent = status?.installing ? rvcResourceStatusLabel(status) : (status?.error || (ready ? "已就绪" : "运行环境未就绪，请先下载"));
+  const detail = document.createElement("p"); detail.textContent = status?.installing ? rvcResourceStatusLabel(status) : (status?.error || (ready ? "已就绪，可按需使用" : "尚未准备；只有使用该功能时才需要下载"));
   const progress = document.createElement("progress"); progress.max = 100; progress.value = Math.max(0, Math.min(100, Number(status?.progress_percent) || 0)); progress.className = "rvc-inline-progress";
   const actions = document.createElement("div"); actions.className = "rvc-inline-resource-actions";
   if (status?.installing) { const cancel = rvcButton(status?.cancelling ? "正在停止…" : "停止", () => cancelRvcResourceInstall()); cancel.disabled = Boolean(status?.cancelling); actions.append(cancel); }
@@ -4387,19 +4387,18 @@ function renderRvcConversionControls(box) {
   if (step === 0 && !answers.model_id) {
     question.textContent = "选择音色"; const select = document.createElement("select"); select.className = "rvc-inline-config-select"; select.innerHTML = '<option value="">选择音色</option>'; modelItems.forEach((item) => { const value = item.id || item.name || item.file_id; const option = document.createElement("option"); option.value = value; option.textContent = item.name || value; select.append(option); }); const next = rvcButton("下一步", () => { if (!select.value) return setText("chat-error", "请选择音色", true); answers.model_id = select.value; data.configStep = 1; renderRvcInline(); }, true);
     const modelInput = document.createElement("input"); modelInput.type = "file"; modelInput.accept = ".pth,.index"; modelInput.multiple = true; modelInput.className = "visually-hidden-input";
-    const importButton = rvcButton("导入", () => modelInput.click(), false); importButton.addEventListener("click", () => modelInput.click());
-    const directoryButton = rvcButton("打开文件夹", async () => {
-      directoryButton.disabled = true;
-      try {
-        const opened = await chatRvcApi("/api/providers/rvc/open-model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } });
-        setText("chat-error", opened?.opened ? `已打开音色目录：${opened.directory || "RVC 音色目录"}` : `音色目录：${opened?.directory || "RVC 音色目录"}`);
-      } catch (error) {
-        setText("chat-error", `打开音色目录失败：${error?.message || error}`, true);
-      } finally { directoryButton.disabled = false; }
-    }, false);
-    modelInput.addEventListener("change", async () => { const files = Array.from(modelInput.files || []); if (!files.length) return; const form = new FormData(); files.forEach((file) => form.append("files", file, file.name)); try { await chatRvcApi("/api/providers/rvc/models/import", { method: "POST", body: form }); data.models = await chatRvcApi("/api/voice/rvc/models"); renderRvcInline(); } catch (error) { setText("chat-error", `导入音色文件失败：${error.message || error}`, true); } finally { modelInput.value = ""; } }); wrap.append(question, select, directoryButton, importButton, modelInput, next);
+    const actions = document.createElement("div"); actions.className = "rvc-inline-file-actions";
+    const directoryButton = rvcButton("打开文件夹", async () => { directoryButton.disabled = true; try { const opened = await chatRvcApi("/api/providers/rvc/open-model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }); setText("chat-error", opened?.opened ? `已打开音色目录：${opened.directory || "RVC 音色目录"}` : `音色目录：${opened?.directory || "RVC 音色目录"}`); } catch (error) { setText("chat-error", `打开文件夹失败：${error?.message || error}`, true); } finally { directoryButton.disabled = false; } }, false);
+    const importButton = rvcButton("导入", () => modelInput.click(), false); actions.append(directoryButton, importButton);
+    modelInput.addEventListener("change", async () => { const files = Array.from(modelInput.files || []); if (!files.length) return; const form = new FormData(); files.forEach((file) => form.append("files", file, file.name)); try { await chatRvcApi("/api/providers/rvc/models/import", { method: "POST", body: form }); data.models = await chatRvcApi("/api/voice/rvc/models"); renderRvcInline(); } catch (error) { setText("chat-error", `导入音色文件失败：${error.message || error}`, true); } finally { modelInput.value = ""; } }); wrap.append(question, select, actions, modelInput, next);
   } else if (step <= 1 && answers.index_id === undefined) {
-    question.textContent = "Index（可跳过）"; const select = document.createElement("select"); select.className = "rvc-inline-config-select"; select.innerHTML = '<option value="">不使用 Index</option>'; indexItems.forEach((item) => { const value = item.id || item.name || item.file_id; const option = document.createElement("option"); option.value = value; option.textContent = item.name || value; select.append(option); }); const next = rvcButton("下一步", () => { answers.index_id = select.value || null; data.configStep = 2; renderRvcInline(); }, true); wrap.append(question, select, next);
+    question.textContent = "Index（可跳过）"; const select = document.createElement("select"); select.className = "rvc-inline-config-select"; select.innerHTML = '<option value="">不使用 Index</option>'; indexItems.forEach((item) => { const value = item.id || item.name || item.file_id; const option = document.createElement("option"); option.value = value; option.textContent = item.name || value; select.append(option); });
+    const indexInput = document.createElement("input"); indexInput.type = "file"; indexInput.accept = ".index"; indexInput.multiple = true; indexInput.className = "visually-hidden-input";
+    const indexActions = document.createElement("div"); indexActions.className = "rvc-inline-file-actions";
+    const indexDirectoryButton = rvcButton("打开文件夹", async () => { indexDirectoryButton.disabled = true; try { const opened = await chatRvcApi("/api/providers/rvc/open-model-directory", { method: "POST", headers: { "X-CHARACTOID-Request": "web" } }); setText("chat-error", opened?.opened ? `已打开音色目录：${opened.directory || "RVC 音色目录"}` : `音色目录：${opened?.directory || "RVC 音色目录"}`); } catch (error) { setText("chat-error", `打开文件夹失败：${error?.message || error}`, true); } finally { indexDirectoryButton.disabled = false; } }, false);
+    const indexImportButton = rvcButton("导入", () => indexInput.click(), false); indexActions.append(indexDirectoryButton, indexImportButton);
+    indexInput.addEventListener("change", async () => { const files = Array.from(indexInput.files || []); if (!files.length) return; const form = new FormData(); files.forEach((file) => form.append("files", file, file.name)); try { await chatRvcApi("/api/providers/rvc/models/import", { method: "POST", body: form }); data.models = await chatRvcApi("/api/voice/rvc/models"); renderRvcInline(); } catch (error) { setText("chat-error", `导入 Index 失败：${error.message || error}`, true); } finally { indexInput.value = ""; } });
+    const next = rvcButton("下一步", () => { answers.index_id = select.value || null; data.configStep = 2; renderRvcInline(); }, true); wrap.append(question, select, indexActions, indexInput, next);
   } else if (step <= 2 && answers.pitch === undefined) {
     question.textContent = "音高"; const input = document.createElement("input"); input.type = "number"; input.min = "-24"; input.max = "24"; input.step = "1"; input.value = "0"; input.className = "rvc-inline-config-input"; const next = rvcButton("下一步", () => { answers.pitch = Number(input.value) || 0; data.configStep = 3; renderRvcInline(); }, true); wrap.append(question, input, next);
   } else if (step <= 3 && answers.mix_instrumental === undefined) {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, Download, ExternalLink, FolderOpen, Power, RefreshCw, Settings, Trash2, X } from "lucide-vue-next";
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 interface ResourceComponent {
   ready?: boolean;
@@ -77,6 +77,7 @@ const testing = ref<string | null>(null);
 const resourceAction = ref<string | null>(null);
 const saveStatus = ref("");
 const testStatus = ref("");
+const testFeedback = ref<Record<string, { ok: boolean; message: string }>>({});
 const FIXED_GPT_SOVITS_URL = "https://huggingface.co/lj1995/GPT-SoVITS-windows-package/resolve/main/GPT-SoVITS-v3lora-20250228.7z?download=true";
 const installUrl = ref(FIXED_GPT_SOVITS_URL);
 const downloadTasks = ref<DownloadTask[]>([]);
@@ -105,6 +106,12 @@ const rvcProvider = computed(() => providers.value.find(p => p.id === "rvc"));
 const separatorProvider = computed(() => providers.value.find(p => p.id === "separator"));
 const ffmpegStatus = ref<Record<string, unknown>>({});
 const selectedProvider = computed(() => providers.value.find(p => p.id === configuring.value));
+
+const overlayOpen = computed(() => Boolean(configuring.value || downloadsOpen.value || rvcWorkspaceOpen.value));
+watch(overlayOpen, (open) => {
+  document.body.classList.toggle("provider-modal-open", open);
+  document.documentElement.classList.toggle("provider-modal-open", open);
+});
 const resourceConfigKind = computed(() => {
   const id = selectedProvider.value?.id;
   if (id === "local_embedding") return "embedding";
@@ -269,6 +276,8 @@ function closeConfig() {
 
 async function saveConfig() {
   if (!configForm.value.provider_id) return;
+  // 配置弹窗的主操作就是“保存并启用”；停用交给卡片右上角开关。
+  configForm.value.enabled = true;
   loading.value = true; error.value = ""; saveStatus.value = "";
   try {
     const response = await fetch("/api/providers/configure", {
@@ -344,17 +353,29 @@ async function toggleProvider(provider: Provider) {
 }
 
 async function testProvider(provider: Provider) {
-  testing.value = provider.id; error.value = ""; testStatus.value = "";
+  testing.value = provider.id; error.value = "";
+  testFeedback.value = { ...testFeedback.value, [provider.id]: { ok: false, message: "正在测试连接…" } };
   try {
     const response = await fetch("/api/providers/test", {
       method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
       body: JSON.stringify({ provider_type: provider.type, provider_id: provider.id, api_key: provider.current_api_key, base_url: provider.current_base_url, model: provider.current_model }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || `HTTP ${response.status}`);
+    }
     const result = await response.json();
-    testStatus.value = result.ok ? `连接成功 · ${result.latency_ms}ms` : `连接失败 · ${result.message || "未知错误"}`;
-  } catch (e) { testStatus.value = `连接失败 · ${e instanceof Error ? e.message : "网络错误"}`; }
-  finally { testing.value = null; }
+    const ok = Boolean(result.ok);
+    const message = ok
+      ? `成功${result.latency_ms ? ` · ${result.latency_ms} ms` : ""}`
+      : `失败 · ${result.message || "未通过"}`;
+    testFeedback.value = { ...testFeedback.value, [provider.id]: { ok, message } };
+    testStatus.value = message;
+  } catch (e) {
+    const message = `失败 · ${e instanceof Error ? e.message : "网络错误"}`;
+    testFeedback.value = { ...testFeedback.value, [provider.id]: { ok: false, message } };
+    testStatus.value = message;
+  } finally { testing.value = null; }
 }
 
 function resourceReady(provider: Provider) {
@@ -378,10 +399,12 @@ function handleKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
   void fetchProviders(); void fetchDownloadTasks();
-  downloadsTimer = window.setInterval(() => { void fetchDownloadTasks(); void fetchProviders(); void fetchFfmpegStatus(); }, 2500);
+  downloadsTimer = window.setInterval(() => { void fetchDownloadTasks(); void fetchFfmpegStatus(); }, 2500);
   window.addEventListener("keydown", handleKeydown);
 });
 onBeforeUnmount(() => {
+  document.body.classList.remove("provider-modal-open");
+  document.documentElement.classList.remove("provider-modal-open");
   if (downloadsTimer) window.clearInterval(downloadsTimer);
   window.removeEventListener("keydown", handleKeydown);
 });
@@ -441,12 +464,11 @@ onBeforeUnmount(() => {
       <div v-else-if="filteredProviders.length === 0" class="empty-state"><p>这个分类暂时没有可用供应商。</p></div>
       <div v-else :class="['providers-grid', { compact: activeTab === 'llm' }]">
         <article v-for="provider in filteredProviders" :key="provider.type + ':' + provider.id" :class="['provider-card', { configured: provider.is_configured, active: provider.is_active, local: provider.mode === 'local' }]" tabindex="0" @click="openConfig(provider)" @keydown.enter="openConfig(provider)" @keydown.space.prevent="openConfig(provider)">
-          <div class="provider-header"><div class="provider-title"><span class="provider-mark" :class="{ local: provider.mode === 'local' }"></span><h3>{{ provider.name }}</h3><span v-if="provider.mode === 'local'" class="mode-badge">本地</span><span v-else class="mode-badge api">API</span></div><span :class="['active-label', { on: provider.is_active }]">{{ provider.is_active ? '已启用' : provider.runtime_supported ? '可启用' : '仅配置' }}</span></div>
+          <div class="provider-header"><div class="provider-title"><span class="provider-mark" :class="{ local: provider.mode === 'local' }"></span><h3>{{ provider.name }}</h3><span v-if="provider.mode === 'local'" class="mode-badge">本地</span><span v-else class="mode-badge api">API</span></div><button v-if="provider.runtime_supported" class="provider-switch" :class="{ on: provider.is_active }" type="button" role="switch" :aria-checked="provider.is_active" :aria-label="`${provider.is_active ? '停用' : '启用'} ${provider.name}`" @click.stop="toggleProvider(provider)" :disabled="loading"><span></span></button><span v-else class="active-label">仅配置</span></div>
           <p class="provider-description">{{ provider.description }}</p>
-          <div :class="['runtime-status', { supported: provider.runtime_supported }]" :title="provider.runtime_note"><span class="runtime-dot"></span>{{ provider.runtime_supported ? '已接入运行链路' : '暂未接入运行链路' }}</div>
           <div v-if="provider.mode === 'local'" class="provider-meta resource-meta"><span class="meta-label">资源状态</span><strong>{{ resourceLabel(provider) }}</strong><code>{{ provider.resource_status?.model_id || '尚未选择资源' }}</code></div>
           <div v-else-if="provider.type === 'web_search'" class="provider-meta"><span class="meta-label">搜索服务</span><code>{{ provider.name }}</code><span>{{ provider.current_api_key ? 'API Key 已配置' : '需要 API Key' }}</span></div><div v-else class="provider-meta"><span class="meta-label">当前模型</span><code>{{ provider.current_model || provider.default_model || '按接口默认' }}</code><span v-if="provider.current_base_url" class="meta-url">{{ provider.current_base_url }}</span></div>
-          <footer class="provider-actions"><button class="button button-secondary" type="button" @click.stop="openConfig(provider)"><Settings :size="15" />配置</button><button v-if="provider.mode === 'api' && provider.is_configured && provider.runtime_supported" class="button button-test" type="button" @click.stop="testProvider(provider)" :disabled="testing === provider.id"><RefreshCw :size="15" :class="{ spin: testing === provider.id }" />{{ testing === provider.id ? '测试中' : '测试连接' }}</button><button v-if="provider.runtime_supported" :class="['button', provider.is_active ? 'button-active' : 'button-primary']" type="button" @click.stop="toggleProvider(provider)" :disabled="loading">{{ provider.is_active ? '停用' : '启用' }}</button></footer>
+          <footer class="provider-actions"><button class="button button-secondary" type="button" @click.stop="openConfig(provider)"><Settings :size="15" />配置</button><button v-if="provider.mode === 'api' && provider.is_configured && provider.runtime_supported" class="button button-test" :class="{ 'is-success': testFeedback[provider.id]?.ok, 'is-error': testFeedback[provider.id] && !testFeedback[provider.id].ok }" type="button" @click.stop="testProvider(provider)" :disabled="testing === provider.id"><RefreshCw v-if="testing === provider.id" :size="15" class="spin" /><Check v-else-if="testFeedback[provider.id]?.ok" :size="15" /><X v-else-if="testFeedback[provider.id]" :size="15" />{{ testing === provider.id ? '测试中' : testFeedback[provider.id]?.message || '测试连接' }}</button></footer>
         </article>
       </div>
     </main>
@@ -469,18 +491,19 @@ onBeforeUnmount(() => {
       </aside>
     </div>
 
-    <div v-if="configuring" class="drawer-overlay" @click.self="closeConfig">
-      <aside class="config-drawer" role="dialog" aria-modal="true" :aria-label="`配置 ${selectedProvider?.name || '供应商'}`">
+    <Teleport to="body">
+      <div v-if="configuring" class="drawer-overlay provider-config-overlay" @click.self="closeConfig">
+      <aside class="config-drawer provider-config-drawer" role="dialog" aria-modal="true" :aria-label="`配置 ${selectedProvider?.name || '供应商'}`">
         <div class="drawer-header"><div><p class="eyebrow">CONFIGURE</p><h3>{{ selectedProvider?.name }}</h3><p>{{ selectedProvider?.description }}</p></div><button class="modal-close" type="button" @click="closeConfig" aria-label="关闭配置"><X :size="18" /></button></div>
         <div class="drawer-body"><div class="drawer-status"><span :class="['status-chip', { on: selectedProvider?.is_active }]">{{ selectedProvider?.is_active ? '当前启用' : selectedProvider?.runtime_supported ? '可用' : '仅保存配置' }}</span><span>{{ selectedProvider?.mode === 'local' ? '本地资源' : 'API 接口' }}</span></div>
           <form @submit.prevent="saveConfig" class="config-form">
             <template v-if="selectedProvider?.mode === 'api' && selectedProvider?.type === 'web_search'"><div class="resource-config-intro"><span class="meta-label">搜索服务</span><p class="config-hint">为 Agent 提供实时互联网检索能力，不是模型配置。</p></div><label v-if="selectedProvider.requires_api_key" class="field"><span>搜索服务 API Key <span class="required">*</span></span><input type="password" v-model="configForm.api_key" placeholder="输入搜索服务 API Key" required autocomplete="off" /></label><label v-if="selectedProvider.id === 'custom_search'" class="field"><span>搜索接口地址</span><input type="url" v-model="configForm.base_url" placeholder="https://your-search-endpoint" /></label><div v-else class="resource-config-readonly"><span>接口地址</span><strong>{{ selectedProvider.id === 'tavily' ? 'Tavily 官方服务' : '博查官方服务' }}</strong></div></template><template v-else-if="selectedProvider?.mode === 'api'"><label v-if="selectedProvider.requires_api_key" class="field"><span>API Key <span class="required">*</span></span><input type="password" v-model="configForm.api_key" placeholder="输入 API Key" required autocomplete="off" /></label><label class="field"><span>服务接口地址</span><input type="url" v-model="configForm.base_url" :placeholder="selectedProvider.default_base_url" /></label><label class="field"><span>模型名称</span><input type="text" v-model="configForm.model" :placeholder="selectedProvider.default_model" /></label></template>
-            <template v-else><div class="resource-config-intro"><span class="meta-label">资源配置</span><p v-if="resourceConfigHint()" class="config-hint">{{ resourceConfigHint() }}</p></div><template v-if="resourceConfigKind === 'embedding' || resourceConfigKind === 'reranker'"><label class="field"><span>{{ resourceConfigKind === 'embedding' ? '向量模型 ID' : '精排模型 ID' }}</span><input type="text" v-model="configForm.model" :placeholder="selectedProvider?.default_model" /></label><div class="form-row"><label class="field"><span>模型来源</span><select v-model="configForm.source"><option value="modelscope">ModelScope</option><option value="huggingface">Hugging Face</option></select></label><label class="field"><span>运行设备</span><select v-model="configForm.device"><option value="auto">自动（GPU 优先）</option><option value="cuda">CUDA</option><option value="cpu">CPU</option></select></label></div></template><div v-else-if="resourceConfigKind === 'gpt_sovits'" class="resource-install-form"><div class="resource-config-readonly"><span>固定运行环境</span><strong>GPT-SoVITS v3lora Windows 整合包</strong><small>应用内置下载源 · Hugging Face · 约 8 GB · 服务按需启动</small></div></div><div v-else-if="resourceConfigKind === 'stt'" class="resource-config-readonly"><span>固定资源清单</span><strong>Qwen3-ASR-0.6B + FFmpeg</strong></div><div v-else-if="resourceConfigKind === 'separator'" class="resource-config-readonly"><span>固定资源</span><strong>HT-Demucs 人声分离模型 · 约 165 MB</strong></div><div class="resource-controls"><div><span class="meta-label">资源状态</span><strong>{{ selectedProvider ? resourceLabel(selectedProvider) : '未知' }}</strong></div><div class="resource-control-actions"><button v-if="resourceInstalling(selectedProvider!)" type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'cancel')" :disabled="resourceAction !== null">取消安装</button><button v-else-if="!resourceReady(selectedProvider!)" type="button" class="button button-primary" @click="callResource(selectedProvider!, 'install')" :disabled="resourceAction !== null || (selectedProvider?.id === 'gsv_tts_local' && !installUrl)"><Download :size="15" /> 安装运行环境</button><button v-if="resourceReady(selectedProvider!)" type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'remove')" :disabled="resourceAction !== null"><Trash2 :size="15" /> 删除</button><button type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'directory')" :disabled="resourceAction !== null"><FolderOpen :size="15" /> 打开目录</button><button v-if="selectedProvider?.id === 'gsv_tts_local' && selectedProvider.resource_status?.service_running" type="button" class="button button-secondary" @click="callResource(selectedProvider, 'stop')" :disabled="resourceAction !== null">停止服务</button><button v-else-if="selectedProvider?.id === 'gsv_tts_local' && resourceReady(selectedProvider)" type="button" class="button button-primary" @click="callResource(selectedProvider, 'start')" :disabled="resourceAction !== null"><ExternalLink :size="15" /> 启动服务</button></div></div></template>
-            <label class="field checkbox-field"><input type="checkbox" v-model="configForm.enabled" :disabled="!selectedProvider?.runtime_supported" /><span>{{ selectedProvider?.type === 'web_search' ? '允许 Agent 联网搜索' : selectedProvider?.type === 'llm' ? '启用此对话模型' : selectedProvider?.type === 'embedding' ? '启用知识库向量化' : selectedProvider?.type === 'reranker' ? '启用检索重排' : selectedProvider?.type === 'stt' ? '启用语音识别' : selectedProvider?.type === 'tts' ? '启用对话语音' : '启用此服务' }}</span></label><p v-if="selectedProvider && !selectedProvider.runtime_supported" class="config-hint">当前运行时还没有这个 Provider 的适配器，因此这里只保存配置，不会自动调用。</p><div class="modal-actions"><button type="button" class="button button-secondary" @click="closeConfig">取消</button><button type="submit" class="button button-primary" :disabled="loading">{{ loading ? '保存中...' : '保存并应用' }}</button></div><p v-if="saveStatus" class="config-success"><Check :size="16" /> {{ saveStatus }}</p><p v-if="testStatus" :class="['config-message', testStatus.startsWith('连接成功') ? 'success' : 'error']">{{ testStatus }}</p><p v-if="error" class="config-error">{{ error }}</p>
+            <template v-else><div class="resource-config-intro"><span class="meta-label">资源配置</span><p v-if="resourceConfigHint()" class="config-hint">{{ resourceConfigHint() }}</p></div><template v-if="resourceConfigKind === 'embedding' || resourceConfigKind === 'reranker'"><label class="field"><span>{{ resourceConfigKind === 'embedding' ? '向量模型 ID' : '精排模型 ID' }}</span><input type="text" v-model="configForm.model" :placeholder="selectedProvider?.default_model" /></label><div class="form-row"><label class="field"><span>模型来源</span><select v-model="configForm.source"><option value="modelscope">ModelScope</option><option value="huggingface">Hugging Face</option></select></label><label class="field"><span>运行设备</span><select v-model="configForm.device"><option value="auto">自动（GPU 优先）</option><option value="cuda">CUDA</option><option value="cpu">CPU</option></select></label></div></template><div v-else-if="resourceConfigKind === 'gpt_sovits'" class="resource-install-form"><div class="resource-config-readonly"><span>固定运行环境</span><strong>GPT-SoVITS v3lora Windows 整合包</strong><small>应用内置下载源 · Hugging Face · 约 8 GB · 服务按需启动</small></div></div><div v-else-if="resourceConfigKind === 'stt'" class="resource-config-readonly"><span>固定资源清单</span><strong>Qwen3-ASR-0.6B + FFmpeg</strong></div><div v-else-if="resourceConfigKind === 'separator'" class="resource-config-readonly"><span>固定资源</span><strong>HT-Demucs 人声分离模型 · 约 165 MB</strong></div><div class="resource-controls"><div><span class="meta-label">资源状态</span><strong>{{ selectedProvider ? resourceLabel(selectedProvider) : '未知' }}</strong></div><div class="resource-control-actions"><button v-if="resourceInstalling(selectedProvider!)" type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'cancel')" :disabled="resourceAction !== null">取消安装</button><button v-else-if="!resourceReady(selectedProvider!)" type="button" class="button button-primary" @click="callResource(selectedProvider!, 'install')" :disabled="resourceAction !== null || (selectedProvider?.id === 'gsv_tts_local' && !installUrl)"><Download :size="15" /> 安装运行环境</button><button v-if="resourceReady(selectedProvider!)" type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'remove')" :disabled="resourceAction !== null"><Trash2 :size="15" /> 删除</button><button type="button" class="button button-secondary" @click="callResource(selectedProvider!, 'directory')" :disabled="resourceAction !== null"><FolderOpen :size="15" /> 打开目录</button><button v-if="selectedProvider?.id === 'gsv_tts_local' && selectedProvider.resource_status?.service_running" type="button" class="button button-secondary" @click="callResource(selectedProvider, 'stop')" :disabled="resourceAction !== null">停止服务</button><button v-else-if="selectedProvider?.id === 'gsv_tts_local' && resourceReady(selectedProvider)" type="button" class="button button-primary" @click="callResource(selectedProvider, 'start')" :disabled="resourceAction !== null"><ExternalLink :size="15" /> 启动服务</button></div></div></template><p v-if="selectedProvider && !selectedProvider.runtime_supported" class="config-hint">当前运行时还没有这个 Provider 的适配器，因此这里只保存配置，不会自动调用。</p><div class="modal-actions"><button type="button" class="button button-secondary" @click="closeConfig">取消</button><button type="submit" class="button button-primary" :disabled="loading">{{ loading ? '保存中...' : '保存并启用' }}</button></div><p v-if="saveStatus" class="config-success"><Check :size="16" /> {{ saveStatus }}</p><p v-if="testStatus" :class="['config-message', testStatus.startsWith('连接成功') ? 'success' : 'error']">{{ testStatus }}</p><p v-if="error" class="config-error">{{ error }}</p>
           </form>
         </div>
       </aside>
-    </div>
+      </div>
+    </Teleport>
   </div>
 </template><style scoped>
 :global(*) { box-sizing: border-box; }
@@ -520,7 +543,7 @@ onBeforeUnmount(() => {
 .provider-description { min-height:38px; margin:13px 0 12px; color:var(--muted); font-size:12px; line-height:1.55; }
 .runtime-status { display:flex; align-items:center; gap:7px; margin-bottom:14px; color:#9a716b; font:11px "Cascadia Mono",Consolas,monospace; }.runtime-status.supported { color:var(--ok); }
 .runtime-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }.provider-meta { display:grid; gap:5px; min-height:68px; margin-bottom:16px; padding:11px 12px; border:1px solid var(--line); background:#fbfdfd; }.meta-label { color:var(--muted); font-size:11px; }.provider-meta code, .meta-url { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); font:11px "Cascadia Mono",Consolas,monospace; }.meta-url { color:var(--muted); }.resource-meta strong { font-size:12px; }.provider-actions, .resource-control-actions, .modal-actions { display:flex; flex-wrap:wrap; gap:8px; }.provider-actions .button { flex:1 1 100px; }
-.button { min-height:36px; padding:8px 12px; border:1px solid var(--ink); background:#fff; color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; font:12px inherit; transition:background .18s ease,color .18s ease,border-color .18s ease; }.button:hover:not(:disabled) { border-color:var(--cyan); }.button:disabled { opacity:.45; cursor:not-allowed; }.button-primary { background:var(--ink); color:#fff; }.button-primary:hover:not(:disabled) { background:var(--cyan); border-color:var(--cyan); }.button-secondary { border-color:var(--line); }.button-test { background:var(--cyan-soft); color:#087a9a; border-color:var(--cyan); }.button-active { color:var(--ok); border-color:#9bcfbe; background:#effaf6; }
+.button { min-height:36px; padding:8px 12px; border:1px solid var(--ink); background:#fff; color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; font:12px inherit; transition:background .18s ease,color .18s ease,border-color .18s ease; }.button:hover:not(:disabled) { border-color:var(--cyan); }.button:disabled { opacity:.45; cursor:not-allowed; }.button-primary { background:var(--ink); color:#fff; }.button-primary:hover:not(:disabled) { background:var(--cyan); border-color:var(--cyan); }.button-secondary { border-color:var(--line); }.button-test { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:var(--cyan-soft); color:#087a9a; border-color:var(--cyan); }.button-active { color:var(--ok); border-color:#9bcfbe; background:#effaf6; }
 .button:focus-visible, .tab-button:focus-visible, .refresh-button:focus-visible, .modal-close:focus-visible, input:focus-visible, select:focus-visible, .provider-card:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
 .loading-state,.error-state,.empty-state { min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted); }.empty-state { border:1px dashed var(--line); }
 .spin { animation:spin 1s linear infinite; } @keyframes spin { to { transform:rotate(360deg); } }
@@ -534,6 +557,90 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation-duration:.01ms!important; transition-duration:.01ms!important; scroll-behavior:auto!important; } }
 
 .download-center { margin:0 auto 28px; max-width:1180px; }.download-summary { width:100%; display:flex; align-items:center; gap:14px; padding:9px 12px; border:1px solid var(--cyan); background:linear-gradient(100deg,#f0fbfd,#fff 65%); color:var(--ink); text-align:left; cursor:pointer; }.download-summary:hover { box-shadow:0 8px 24px rgba(0,150,190,.10); }.download-summary-icon { display:grid; place-items:center; width:34px; height:34px; color:#0785a3; border:1px solid #8ed8e5; }.download-summary-copy { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }.download-summary-copy strong { font-size:13px; }.download-summary-copy span { color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.download-summary-progress { width:130px; display:flex; align-items:center; gap:8px; font:11px monospace; }.download-summary-progress i,.task-progress { display:block; overflow:hidden; height:5px; flex:1; background:#dff1f4; }.download-summary-progress em,.task-progress i { display:block; height:100%; background:var(--cyan); transition:width .3s ease; }.download-summary-arrow { color:#087a9a; font-size:11px; white-space:nowrap; }.download-drawer { width:min(620px,100%); }.download-list { display:flex; flex-direction:column; gap:12px; }.download-task { padding:15px; border:1px solid var(--line); background:#fbfcfc; }.download-task-head { display:flex; justify-content:space-between; gap:12px; }.download-task-head div { display:flex; flex-direction:column; gap:5px; }.download-task-head span,.download-task-meta { color:var(--muted); font-size:11px; }.download-task-head b { color:#0785a3; font:14px monospace; }.task-progress { margin:12px 0 10px; height:6px; }.download-task-meta { display:flex; flex-wrap:wrap; gap:5px 14px; line-height:1.5; }.task-error { color:var(--danger); flex-basis:100%; }.download-task-actions { display:flex; justify-content:flex-end; margin-top:12px; }.task-ready .download-task-head b { color:var(--ok); }.task-failed { border-color:#ecc2bf; background:#fffafa; }
+
+/* Provider workspace: keep the page in the application canvas instead of opening a second opaque canvas. */
+.providers-settings {
+  background: transparent;
+  background-image: none;
+  padding: 28px clamp(24px, 4vw, 72px) 64px;
+}
+.provider-tabs {
+  background: rgba(255,255,255,.34);
+  border-bottom-color: rgba(20,32,39,.12);
+  backdrop-filter: blur(18px) saturate(115%);
+}
+.tab-button:hover { background: rgba(255,255,255,.38); }
+.tab-button.active { background: rgba(255,255,255,.52); box-shadow: 0 2px 0 var(--cyan); }
+.provider-card,
+.production-card,
+.local-production-zone,
+.resource-meta,
+.provider-meta {
+  border-color: rgba(20,32,39,.13);
+  background: rgba(255,255,255,.38);
+  box-shadow: 0 14px 34px rgba(20,42,48,.045);
+  backdrop-filter: blur(16px) saturate(112%);
+}
+.provider-card:hover, .provider-card:focus-visible {
+  background: rgba(255,255,255,.58);
+  box-shadow: 0 18px 38px rgba(0,159,198,.11);
+}
+.provider-card.active { background: rgba(255,255,255,.55); box-shadow: 0 14px 34px rgba(0,159,198,.1); }
+.provider-meta { background: rgba(255,255,255,.22); }
+.drawer-overlay {
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: auto;
+  animation: none;
+}
+.config-drawer {
+  width: min(500px, calc(100% - 28px));
+  margin: 14px 14px 14px 0;
+  height: calc(100% - 28px);
+  border: 1px solid rgba(255,255,255,.62);
+  border-radius: 22px;
+  background: rgba(248,252,253,.74);
+  box-shadow: -12px 18px 48px rgba(16,40,48,.13), inset 0 1px rgba(255,255,255,.8);
+  backdrop-filter: blur(28px) saturate(125%);
+  animation: drawer-settle .22s ease-out;
+  pointer-events: auto;
+}
+.drawer-header { border-bottom-color: rgba(20,32,39,.13); background: transparent; }
+.drawer-body, .rvc-workspace-body { background: transparent; }
+.modal-close { background: rgba(255,255,255,.35); border-color: rgba(20,32,39,.14); }
+.field input[type=text], .field input[type=password], .field select { background: rgba(255,255,255,.45); border-color: rgba(20,32,39,.16); }
+.resource-controls, .resource-config-readonly, .rvc-install-block { background: rgba(255,255,255,.28); border-color: rgba(20,32,39,.13); }
+.provider-test-feedback { display:flex; align-items:center; gap:6px; min-height:18px; margin:8px 1px 0; font-size:11px; line-height:1.35; }
+.provider-test-feedback.is-success { color: var(--ok); }
+.provider-test-feedback.is-error { color: var(--danger); }
+@keyframes drawer-settle { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .config-drawer { animation:none; } }
+
+.provider-config-overlay {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.provider-config-drawer {
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(760px, calc(100vh - 48px));
+  height: auto;
+  margin: 0;
+  border-radius: 20px;
+  animation: config-modal-settle .22s ease-out;
+}
+@keyframes config-modal-settle {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .provider-config-drawer { animation: none; }
+}
+@media (max-width:760px) {
+  .provider-config-overlay { align-items: flex-end; padding: 12px; }
+  .provider-config-drawer { width: 100%; max-height: calc(100vh - 24px); margin: 0; border-radius: 18px; }
+}
+
 </style>
 
 <style>
@@ -542,4 +649,204 @@ onBeforeUnmount(() => {
 .providers-settings .resource-config-readonly { display: grid; gap: 5px; margin: 4px 0 16px; padding: 13px 14px; border: 1px solid var(--line); background: #fbfdfd; }
 .providers-settings .resource-config-readonly span { color: var(--muted); font-size: 11px; }
 .providers-settings .resource-config-readonly strong { font-size: 13px; font-weight: 650; }
+
+:global(body.provider-modal-open) {
+  overflow: hidden;
+}
+.provider-config-overlay {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.provider-config-drawer {
+  background: rgba(239, 247, 249, .88);
+  backdrop-filter: blur(40px) saturate(135%);
+  -webkit-backdrop-filter: blur(40px) saturate(135%);
+}
+.providers-grid.compact .provider-card {
+  min-height: 248px;
+}
+.providers-grid.compact .provider-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.providers-grid.compact .provider-actions .button {
+  white-space: nowrap;
+}
+
+
+:global(html.provider-modal-open),
+:global(body.provider-modal-open) {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+.provider-config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  overflow: hidden;
+  padding: 24px;
+  background: rgba(18, 31, 38, .26);
+  backdrop-filter: blur(7px) saturate(90%);
+  -webkit-backdrop-filter: blur(7px) saturate(90%);
+}
+.provider-config-drawer {
+  width: min(600px, calc(100vw - 48px));
+  max-height: min(780px, calc(100vh - 48px));
+  overflow: auto;
+  background: rgba(226, 239, 242, .94);
+  border: 1px solid rgba(255,255,255,.82);
+  box-shadow: 0 26px 90px rgba(10, 34, 43, .28), inset 0 1px rgba(255,255,255,.9);
+  backdrop-filter: blur(48px) saturate(140%);
+  -webkit-backdrop-filter: blur(48px) saturate(140%);
+}
+.provider-tabs,
+.tab-button,
+.provider-actions .button {
+  white-space: nowrap;
+}
+.provider-tabs { overflow-x: auto; }
+.provider-actions { flex-wrap: nowrap; }
+.provider-actions .button { min-width: 0; flex: 1 1 0; }
+
+
+/* Keep the provider dialog at the visible work-area center, not the document flow center. */
+.provider-config-overlay {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  padding: 0;
+  overflow: hidden;
+  background: rgba(13, 25, 31, .42);
+  backdrop-filter: blur(10px) saturate(82%);
+  -webkit-backdrop-filter: blur(10px) saturate(82%);
+}
+.provider-config-drawer {
+  position: fixed;
+  top: 50%;
+  left: calc(50% + 36px);
+  width: min(600px, calc(100vw - 96px));
+  max-height: min(780px, calc(100vh - 72px));
+  margin: 0;
+  transform: translate(-50%, -50%);
+  background: rgba(221, 236, 240, .97);
+  box-shadow: 0 30px 100px rgba(7, 25, 33, .34), inset 0 1px rgba(255,255,255,.96);
+  backdrop-filter: blur(52px) saturate(145%);
+  -webkit-backdrop-filter: blur(52px) saturate(145%);
+  animation: provider-modal-in .22s ease-out;
+}
+@keyframes provider-modal-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 12px)) scale(.985); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@media (max-width:760px) {
+  .provider-config-drawer {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-height: calc(100vh - 24px);
+    transform: none;
+  }
+  @keyframes provider-modal-in {
+    from { opacity: 0; transform: translateY(12px) scale(.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+}
+
+
+.provider-config-overlay,
+.provider-config-drawer {
+  contain: layout paint;
+}
+.provider-config-drawer {
+  width: min(520px, calc(100vw - 72px));
+  max-height: min(660px, calc(100vh - 72px));
+  animation: provider-modal-in .18s ease-out both;
+}
+.provider-config-drawer .drawer-header { padding: 20px 22px 16px; }
+.provider-config-drawer .drawer-body { padding: 14px 22px 22px; }
+.provider-config-drawer .drawer-header h3 { font-size: 19px; }
+.provider-config-drawer .field { margin-bottom: 12px; }
+.provider-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 68px;
+  height: 26px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid rgba(20,32,39,.16);
+  border-radius: 999px;
+  background: rgba(255,255,255,.5);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.provider-switch span { width: 17px; height: 17px; border-radius: 50%; background: #a8b6ba; transition: transform .16s ease, background .16s ease; }
+.provider-switch em { font: 10px inherit; font-style: normal; }
+.provider-switch.on { border-color: rgba(18,116,94,.35); background: rgba(231,250,244,.8); color: var(--ok); }
+.provider-switch.on span { background: var(--ok); }
+.provider-switch:disabled { opacity: .5; cursor: wait; }
+@media (max-width:760px) {
+  .provider-config-drawer { width: auto; max-height: calc(100vh - 24px); }
+}
+
+
+/* The modal must never pass through the drawer's old translateX animation. */
+.provider-config-overlay {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+}
+.provider-config-drawer {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  transform: none;
+  animation: none !important;
+  opacity: 1;
+  transition: none;
+}
+.provider-switch {
+  min-width: 34px;
+  width: 34px;
+  height: 20px;
+  padding: 2px;
+  border: 0;
+  background: rgba(125,145,151,.45);
+  box-shadow: inset 0 0 0 1px rgba(20,32,39,.12);
+}
+.provider-switch span {
+  width: 16px;
+  height: 16px;
+  transform: translateX(0);
+  background: #f7fbfc;
+  box-shadow: 0 1px 3px rgba(20,32,39,.25);
+}
+.provider-switch.on { background: var(--ok); }
+.provider-switch.on span { transform: translateX(14px); background: #fff; }
+
+
+.provider-actions .button-test.is-success { color: var(--ok); border-color: rgba(18,116,94,.35); background: rgba(231,250,244,.72); }
+.provider-actions .button-test.is-error { color: var(--danger); border-color: rgba(179,38,30,.3); background: rgba(255,241,240,.78); }
+
+
+.provider-config-drawer .modal-actions .button-primary {
+  background: #142027 !important;
+  border-color: #142027 !important;
+  color: #fff !important;
+}
+.provider-config-drawer .modal-actions .button-primary:hover:not(:disabled) {
+  background: var(--cyan) !important;
+  border-color: var(--cyan) !important;
+}
+
 </style>

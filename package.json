@@ -1,6 +1,6 @@
 {
   "name": "charactoid",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CHARACTOID one-command local runtime and web launcher",
   "bin": {
     "charactoid": "bin/charactoid.mjs"

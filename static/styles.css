@@ -2975,3 +2975,40 @@ body:has(.workbench-view:not(.is-hidden)) .page-shell {
 .diagnostic-icon { width:22px; height:22px; padding:0; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; line-height:20px; font-size:13px; flex:0 0 auto; }
 .diagnostic-icon:hover { color:var(--primary); border-color:var(--primary); }
 
+
+.rvc-inline-file-actions { display:flex; gap:6px; align-items:center; margin:4px 0; }
+.rvc-inline-file-actions .button { min-height:30px; padding:0 9px; font-size:12px; }
+
+
+/* 系统总览：按运行、服务、数据与资源分区，避免诊断信息堆叠 */
+.diagnostic-overview-layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr); gap:18px; }
+.diagnostic-section { min-width:0; padding:20px 22px; border:1px solid var(--line); border-top:2px solid var(--primary); background:var(--surface); box-shadow:var(--shadow-soft); }
+.diagnostic-section-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.diagnostic-section-heading h3 { margin:3px 0 0; font-size:17px; letter-spacing:-.02em; }
+.diagnostic-section-kicker { color:var(--muted); font:10px "Cascadia Mono",Consolas,monospace; letter-spacing:.14em; }
+.diagnostic-section-status { flex:none; color:var(--muted); font-size:11px; white-space:nowrap; }
+.diagnostic-section .diagnostic-item { min-height:34px; padding:7px 0; }
+.diagnostic-section-services { grid-column:1 / -1; }
+.diagnostic-section-services .diagnostic-item { display:grid; grid-template-columns:minmax(120px,.55fr) minmax(0,1fr); }
+.diagnostic-storage-grid { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.diagnostic-overview-note { grid-column:1 / -1; margin:0; }
+@media (max-width:780px) { .diagnostic-overview-layout, .diagnostic-storage-grid { grid-template-columns:1fr; } .diagnostic-section-services, .diagnostic-overview-note { grid-column:auto; } }
+
+
+/* 总览根节点占满工作台，不沿用旧诊断网格的窄列约束 */
+.system-diagnostics-root { width:100%; min-width:0; }
+.system-diagnostics-status { min-width:0; }
+
+
+/* 总览页采用紧凑的全宽工作区，避免信息只落在左侧。 */
+body:has(#system-view:not(.is-hidden)) .page-shell { width:100%; max-width:none; padding-left:clamp(18px,3vw,52px); padding-right:clamp(18px,3vw,52px); }
+body:has(#system-view:not(.is-hidden)) .workbench-view { width:100%; max-width:none; }
+body:has(#system-view:not(.is-hidden)) .system-diagnostics { width:100%; }
+.diagnostic-overview-layout { grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr); align-items:start; }
+.diagnostic-section { padding:18px 20px; }
+.diagnostic-section-services { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 30px; }
+.diagnostic-section-services .diagnostic-section-heading { grid-column:1 / -1; }
+.diagnostic-section-services .diagnostic-item { grid-template-columns:minmax(125px,.7fr) minmax(0,1.3fr); }
+.diagnostic-section-services .diagnostic-item strong { max-width:none; }
+.diagnostic-section .diagnostic-item strong { min-width:0; }
+@media (max-width:900px) { .diagnostic-section-services { grid-template-columns:1fr; } .diagnostic-section-services .diagnostic-section-heading { grid-column:auto; } }

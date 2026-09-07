@@ -24,6 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Check package version
         shell: bash
@@ -41,7 +42,10 @@ jobs:
       - name: Build npm runtime
         run: npm run build:npm
 
-      - name: Upgrade npm for trusted publishing`r`n        run: npm install --global npm@latest`r`n`r`n      - name: Publish to npm
+      - name: Upgrade npm for trusted publishing
+        run: npm install --global npm@latest
+
+      - name: Publish to npm
         run: npm publish --access public --provenance
 
 

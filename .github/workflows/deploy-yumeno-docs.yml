@@ -1,0 +1,35 @@
+name: Deploy YUMENO developer docs
+on:
+  push:
+    branches: [main]
+    paths: ['docs/site/**', '.github/workflows/deploy-yumeno-docs.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: yumeno-pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: docs/site/package.json }
+      - name: Install dependencies
+        working-directory: docs/site
+        run: npm install
+      - name: Build docs
+        working-directory: docs/site
+        run: npm run build
+      - uses: actions/configure-pages@v5
+        with: { enablement: true }
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: docs/site/.vitepress/dist }
+      - id: deployment
+        uses: actions/deploy-pages@v4

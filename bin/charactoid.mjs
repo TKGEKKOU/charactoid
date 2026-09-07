@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
@@ -74,20 +74,34 @@ console.log('✓ Git')
 console.log(`✓ ${pythonCommand}（Python 3.11）`)
 
 const gitDir = join(root, '.git')
-if (existsSync(gitDir)) {
+const isExpectedRepo = () => {
+  if (!existsSync(gitDir)) return false
   const remote = commandResult('git', ['-C', root, 'config', '--get', 'remote.origin.url'], { silent: true })
-  const remoteUrl = (remote.stdout || '').trim().replace(/\\.git$/, '')
-  const expectedUrl = repo.replace(/\\.git$/, '')
-  if (remote.status !== 0 || !remoteUrl.toLowerCase().includes('github.com/tkgekkou/charactoid')) {
-    fail('目录 ' + root + ' 已存在，但不是受信任的 CHARACTOID 仓库。', '设置 CHARACTOID_HOME 指向空目录，或先人工检查该目录。')
+  const remoteUrl = (remote.stdout || '').trim().toLowerCase()
+  return remote.status === 0 && remoteUrl.includes('github.com/tkgekkou/charactoid')
+}
+if (existsSync(root) && !isExpectedRepo() && !existsSync(join(root, 'main.py'))) {
+  console.log(`目录 ${root} 中存在上次未完成的下载。`)
+  console.log('输入 y 覆盖并重新准备，直接回车取消：')
+  const input = await new Promise(resolveInput => {
+    process.stdin.setEncoding('utf8')
+    process.stdin.once('data', data => resolveInput(data.trim().toLowerCase()))
+  })
+  if (input !== 'y' && input !== 'yes') {
+    console.log('已取消，未修改现有目录。')
+    process.exit(0)
   }
+  rmSync(root, { recursive: true, force: true })
+}
+if (existsSync(gitDir) && !isExpectedRepo()) {
+  fail('目标目录已有其他 Git 仓库，未覆盖。', '选择新的 CHARACTOID_HOME，或人工确认后清理该目录。')
 }
 if (!existsSync(gitDir)) {
   mkdirSync(resolve(root, '..'), { recursive: true })
-  console.log(`\n正在获取 CHARACTOID 源码到：${root}`)
-  run('git', ['clone', repo, root], { cwd: process.cwd() })
-}
-if (!existsSync(join(root, 'main.py')) || !existsSync(join(root, 'requirements.txt'))) {
+  console.log(`
+正在获取 CHARACTOID 源码到：${root}`)
+  run('git', ['clone', '--depth', '1', '--single-branch', '--filter=blob:none', repo, root], { cwd: process.cwd() })
+}if (!existsSync(join(root, 'main.py')) || !existsSync(join(root, 'requirements.txt'))) {
   fail(`目录 ${root} 不是完整的 CHARACTOID 源码目录。`, '删除该目录后重新执行，或设置 CHARACTOID_HOME 指向正确目录。')
 }
 

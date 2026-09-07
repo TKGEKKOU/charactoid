@@ -79,7 +79,7 @@ if (existsSync(gitDir)) {
   const remoteUrl = (remote.stdout || '').trim().replace(/\\.git$/, '')
   const expectedUrl = repo.replace(/\\.git$/, '')
   if (remote.status !== 0 || !remoteUrl.toLowerCase().includes('github.com/tkgekkou/charactoid')) {
-    fail(目录  已存在，但不是受信任的 CHARACTOID 仓库。, '设置 CHARACTOID_HOME 指向空目录，或先人工检查该目录。')
+    fail('目录 ' + root + ' 已存在，但不是受信任的 CHARACTOID 仓库。', '设置 CHARACTOID_HOME 指向空目录，或先人工检查该目录。')
   }
 }
 if (!existsSync(gitDir)) {

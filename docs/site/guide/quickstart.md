@@ -38,7 +38,6 @@ cd C:\\path\\to\\CHARACTOID
 2. 创建或复用 `.venv`；
 3. 安装或校准 `requirements.txt` 和项目本身；
 4. 如果没有 `.env`，从 `.env.example` 复制生成；
-5. 启动 FastAPI 服务；
 6. 默认打开本地 Web 工作台。
 
 常用参数：
@@ -79,36 +78,17 @@ py -3.11 -m venv .venv
 http://127.0.0.1:18000/static/index.html
 ```
 
-只检查服务是否存活时，可以访问：
-
-```text
-http://127.0.0.1:18000/api/health
-```
-
-正常响应至少包含：
-
-```json
-{"status":"ok","workspace_id":"local-default"}
-```
-
-系统状态页使用的只读接口是：
-
-```text
-http://127.0.0.1:18000/api/status
-```
-
-### 5. 配置 LLM
+打开工作台后，如果页面能正常加载并显示服务状态，说明启动成功。### 5. 配置 LLM
 
 `.env.example` 明确说明：LLM、Embedding 和联网搜索配置由 Web 工作台的“设置”页保存到 `data/local_settings.json`，不直接写入 `.env`。
 
 第一次打开后：
 
-1. 进入设置或 Provider 配置页；
-2. 填写 LLM API Key、Base URL 和模型名；
-3. 使用页面提供的连接测试；
+1. 进入设置或模型配置页；
+2. 填写服务地址、密钥和模型名；
+3. 点击页面提供的连接测试；
 4. 保存后返回对话页。
 
-不要把真实 API Key 写入 Git，也不要把 `.env` 或 `data/local_settings.json` 上传到 Issue。
 
 ### 6. 停止服务
 
@@ -120,7 +100,6 @@ http://127.0.0.1:18000/api/status
 
 ## 你应该看到什么
 
-- 访问 `/api/health` 返回 `status: ok`；
 - Web 工作台可以加载；
 - 设置页能够显示 Provider 配置入口；
 - `data/charactoid.db` 在首次初始化后作为 SQLite 控制面数据库；
@@ -161,7 +140,6 @@ Get-NetTCPConnection -LocalPort 18000 -State Listen
 
 ### 页面能打开但对话失败
 
-这通常不是 FastAPI 没启动，而是 LLM Provider 尚未配置、模型名错误、Base URL 不匹配或网络不可用。先回到设置页测试 LLM，再查看 `/api/status` 和页面错误信息。
 
 ### RAG 或语音按钮不可用
 

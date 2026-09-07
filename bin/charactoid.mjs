@@ -7,7 +7,7 @@ import process from 'node:process'
 
 const args = process.argv.slice(2)
 const command = args[0] || 'web'
-const usage = 'npx charactoid web'
+const usage = 'npx charactoid-web web'
 if (!['web', 'help', '--help', '-h'].includes(command)) {
   console.error(`未知命令：${command}\n用法：${usage}`)
   process.exit(1)
@@ -185,7 +185,7 @@ if (localProject) {
   }
   if (!isCompleteProject(root)) {
     if (!isCompleteProject(bundledRuntime)) {
-      fail('npm 包内没有完整运行时文件。', '重新安装 charactoid，或设置 CHARACTOID_HOME 指向已有源码目录。')
+      fail('npm 包内没有完整运行时文件。', '重新安装 charactoid-web，或设置 CHARACTOID_HOME 指向已有源码目录。')
     }
     mkdirSync(dirname(root), { recursive: true })
     const tempRoot = `${root}.prepare-${process.pid}-${Date.now()}`

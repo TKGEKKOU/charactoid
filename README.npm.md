@@ -17,7 +17,7 @@ npm run release:npm
 用户无需 Git 或源码仓库即可启动：
 
 ```powershell
-npx charactoid web
+npx charactoid-web web
 ```
 
-`charactoid` npm 包内包含可运行的 Web 代码；首次运行只准备本地 Python 虚拟环境并安装基础依赖，不自动下载可选模型。运行时会优先复用当前目录或父级目录中已有的 CHARACTOID 项目。
+`charactoid-web` npm 包内包含可运行的 Web 代码；首次运行只准备本地 Python 虚拟环境并安装基础依赖，不自动下载可选模型。运行时会优先复用当前目录或父级目录中已有的 CHARACTOID 项目。

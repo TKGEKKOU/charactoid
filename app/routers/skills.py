@@ -156,7 +156,7 @@ async def upload_skills_api(file: UploadFile = File(...)) -> dict:
                 parts = info.filename.replace("\\", "/").split("/")
                 if info.filename.startswith("/") or ".." in parts:
                     raise HTTPException(status_code=400, detail=f"非法路径: {info.filename}")
-                if (info.external_attr >> 16) & 0o180000 == 0o120000:
+                if (info.external_attr >> 16) & 0o170000 == 0o120000:
                     raise HTTPException(status_code=400, detail=f"不支持符号链接: {info.filename}")
                 total += info.file_size
             if total > MAX_EXTRACT_BYTES:

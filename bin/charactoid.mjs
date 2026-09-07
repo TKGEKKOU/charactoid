@@ -7,13 +7,13 @@ import process from 'node:process'
 
 const args = process.argv.slice(2)
 const command = args[0] || 'web'
-const usage = 'npx charactoid-web web'
-if (!['web', 'help', '--help', '-h'].includes(command)) {
+const usage = `npx charactoid-web [update]`
+if (!['web', 'update', 'help', '--help', '-h'].includes(command)) {
   console.error(`未知命令：${command}\n用法：${usage}`)
   process.exit(1)
 }
-if (command !== 'web') {
-  console.log(`CHARACTOID 一键启动器\n\n用法：${usage}`)
+if (['help', '--help', '-h'].includes(command)) {
+  console.log(`CHARACTOID 一键启动器\n\n用法：\n  npx charactoid-web          检查环境并启动\n  npx charactoid-web update   更新已有项目后启动\n  npx charactoid-web --help   显示帮助\n\n说明：\n  默认启动不会覆盖已有源码、配置或用户资源。\n  update 只在确认后更新应用源码，保留 .env、.venv、数据库、模型和用户资源。`)
   process.exit(0)
 }
 
@@ -27,6 +27,7 @@ const requiredDirectories = ['app', 'static']
 const registryPath = process.env.LOCALAPPDATA
   ? join(process.env.LOCALAPPDATA, 'CHARACTOID', 'projects.json')
   : null
+const protectedNames = new Set(['.env', '.venv', '.git', 'data', 'database', 'databases', 'models', 'model', 'uploads', 'upload', 'assets', 'storage', 'logs', 'output', 'outputs', 'workspace'])
 
 function commandResult(program, parameters, options = {}) {
   return spawnSync(program, parameters, {
@@ -131,6 +132,20 @@ async function confirmOverwrite(target) {
     process.exit(0)
   }
 }
+async function confirmUpdate(target) {
+  console.log(`\n发现已有 CHARACTOID 项目：${target}`)
+  console.log('更新会替换应用源码和静态文件，但会保留：')
+  console.log('  .env、.venv、.git、数据库、模型、上传文件、音频资产和输出目录')
+  console.log('输入 y 更新，输入 s 直接启动当前版本，直接回车取消：')
+  process.stdin.setEncoding('utf8')
+  const answer = await new Promise(resolveInput => process.stdin.once('data', data => resolveInput(data.trim().toLowerCase())))
+  if (answer === 's' || answer === 'start') return 'start'
+  if (!['y', 'yes'].includes(answer)) {
+    console.log('已取消，未修改现有目录。')
+    process.exit(0)
+  }
+  return 'update'
+}
 function openBrowser(url) {
   if (process.env.CHARACTOID_NO_OPEN === '1') return
   if (isWin) {
@@ -141,7 +156,6 @@ function openBrowser(url) {
     spawnSync('xdg-open', [url], { stdio: 'ignore' })
   }
 }
-
 async function waitForHealth(url, child, timeoutMs = 120000) {
   const startedAt = Date.now()
   let lastError = ''
@@ -159,8 +173,82 @@ async function waitForHealth(url, child, timeoutMs = 120000) {
   }
   throw new Error(`等待 Web 服务就绪超时（${lastError || '未收到健康检查响应'}）`)
 }
+async function waitForPage(url, child, timeoutMs = 30000) {
+  const startedAt = Date.now()
+  let lastError = ''
+  while (Date.now() - startedAt < timeoutMs) {
+    if (child.exitCode !== null) throw new Error(`CHARACTOID 服务提前退出（退出码 ${child.exitCode}）`)
+    try {
+      const response = await fetch(`${url}/static/index.html`, { cache: 'no-store' })
+      const html = await response.text()
+      if (response.ok && html.includes('<html')) {
+        await new Promise(resolve => setTimeout(resolve, 250))
+        return
+      }
+      lastError = `页面 HTTP ${response.status}`
+    } catch (error) { lastError = error?.message || '页面尚未准备好' }
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+  throw new Error(`等待前端页面就绪超时（${lastError || '未收到页面响应'}）`)
+}
 function startServer(program, parameters, options = {}) {
   return spawn(program, parameters, { cwd: options.cwd || process.cwd(), stdio: 'inherit', windowsHide: false, shell: false })
+}
+function copyBundledRuntime(target) {
+  if (!isCompleteProject(bundledRuntime)) {
+    fail('npm 包内没有完整运行时文件。', '重新安装 charactoid-web，或设置 CHARACTOID_HOME 指向已有源码目录。')
+  }
+  mkdirSync(dirname(target), { recursive: true })
+  const tempRoot = `${target}.prepare-${process.pid}-${Date.now()}`
+  rmSync(tempRoot, { recursive: true, force: true })
+  console.log(`\n正在准备 CHARACTOID 运行时：${target}`)
+  cpSync(bundledRuntime, tempRoot, { recursive: true, force: true })
+  if (!isCompleteProject(tempRoot)) fail('运行时复制未完成，正式项目目录未被修改。')
+  rmSync(target, { recursive: true, force: true })
+  cpSync(tempRoot, target, { recursive: true, force: true })
+  rmSync(tempRoot, { recursive: true, force: true })
+  console.log('✓ 已从 npm 包准备本地运行时')
+}
+function syncRuntimeToProject(sourceRoot, target) {
+  for (const entry of readdirSync(sourceRoot, { withFileTypes: true })) {
+    if (protectedNames.has(entry.name)) continue
+    const source = join(sourceRoot, entry.name)
+    const destination = join(target, entry.name)
+    cpSync(source, destination, { recursive: true, force: true })
+  }
+}
+function updateFromBundledRuntime(target) {
+  if (!isCompleteProject(bundledRuntime)) {
+    fail('当前 npm 包不包含可更新的完整运行时。', '重新安装 charactoid-web 后重试。')
+  }
+  const tempRoot = `${target}.update-${process.pid}-${Date.now()}`
+  rmSync(tempRoot, { recursive: true, force: true })
+  cpSync(bundledRuntime, tempRoot, { recursive: true, force: true })
+  if (!isCompleteProject(tempRoot)) fail('新运行时准备未完成，现有项目未被修改。')
+  syncRuntimeToProject(tempRoot, target)
+  rmSync(tempRoot, { recursive: true, force: true })
+  console.log('✓ 已从 npm 内置运行时更新应用源码；本地配置与用户资源已保留')
+}
+function tryUpdateFromGitHub(target) {
+  if (process.env.CHARACTOID_UPDATE_SOURCE === 'npm' || !exists('git')) return false
+  const repo = process.env.CHARACTOID_REPO || 'https://github.com/TKGEKKOU/charactoid.git'
+  const tempRoot = `${target}.github-update-${process.pid}-${Date.now()}`
+  rmSync(tempRoot, { recursive: true, force: true })
+  console.log(`正在获取 GitHub 最新源码：${repo}`)
+  const result = commandResult('git', ['clone', '--depth', '1', '--quiet', repo, tempRoot], { silent: false })
+  if (result.status !== 0 || !isCompleteProject(tempRoot)) {
+    rmSync(tempRoot, { recursive: true, force: true })
+    console.log('GitHub 获取未完成，将回退到 npm 内置运行时。')
+    return false
+  }
+  const runtimeRoot = isCompleteProject(join(tempRoot, 'package-runtime')) ? join(tempRoot, 'package-runtime') : tempRoot
+  syncRuntimeToProject(runtimeRoot, target)
+  rmSync(tempRoot, { recursive: true, force: true })
+  console.log('✓ 已从 GitHub 更新应用源码；本地配置与用户资源已保留')
+  return true
+}
+function updateProject(target) {
+  if (!tryUpdateFromGitHub(target)) updateFromBundledRuntime(target)
 }
 
 console.log('CHARACTOID 环境检查')
@@ -172,37 +260,26 @@ console.log(`✓ Node.js ${process.versions.node}`)
 console.log(`✓ ${pythonCommand}（Python 3.11+）`)
 
 const localProjects = findLocalProjects()
-const localProject = await chooseProject(localProjects)
-let projectRoot = localProject
-if (localProject) {
-  console.log(`✓ 已发现本地 CHARACTOID 项目：${localProject}`)
-  rememberProject(localProject)
+let projectRoot = await chooseProject(localProjects)
+if (command === 'update' && !projectRoot) {
+  fail('没有找到可更新的 CHARACTOID 项目。', '先运行 npx charactoid-web 完成首次准备，或设置 CHARACTOID_HOME 指向项目目录。')
+}
+if (command === 'update') {
+  const action = await confirmUpdate(projectRoot)
+  if (action === 'update') updateProject(projectRoot)
+} else if (projectRoot) {
+  console.log(`✓ 已发现本地 CHARACTOID 项目：${projectRoot}`)
+  rememberProject(projectRoot)
 } else {
   const root = configuredRoot || defaultRoot
   if (existsSync(root) && !isCompleteProject(root)) {
     await confirmOverwrite(root)
     rmSync(root, { recursive: true, force: true })
   }
-  if (!isCompleteProject(root)) {
-    if (!isCompleteProject(bundledRuntime)) {
-      fail('npm 包内没有完整运行时文件。', '重新安装 charactoid-web，或设置 CHARACTOID_HOME 指向已有源码目录。')
-    }
-    mkdirSync(dirname(root), { recursive: true })
-    const tempRoot = `${root}.prepare-${process.pid}-${Date.now()}`
-    rmSync(tempRoot, { recursive: true, force: true })
-    console.log(`\n正在准备 CHARACTOID 运行时：${root}`)
-    cpSync(bundledRuntime, tempRoot, { recursive: true, force: true })
-    if (!isCompleteProject(tempRoot)) fail('运行时复制未完成，正式项目目录未被修改。')
-    rmSync(root, { recursive: true, force: true })
-    cpSync(tempRoot, root, { recursive: true, force: true })
-    rmSync(tempRoot, { recursive: true, force: true })
-    projectRoot = root
-    console.log('✓ 已从 npm 包准备本地运行时')
-  } else {
-    projectRoot = root
-    console.log(`✓ 复用已有 CHARACTOID 项目：${root}`)
-    rememberProject(root)
-  }
+  if (!isCompleteProject(root)) copyBundledRuntime(root)
+  else console.log(`✓ 复用已有 CHARACTOID 项目：${root}`)
+  projectRoot = root
+  rememberProject(root)
 }
 
 const venvPython = isWin ? join(projectRoot, '.venv', 'Scripts', 'python.exe') : join(projectRoot, '.venv', 'bin', 'python')
@@ -226,7 +303,8 @@ console.log(`\n正在启动 CHARACTOID Web 服务：${url}`)
 const server = startServer(venvPython, ['-B', 'main.py'], { cwd: projectRoot })
 try {
   await waitForHealth(url, server)
-  console.log(`✓ Web 服务已就绪：${url}`)
+  await waitForPage(url, server)
+  console.log(`✓ Web 服务和前端页面已就绪：${url}`)
   console.log('正在打开浏览器…')
   openBrowser(url)
   console.log('按 Ctrl+C 停止 CHARACTOID。\n')

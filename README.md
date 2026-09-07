@@ -5,11 +5,7 @@
 **本地优先的角色化 Agent 运行平台：让角色能够理解意图、编排工具、调用领域 Worker，并在对话中完成可恢复的真实任务。**
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Web%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Agent%20workflow-1C3C3C)](https://langchain-ai.github.io/langgraph/)
-[![Milvus Lite](https://img.shields.io/badge/Milvus%20Lite-Local%20RAG-00A1EA)](https://milvus.io/)
 [![License](https://img.shields.io/badge/license-MIT-555555)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/TKGEKKOU/charactoid?style=flat)](https://github.com/TKGEKKOU/charactoid)
 
 [快速开始](#快速开始) · [核心能力](#核心能力) · [系统架构](#系统架构) · [项目结构](#项目结构) · [测试](#测试与验证)
 
@@ -414,6 +410,4 @@ CHARACTOID 自有代码采用 [MIT License](LICENSE)。第三方依赖、模型�
 ## 贡献
 
 欢迎提交 Issue 或 Pull Request。提交 Agent、Worker、Runtime 或架构图修改时，请同时说明影响的状态、权限、数据边界和测试命令；涉及模型和第三方代码时，请确认许可证与分发边界。
-
-
 

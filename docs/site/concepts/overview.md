@@ -1,6 +1,6 @@
 # CHARACTOID 是什么
 
-CHARACTOID 是一个**本地优先、角色驱动、可恢复执行的 Agent 工作台**。它不是把聊天、知识库、音频和 Live2D 拼在一起的页面集合，而是把这些能力放进同一个可追踪的运行模型：一次请求有明确的入口、路由、Worker、工具、状态事件、结果资产和最终回复。
+**CHARACTOID 是一个**本地优先、角色驱动、可恢复执行的 Agent 工作台**。它不是把聊天、知识库、音频和 Live2D 拼在一起的页面集合，而是把这些能力放进同一个可追踪的运行模型：一次请求有明确的入口、路由、Worker、工具、状态事件、结果资产和最终回复。**
 
 > **事实依据**：仓库根目录 `ARCHITECTURE.md`、`agents/graph/`、`agents/registry.py`、`agents/runtime/`、`app/routers/`、`voice/`、`rag/`。
 
@@ -45,4 +45,4 @@ flowchart LR
 - 想学习知识问答：阅读[RAG 设计](./rag.md)。
 - 想理解音频到角色表现：阅读[声音与 Live2D](./voice-live2d.md)。
 - 想扩展能力：阅读[Skill、Tool 与 MCP](./extensions.md)。
-- 想用于面试或复盘：阅读[工程实践与面试材料](/development/engineering)。
+- 想了解系统的工程取舍：阅读[工程实践](/development/engineering)。

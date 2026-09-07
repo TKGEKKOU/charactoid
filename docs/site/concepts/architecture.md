@@ -1,6 +1,6 @@
 # 系统架构
 
-本文描述当前仓库中的运行架构，而不是历史设计草案。顶层入口是 `main.py`，应用工厂位于 `app/main.py:create_app()`；桌面入口为 `desktop_main.py`，Web 与桌面端复用同一套 API、Agent 和运行时语义。
+**本文描述当前仓库中的运行架构，而不是历史设计草案。顶层入口是 `main.py`，应用工厂位于 `app/main.py:create_app()`；桌面入口为 `desktop_main.py`，Web 与桌面端复用同一套 API、Agent 和运行时语义。**
 
 ## 分层总览
 

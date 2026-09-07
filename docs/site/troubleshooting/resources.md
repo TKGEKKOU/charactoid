@@ -1,8 +1,6 @@
 # 资源、模型与设备排查
 
-## 这页解决什么问题
-
-处理“模型未安装、服务未启动、CUDA 不可用、FFmpeg 不存在、Embedding/Reranker 无法加载”等依赖问题。
+**处理“模型未安装、服务未启动、CUDA 不可用、FFmpeg 不存在、Embedding/Reranker 无法加载”等依赖问题。**
 
 ## 前置条件
 

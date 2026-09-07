@@ -1,6 +1,6 @@
 # API 总览
 
-CHARACTOID 的 HTTP API 由 FastAPI 注册，默认前缀为 `/api`。本页是分组索引；具体参数和示例见分组页面。
+**CHARACTOID 的 HTTP API 由 FastAPI 注册，默认前缀为 `/api`。本页是分组索引；具体参数和示例见分组页面。**
 
 ## 基础约定
 

@@ -1,8 +1,6 @@
 # 快速开始
 
-## 这页解决什么问题
-
-这页带你在 Windows 上从空环境启动 CHARACTOID，并确认 Web 工作台、SQLite 和本地 Milvus Lite 可以正常工作。这里描述的是仓库当前的真实启动方式：默认端口是 `18000`，默认使用项目目录内的 SQLite 和 Milvus Lite 文件，不要求先部署 Docker 版 Milvus。
+**这页带你在 Windows 上从空环境启动 CHARACTOID，并确认 Web 工作台、SQLite 和本地 Milvus Lite 可以正常工作。这里描述的是仓库当前的真实启动方式：默认端口是 `18000`，默认使用项目目录内的 SQLite 和 Milvus Lite 文件，不要求先部署 Docker 版 Milvus。**
 
 如果你只想先看到界面，优先完成“启动服务”和“配置 LLM”两步；如果还没有语音、RVC 或知识库模型，可以先跳过对应功能。
 

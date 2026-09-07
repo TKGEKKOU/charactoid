@@ -1,6 +1,6 @@
 # 声音、RVC、GPT-SoVITS 与 Live2D
 
-CHARACTOID 的声音能力分为两类：
+**CHARACTOID 的声音能力分为两类：**
 
 - **声音生产链**：从音频/视频素材得到干净参考音频、RVC 变声结果或 GPT-SoVITS 音色资产；
 - **声音表现链**：把 TTS/实时语音输出送入对话页、Live2D、VTube Studio 或外部渠道。

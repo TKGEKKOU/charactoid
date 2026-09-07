@@ -4,7 +4,7 @@
   --vp-c-brand-3: #2aa99f;
   --vp-c-brand-soft: rgba(57, 197, 187, .14);
   --vp-layout-max-width: 1440px;
-  --vp-sidebar-width: 272px;
+  --vp-sidebar-width: 320px;
   --vp-content-max-width: 920px;
 }
 
@@ -21,8 +21,12 @@
 
 .VPSidebar {
   width: var(--vp-sidebar-width) !important;
-  padding: 32px 20px 48px 24px;
+  top: var(--vp-nav-height) !important;
+  height: calc(100vh - var(--vp-nav-height));
+  box-sizing: border-box;
+  padding: 28px 22px 48px 28px;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 .VPSidebarItem .item,
 .VPSidebarItem .link,
@@ -30,9 +34,11 @@
   min-width: 0;
   max-width: 100%;
   color: var(--vp-c-text-1);
-  white-space: normal;
+  white-space: normal !important;
   overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.45;
+  overflow: visible !important;
 }
 .VPSidebarItem .text { display: block; }
 .VPSidebarItem.level-0 > .item > .text {
@@ -67,7 +73,7 @@
 }
 
 @media (max-width: 959px) {
-  :root { --vp-sidebar-width: 260px; }
+  :root { --vp-sidebar-width: 280px; }
   .VPDoc { padding-left: 24px; padding-right: 24px; }
   .VPDocAside { display: none; }
 }

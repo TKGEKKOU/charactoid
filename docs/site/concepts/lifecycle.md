@@ -1,9 +1,153 @@
-# Agent 生命周期
+# Agent 生命周期与运行时
 
-一次运行通常经历：
+一次请求不是“调用模型并返回字符串”，而是一个带状态、事件、交接和结果引用的运行过程。
 
-`queued → running → waiting_input → completed`
+## 生命周期
 
-异常路径包括：`failed`、`cancelled`、`retrying`。
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running
+  running --> waiting_approval
+  waiting_approval --> running: 用户批准
+  waiting_approval --> paused: 暂停
+  running --> paused
+  paused --> running: 恢复
+  running --> completed
+  running --> failed
+  running --> cancelled
+  queued --> failed
+  queued --> cancelled
+  paused --> failed
+  paused --> cancelled
+  waiting_approval --> failed
+  waiting_approval --> cancelled
+```
 
-每次状态变化都应产生事件，事件包含运行标识、Worker 标识、时间和可供界面呈现的数据。需要人工确认时进入 `waiting_input`，而不是让 Worker 擅自继续。
+`agents/runtime/models.py` 中定义的 Run/Task 状态包括：
+
+- `queued`：已经创建但尚未开始；
+- `running`：正在执行 Agent、Worker 或外部任务；
+- `waiting_approval`：等待用户批准写操作、联网或下一步；
+- `paused`：被运行时暂停，保留恢复所需信息；
+- `completed`：成功终态；
+- `failed`：失败终态；
+- `cancelled`：取消终态。
+
+终态不会再转移到其它状态；相同终态允许幂等更新。
+
+## 一次对话的过程
+
+```mermaid
+sequenceDiagram
+  participant UI as 前端
+  participant API as FastAPI
+  participant S as Supervisor
+  participant W as Worker
+  participant T as Tool/流程
+  participant Store as RunStore
+
+  UI->>API: 提交问题 + attachment_id
+  API->>Store: 创建 run / turn
+  API->>S: 结构化上下文
+  S->>S: 识别意图、补齐参数或直接回答
+  S->>W: handoff(worker, request)
+  W->>T: 执行受限能力
+  T-->>W: evidence / artifact / uncertainty
+  W-->>S: finalize 后的结构化结果
+  S-->>API: 角色化回复 + 事件 + asset_id
+  API-->>UI: 流式消息或 WebSocket 事件
+```
+
+### 交接合同
+
+`agents/contracts.py` 的交接数据只允许 JSON 可序列化值，并明确拒绝结构化字段 `path`、`command`、`python`、`shell`。这不是禁止用户在普通文本里提到这些词，而是禁止把它们作为可执行载荷字段传递给下一层。
+
+一个可复制的最小结果形状如下：
+
+```json
+{
+  "worker": "rvc_worker",
+  "status": "completed",
+  "answer": "变声音频已生成",
+  "evidence": [],
+  "artifacts": [
+    {"asset_id": "asset_01", "kind": "audio", "name": "output.wav"}
+  ],
+  "uncertainties": [],
+  "citations": [],
+  "trace": [{"stage": "convert", "status": "completed"}],
+  "requires_approval": false,
+  "error": null
+}
+```
+
+## 事件与可观测性
+
+`agents/observability.py` 的 `RunRecorder` 是请求级遥测对象，记录：
+
+- `run_id`、来源和状态；
+- 模型调用次数和耗时；
+- 首 token 时间；
+- handoff 数量；
+- Tool 事件成功/失败；
+- 上下文压缩前后的统计；
+- 对前端安全的事件摘要。
+
+记录器会清理事件详情，不把 Prompt、密钥、原始工具载荷或思维过程写进公开事件。运行 API 还可通过 `/api/runs/{run_id}` 和 `/api/runs/{run_id}/events` 查询状态与事件。
+
+## 人工确认与恢复
+
+```mermaid
+flowchart TD
+  A[执行前策略判断] --> B{是否有副作用或不确定性}
+  B -->|否| C[继续执行]
+  B -->|是| D[写入 approval/checkpoint]
+  D --> E[waiting_approval]
+  E -->|批准| F[恢复 Worker]
+  E -->|拒绝| G[cancelled 或保守返回]
+  F --> H[继续并 finalize]
+```
+
+适合进入确认的动作包括：
+
+- 修改角色、记忆、文档或设置；
+- 清理受管资源；
+- 证据不足时的联网回退；
+- 需要用户选择下一步的文件或声音处理；
+- 由外部 MCP 声明但尚未证明为只读的工具。
+
+## 失败、重试和取消
+
+- Worker 的默认重试和退避由 `WorkerRetryPolicy` 管理，不同领域使用不同超时。
+- 失败必须返回可展示的错误和阶段，而不是把 Python traceback 直接交给用户。
+- 运行时取消会触发注册的 cancel handler；RVC 任务还会终止受管推理进程。
+- 事件应保持幂等可读；前端断线后可以重新读取 run 和 events，而不依赖页面内存。
+
+## 前端接入示例
+
+```js
+const run = await fetch(`/api/runs/${runId}`).then((r) => r.json())
+const events = await fetch(`/api/runs/${runId}/events`).then((r) => r.json())
+
+if (run.status === 'waiting_approval') {
+  await fetch(`/api/runs/${runId}/approval`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({approved: true})
+  })
+}
+```
+
+## 相关源码
+
+```text
+agents/runtime/models.py       状态、任务、步骤、事件模型
+agents/runtime/runner.py       运行控制、取消处理
+agents/runtime/native.py       Native Runtime 会话和 Job
+agents/contracts.py            handoff / result 合同
+agents/checkpoint.py           checkpoint 接口
+agents/observability.py        RunRecorder 与安全事件
+app/run_store.py               应用层运行记录
+app/routers/runs.py            Run 查询、取消和 approval API
+```

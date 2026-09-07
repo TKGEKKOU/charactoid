@@ -7,11 +7,11 @@ import process from 'node:process'
 const args = process.argv.slice(2)
 const command = args[0] || 'web'
 if (!['web', 'help', '--help', '-h'].includes(command)) {
-  console.error(`未知命令：${command}\n用法：npx --yes github:TKGEKKOU/charactoid web`)
+  console.error(`未知命令：${command}\n用法：npx github:TKGEKKOU/charactoid web`)
   process.exit(1)
 }
 if (command !== 'web') {
-  console.log('CHARACTOID 一键启动器\n\n用法：npx --yes github:TKGEKKOU/charactoid web')
+  console.log('CHARACTOID 一键启动器\n\n用法：npx github:TKGEKKOU/charactoid web')
   process.exit(0)
 }
 

@@ -1,12 +1,13 @@
 {
-  "name": "charactoid-cli",
-  "version": "1.0.8",
-  "description": "One-command launcher for CHARACTOID",
+  "name": "charactoid",
+  "version": "1.0.0",
+  "description": "CHARACTOID one-command local runtime and web launcher",
   "bin": {
-    "charactoid-cli": "bin/charactoid.mjs"
+    "charactoid": "bin/charactoid.mjs"
   },
   "files": [
-    "bin/charactoid.mjs"
+    "bin/charactoid.mjs",
+    "package-runtime"
   ],
   "engines": {
     "node": ">=18"
@@ -15,5 +16,12 @@
     "type": "git",
     "url": "git+https://github.com/TKGEKKOU/charactoid.git"
   },
-  "license": "MIT"
+  "homepage": "https://github.com/TKGEKKOU/charactoid",
+  "license": "MIT",
+  "scripts": {
+    "build:npm": "powershell -ExecutionPolicy Bypass -File scripts/build-npm-runtime.ps1",
+    "pack:npm": "npm run build:npm && npm pack --dry-run",
+    "release:npm": "npm run build:npm && npm publish",
+    "release:npm:patch": "npm version patch --no-git-tag-version && npm run release:npm"
+  }
 }

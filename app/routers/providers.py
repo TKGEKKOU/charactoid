@@ -482,7 +482,9 @@ class ProviderInfo(BaseModel):
     runtime_note: str = ""
     is_configured: bool = False
     is_active: bool = False
+    # API Key 仅用于服务端运行；列表响应不得携带明文。
     current_api_key: str = ""
+    current_api_key_configured: bool = False
     current_base_url: str = ""
     current_model: str = ""
 
@@ -583,7 +585,8 @@ def list_all_providers(request: Request, response: Response) -> ProviderListResp
                 runtime_note=runtime_note,
                 is_configured=is_configured,
                 is_active=is_active,
-                current_api_key=current_api_key,
+                current_api_key="",
+                current_api_key_configured=bool(current_api_key),
                 current_base_url=current_base_url,
                 current_model=current_model
             ))

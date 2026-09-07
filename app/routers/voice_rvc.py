@@ -97,6 +97,69 @@ def manager(request: Request): return request.app.state.rvc_resources
 
 def tasks(request: Request): return request.app.state.rvc_tasks
 
+
+def _managed_audio_path(task_manager, task_id: str, candidate: str | Path) -> Path:
+    """Resolve a stored audio input without allowing an arbitrary local path.
+
+    RVC task options contain a path for the optional Instrumental input.  That
+    path is internal state, not user permission to read any file on disk.
+    Keep the final mix input inside the current task directory or the owning
+    RVC session directory, and require a non-empty regular file.
+    """
+    try:
+        task_root = task_manager.tasks_root.resolve()
+        task_dir = (task_root / task_id).resolve()
+        task_dir.relative_to(task_root)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError("无效的 RVC 任务目录") from exc
+
+    path = Path(candidate).expanduser().resolve()
+    allowed_roots = [task_dir]
+    owner_session_id = None
+    try:
+        record = task_manager.get(task_id) or {}
+        owner_session_id = record.get("owner_session_id")
+    except Exception:
+        owner_session_id = None
+    project_root = getattr(task_manager, "project_root", None)
+    if owner_session_id and project_root is not None:
+        sessions_base = (Path(project_root) / "data" / "voice" / "rvc" / "sessions").resolve()
+        session_root = (sessions_base / str(owner_session_id)).resolve()
+        if _is_within(session_root, sessions_base):
+            allowed_roots.append(session_root)
+
+    if not any(_is_within(path, root) for root in allowed_roots):
+        raise ValueError("Instrumental 文件不在受管 RVC 目录内")
+    if not path.is_file():
+        raise ValueError("Instrumental 文件不存在")
+    if path.stat().st_size <= 0:
+        raise ValueError("Instrumental 文件为空")
+    return path
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _validate_task_outputs(task_manager, task_id: str, record: dict) -> list[str]:
+    """Validate every output before the status response advertises success."""
+    outputs = record.get("outputs") or {}
+    if not isinstance(outputs, dict) or not outputs:
+        return ["任务已结束，但没有登记任何输出音频"]
+    errors = []
+    for file_id in outputs:
+        try:
+            path = task_manager.safe_output_path(task_id, str(file_id))
+            if path.stat().st_size <= 0:
+                raise ValueError("文件为空")
+        except Exception as exc:
+            errors.append(f"{file_id}: {exc}")
+    return errors
+
 @provider_router.get("/status")
 def provider_status(request: Request, x_charactoid_request: str = Header(default="")):
     guard(request, x_charactoid_request); return manager(request).status()
@@ -397,7 +460,25 @@ def task_status(task_id: str, request: Request, x_charactoid_request: str = Head
     guard(request, x_charactoid_request)
     record = tasks(request).public_get(task_id)
     if not record: raise HTTPException(status_code=404, detail="RVC task not found")
-    if record.get("state") == "succeeded": record["output_url"] = f"/api/voice/rvc/tasks/{task_id}/output"
+    # public_get 已处理常规内部字段；这里再做一次路由边界清理，
+    # 尤其是 output_file 不能把 D:\... 的本地绝对路径返回给浏览器。
+    for key in ("input_path", "output_path", "output_file"):
+        record.pop(key, None)
+    for item in (record.get("outputs") or {}).values():
+        if isinstance(item, dict):
+            item.pop("path", None)
+    if record.get("state") == "succeeded":
+        output_errors = _validate_task_outputs(tasks(request), task_id, record)
+        if output_errors:
+            # 不把“任务状态成功、文件却不存在”的内部不一致继续交给前端，
+            # 否则页面只会显示一个稍后才 404 的音频条。
+            record["output_error"] = "；".join(output_errors)
+            record["error"] = f"RVC 已结束，但最终音频不可用：{record['output_error']}"
+            record["state"] = "failed"
+            record["phase"] = "failed"
+            record["message"] = "最终音频校验失败"
+        else:
+            record["output_url"] = f"/api/voice/rvc/tasks/{task_id}/output"
     return record
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_202_ACCEPTED)
@@ -459,8 +540,17 @@ async def mix_task(task_id: str, request: Request, background: UploadFile | None
         raw_path.unlink(missing_ok=True)
     else:
         options = record.get("options", {})
-        if options.get("instrumental_path"): instrumental = Path(options["instrumental_path"])
+        if options.get("instrumental_path"):
+            try:
+                instrumental = _managed_audio_path(tasks(request), task_id, options["instrumental_path"])
+            except (OSError, ValueError) as exc:
+                raise HTTPException(status_code=422, detail=f"Instrumental 文件不可用：{exc}") from exc
     if instrumental is None: raise HTTPException(status_code=422, detail="没有可用的 Instrumental")
+    try:
+        # 上传的背景音已写入 task_dir；再次校验，避免未来改动绕过受管路径边界。
+        instrumental = _managed_audio_path(tasks(request), task_id, instrumental)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Instrumental 文件不可用：{exc}") from exc
     result = tasks(request).mix(task_id, instrumental)
     if result is None: raise HTTPException(status_code=409, detail="任务尚未完成")
     return result

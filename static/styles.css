@@ -221,7 +221,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--primary); box-sh
 .field, .text-source { display: grid; align-content: start; gap: 7px; color: var(--muted); font-size: 12px; }
 .field > span, .text-source > span { color: var(--ink-soft); font-weight: 550; }
 .secret-input { position: relative; display: block; }
-.secret-input > input { padding-right: 88px; }
+.secret-input > input { padding-right: 124px; }
 .secret-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
 .secret-actions button { width: 30px; height: 32px; padding: 0; border: 0; border-radius: 2px; display: grid; place-items: center; background: transparent; color: var(--muted); }
 .secret-actions button:hover { background: var(--surface-soft); color: var(--ink); }
@@ -2974,3 +2974,4 @@ body:has(.workbench-view:not(.is-hidden)) .page-shell {
 .diagnostic-open:disabled,.diagnostic-copy:disabled { opacity:.6; cursor:wait; }
 .diagnostic-icon { width:22px; height:22px; padding:0; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; line-height:20px; font-size:13px; flex:0 0 auto; }
 .diagnostic-icon:hover { color:var(--primary); border-color:var(--primary); }
+

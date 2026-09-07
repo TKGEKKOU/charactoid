@@ -94,11 +94,12 @@ def settings_response(path: Path, restart_required: bool = False) -> LocalSettin
     embedding_source = text_setting(values.get("embedding_model_source"), "modelscope")
     embedding_device = text_setting(values.get("embedding_device"), "auto")
     return LocalSettingsResponse(
-        openai_api_key=configured_api_key(values.get("openai_api_key")),
+        # 普通设置响应只返回 configured 状态；明文仅由显式 reveal-key 调用返回。
+        openai_api_key="",
         openai_api_key_configured=bool(configured_api_key(values.get("openai_api_key"))),
         openai_base_url=text_setting(values.get("openai_base_url")),
         openai_model=text_setting(values.get("openai_model")),
-        embedding_api_key=configured_api_key(values.get("embedding_api_key")),
+        embedding_api_key="",
         embedding_api_key_configured=bool(configured_api_key(values.get("embedding_api_key"))),
         embedding_provider=embedding_provider,
         embedding_model_source=embedding_source if embedding_source in SUPPORTED_EMBEDDING_SOURCES else "modelscope",
@@ -110,7 +111,7 @@ def settings_response(path: Path, restart_required: bool = False) -> LocalSettin
         chunk_size=int(values.get("chunk_size") or 1000),
         chunk_overlap=int(values.get("chunk_overlap") or 150),
         web_search_provider=web_search_provider,
-        web_search_api_key=web_search_api_key,
+        web_search_api_key="",
         web_search_api_key_configured=bool(web_search_api_key),
         web_search_base_url=text_setting(values.get("web_search_base_url")),
         enable_web_fallback=web_search_provider != "off",
@@ -212,6 +213,27 @@ def reveal_api_key(
     return ApiKeyRevealResponse(value=value)
 
 
+@router.post("/clear-key", response_model=LocalSettingsResponse)
+def clear_api_key(
+    payload: ApiKeyRevealRequest,
+    request: Request,
+    response: Response,
+    x_charactoid_request: str = Header(default=""),
+) -> LocalSettingsResponse:
+    """显式删除单个密钥；普通保存中的空值仍表示“不修改”。"""
+    require_local(request)
+    if x_charactoid_request != "web":
+        raise HTTPException(status_code=403, detail="Missing same-origin request header")
+    values = read_settings(SETTINGS_PATH)
+    fields = {payload.field}
+    if payload.field == "web_search_api_key":
+        fields.add("tavily_api_key")
+    updates = {field: "" for field in fields}
+    update_local_settings(SETTINGS_PATH, updates)
+    invalidate_runtime_clients()
+    response.headers["Cache-Control"] = "no-store"
+    return settings_response(SETTINGS_PATH, restart_required=False)
+
 @router.patch("", response_model=LocalSettingsResponse)
 def save_settings(payload: LocalSettingsUpdate, request: Request, response: Response) -> LocalSettingsResponse:
     require_local(request)
@@ -244,11 +266,26 @@ def save_settings(payload: LocalSettingsUpdate, request: Request, response: Resp
     if chunk_overlap > chunk_size // 4:
         raise HTTPException(status_code=422, detail="切分重叠不能超过切分长度的 25%")
     updates = {}
+    secret_fields = {
+        "openai_api_key",
+        "embedding_api_key",
+        "web_search_api_key",
+        "tavily_api_key",
+        "tts_api_key",
+        "asr_api_key",
+        "reranker_api_key",
+    }
     for field, value in submitted.items():
         if isinstance(value, bool) or isinstance(value, int):
             updates[field] = value
-        elif isinstance(value, str) and value.strip():
-            updates[field] = value.strip()
+        elif isinstance(value, str):
+            normalized = value.strip()
+            # 空密钥表示“保留已有值”，清除配置仍通过显式 DELETE 完成。
+            if field in secret_fields:
+                if normalized:
+                    updates[field] = normalized
+            elif normalized:
+                updates[field] = normalized
     updates.pop("tavily_api_key", None)
     if provider is not None:
         updates["enable_web_fallback"] = provider != "off"
@@ -264,3 +301,4 @@ def reset_settings(request: Request) -> LocalSettingsResponse:
     delete_local_settings(SETTINGS_PATH)
     invalidate_runtime_clients()
     return settings_response(SETTINGS_PATH, restart_required=False)
+

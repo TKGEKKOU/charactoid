@@ -45,7 +45,7 @@
           <summary class="settings-summary"><span class="settings-summary-title"><strong>OpenAI 兼容模型</strong><span class="settings-summary-meta">文本对话 · Chat Completions · 可替换供应商</span></span><span class="section-toggle-label">展开</span></summary>
           <div class="settings-grid settings-grid-form">
             <label class="field provider-field"><span>供应商</span><select id="llm-provider"><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="qwen">通义千问</option><option value="custom">自定义</option></select></label>
-            <label class="field key-field"><span>API Key</span><span class="secret-input"><input id="openai-api-key" type="text" autocomplete="off"><span class="secret-actions"><button id="toggle-openai-api-key" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key"><i data-lucide="eye"></i></button><button id="copy-openai-api-key" type="button" title="复制 API Key" aria-label="复制 API Key"><i data-lucide="copy"></i></button></span></span></label>
+            <label class="field key-field"><span>API Key</span><span class="secret-input"><input id="openai-api-key" type="text" autocomplete="off"><span class="secret-actions"><button id="toggle-openai-api-key" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key"><i data-lucide="eye"></i></button><button id="copy-openai-api-key" type="button" title="复制 API Key" aria-label="复制 API Key"><i data-lucide="copy"></i></button><button id="clear-openai-api-key" type="button" title="清空 API Key" aria-label="清空 API Key"><i data-lucide="trash-2"></i></button></span></span></label>
             <label class="field base-url-field"><span>Base URL</span><input id="openai-base-url"></label>
             <label class="field model-field"><span>模型</span><input id="openai-model"></label>
           </div>
@@ -59,7 +59,7 @@
           <label class="toggle-field settings-feature-toggle"><input id="web-search-enabled" type="checkbox"><span>启用联网搜索</span></label>
           <div class="settings-grid one-column">
             <label class="field provider-field"><span>服务</span><select id="web-search-provider"><option value="bocha">博查</option><option value="tavily">Tavily</option><option value="custom">自定义（博查兼容）</option></select></label>
-            <label class="field key-field"><span>API Key</span><span class="secret-input"><input id="web-search-api-key" type="text" autocomplete="off"><span class="secret-actions"><button id="toggle-web-search-api-key" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key"><i data-lucide="eye"></i></button><button id="copy-web-search-api-key" type="button" title="复制 API Key" aria-label="复制 API Key"><i data-lucide="copy"></i></button></span></span></label>
+            <label class="field key-field"><span>API Key</span><span class="secret-input"><input id="web-search-api-key" type="text" autocomplete="off"><span class="secret-actions"><button id="toggle-web-search-api-key" type="button" title="显示或隐藏 API Key" aria-label="显示或隐藏 API Key"><i data-lucide="eye"></i></button><button id="copy-web-search-api-key" type="button" title="复制 API Key" aria-label="复制 API Key"><i data-lucide="copy"></i></button><button id="clear-web-search-api-key" type="button" title="清空 API Key" aria-label="清空 API Key"><i data-lucide="trash-2"></i></button></span></span></label>
             <label id="web-search-base-url-field" class="field base-url-field is-hidden"><span>接口地址</span><input id="web-search-base-url" type="url" placeholder="https://example.com/v1/web-search"></label>
           </div>
           <p id="web-search-warning" class="settings-warning is-hidden"></p>
@@ -104,3 +104,4 @@
     </div>
   </form>
 </section>
+

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { cpSync, copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { cpSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import process from 'node:process'
 
 const args = process.argv.slice(2)
@@ -22,7 +22,11 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const bundledRuntime = join(packageRoot, 'package-runtime')
 const configuredRoot = process.env.CHARACTOID_HOME ? resolve(process.env.CHARACTOID_HOME) : null
 const defaultRoot = resolve(join(process.cwd(), 'charactoid'))
-const requiredFiles = ['main.py', 'requirements.txt']
+const requiredFiles = ['main.py', 'requirements.txt', 'settings.py']
+const requiredDirectories = ['app', 'static']
+const registryPath = process.env.LOCALAPPDATA
+  ? join(process.env.LOCALAPPDATA, 'CHARACTOID', 'projects.json')
+  : null
 
 function commandResult(program, parameters, options = {}) {
   return spawnSync(program, parameters, {
@@ -46,22 +50,63 @@ function run(program, parameters, options = {}) {
   if (result.status !== 0) process.exit(result.status || 1)
 }
 function isCompleteProject(dir) {
-  return Boolean(dir) && requiredFiles.every(file => existsSync(join(dir, file)))
+  if (!dir || !requiredFiles.every(file => existsSync(join(dir, file)))) return false
+  return requiredDirectories.every(directory => {
+    try { return statSync(join(dir, directory)).isDirectory() } catch { return false }
+  })
 }
-function findLocalProject() {
+function readProjectRegistry() {
+  if (!registryPath || !existsSync(registryPath)) return []
+  try {
+    const value = JSON.parse(readFileSync(registryPath, 'utf8'))
+    return Array.isArray(value) ? value.filter(item => typeof item === 'string') : []
+  } catch { return [] }
+}
+function rememberProject(dir) {
+  if (!registryPath || !dir) return
+  const projects = [resolve(dir), ...readProjectRegistry().filter(item => resolve(item) !== resolve(dir))].slice(0, 20)
+  try {
+    mkdirSync(dirname(registryPath), { recursive: true })
+    writeFileSync(registryPath, JSON.stringify(projects, null, 2), 'utf8')
+  } catch { /* 注册表失败不应阻断本地启动 */ }
+}
+function addCandidate(candidates, value) {
+  if (!value) return
+  const candidate = resolve(value)
+  if (!candidates.includes(candidate)) candidates.push(candidate)
+}
+function findLocalProjects() {
   const candidates = []
-  if (configuredRoot) candidates.push(configuredRoot)
+  if (configuredRoot) addCandidate(candidates, configuredRoot)
   let current = resolve(process.cwd())
-  while (current && !candidates.includes(current)) {
-    candidates.push(current)
+  while (current) {
+    addCandidate(candidates, current)
+    try {
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name.toLowerCase() !== 'node_modules') {
+          addCandidate(candidates, join(current, entry.name))
+        }
+      }
+    } catch { /* 无权限目录跳过，不做全盘扫描 */ }
     const parent = dirname(current)
     if (parent === current) break
     current = parent
   }
+  for (const item of readProjectRegistry()) addCandidate(candidates, item)
   const home = process.env.USERPROFILE || process.env.HOME
-  if (home) candidates.push(join(home, 'charactoid'))
-  if (process.env.LOCALAPPDATA) candidates.push(join(process.env.LOCALAPPDATA, 'charactoid'))
-  return candidates.find(isCompleteProject) || null
+  if (home) addCandidate(candidates, join(home, 'charactoid'))
+  if (process.env.LOCALAPPDATA) addCandidate(candidates, join(process.env.LOCALAPPDATA, 'charactoid'))
+  return candidates.filter(isCompleteProject)
+}
+async function chooseProject(candidates) {
+  if (candidates.length <= 1) return candidates[0] || null
+  console.log('\n发现多个可用的 CHARACTOID 项目：')
+  candidates.forEach((item, index) => console.log(`${index + 1}. ${item}`))
+  console.log('输入序号选择，直接回车使用第一个：')
+  process.stdin.setEncoding('utf8')
+  const answer = await new Promise(resolveInput => process.stdin.once('data', data => resolveInput(data.trim())))
+  const index = Number(answer)
+  return Number.isInteger(index) && index >= 1 && index <= candidates.length ? candidates[index - 1] : candidates[0]
 }
 function choosePython() {
   const candidates = isWin
@@ -97,6 +142,27 @@ function openBrowser(url) {
   }
 }
 
+async function waitForHealth(url, child, timeoutMs = 120000) {
+  const startedAt = Date.now()
+  let lastError = ''
+  while (Date.now() - startedAt < timeoutMs) {
+    if (child.exitCode !== null) throw new Error(`CHARACTOID 服务提前退出（退出码 ${child.exitCode}）`)
+    try {
+      const response = await fetch(`${url}/api/health`, { cache: 'no-store' })
+      if (response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        if (payload.status === undefined || payload.status === 'ok' || payload.healthy === true) return payload
+        lastError = `服务状态：${payload.status}`
+      } else lastError = `HTTP ${response.status}`
+    } catch (error) { lastError = error?.message || '连接尚未建立' }
+    await new Promise(resolve => setTimeout(resolve, 500))
+  }
+  throw new Error(`等待 Web 服务就绪超时（${lastError || '未收到健康检查响应'}）`)
+}
+function startServer(program, parameters, options = {}) {
+  return spawn(program, parameters, { cwd: options.cwd || process.cwd(), stdio: 'inherit', windowsHide: false, shell: false })
+}
+
 console.log('CHARACTOID 环境检查')
 const nodeMajor = Number(process.versions.node.split('.')[0])
 if (nodeMajor < 18) fail(`Node.js 版本为 ${process.versions.node}，需要 18 或更高版本。`)
@@ -105,10 +171,12 @@ if (!pythonCommand) fail('未找到 Python 3.11 或更高版本。', '安装 Pyt
 console.log(`✓ Node.js ${process.versions.node}`)
 console.log(`✓ ${pythonCommand}（Python 3.11+）`)
 
-const localProject = findLocalProject()
+const localProjects = findLocalProjects()
+const localProject = await chooseProject(localProjects)
 let projectRoot = localProject
 if (localProject) {
   console.log(`✓ 已发现本地 CHARACTOID 项目：${localProject}`)
+  rememberProject(localProject)
 } else {
   const root = configuredRoot || defaultRoot
   if (existsSync(root) && !isCompleteProject(root)) {
@@ -133,6 +201,7 @@ if (localProject) {
   } else {
     projectRoot = root
     console.log(`✓ 复用已有 CHARACTOID 项目：${root}`)
+    rememberProject(root)
   }
 }
 
@@ -153,8 +222,16 @@ if (!existsSync(envFile) && existsSync(envExample)) {
   console.log('✓ 已创建 .env；外部服务密钥和可选模型仍按需配置')
 }
 const url = 'http://127.0.0.1:18000'
-console.log(`\nCHARACTOID Web: ${url}`)
-console.log('正在打开浏览器…')
-openBrowser(url)
-console.log('按 Ctrl+C 停止 CHARACTOID。\n')
-run(venvPython, ['-B', 'main.py'], { cwd: projectRoot })
+console.log(`\n正在启动 CHARACTOID Web 服务：${url}`)
+const server = startServer(venvPython, ['-B', 'main.py'], { cwd: projectRoot })
+try {
+  await waitForHealth(url, server)
+  console.log(`✓ Web 服务已就绪：${url}`)
+  console.log('正在打开浏览器…')
+  openBrowser(url)
+  console.log('按 Ctrl+C 停止 CHARACTOID。\n')
+} catch (error) {
+  server.kill()
+  fail(error.message, `可设置 CHARACTOID_NO_OPEN=1 后手动检查 ${url}，或查看上方服务日志。`)
+}
+await new Promise(resolve => server.once('exit', resolve))

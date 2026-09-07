@@ -4659,10 +4659,17 @@ async function pollInlineRvcTask() {
         const taskIdValue = task.task_id || task.id || taskId;
         const outputs = task.outputs || {};
         const preferred = data.configAnswers?.mix_instrumental ? (outputs.mixed || outputs.rvc_vocal) : (outputs.rvc_vocal || outputs.mixed);
-        data.result = { ...task, task_id: taskIdValue, output_url: preferred?.url || preferred?.download_url || task.output_url, output_file: preferred || task.output_file };
+        if (!preferred && !task.output_url) {
+          data.state = { ...(data.state || {}), phase: "failed", message: task.output_error || "任务完成，但没有可用的输出音频" };
+        } else {
+          data.result = { ...task, task_id: taskIdValue, output_url: preferred?.url || preferred?.download_url || task.output_url, output_file: preferred || task.output_file };
+        }
         data.taskId = null;
       }
-      else if (["failed", "cancelled"].includes(status)) { data.state = { ...(data.state || {}), phase: status, message: task.message || task.error || "任务未完成" }; data.taskId = null; }
+      else if (["failed", "cancelled"].includes(status)) {
+        data.state = { ...(data.state || {}), phase: status, message: task.output_error || task.message || task.error || "任务未完成" };
+        data.taskId = null;
+      }
       else data.pollTimer = setTimeout(tick, 800);
       renderRvcInline();
     } catch (error) {

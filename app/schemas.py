@@ -394,8 +394,8 @@ class ApiKeyRevealResponse(BaseModel):
 
 
 class LocalSettingsResponse(BaseModel):
-    # 设置页是 localhost-only 管理面板；按用户要求直接返回当前明文 Key。
-    # 生产部署仍不应把该接口暴露到公网。
+    # 密钥只通过显式调用 /api/settings/reveal-key 返回；普通设置读取永不携带明文。
+    # 这里保留字段以兼容现有前端协议，但响应值固定为空字符串。
     openai_api_key: str = ""
     openai_api_key_configured: bool
     openai_base_url: str

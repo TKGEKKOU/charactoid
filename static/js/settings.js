@@ -69,6 +69,7 @@ function bindSettingsEvents() {
   ["openai-api-key", "web-search-api-key"].forEach((id) => {
     bindIf(`toggle-${id}`, "click", () => toggleApiKeyVisibility(id));
     bindIf(`copy-${id}`, "click", () => copyApiKey(id));
+    bindIf(`clear-${id}`, "click", () => clearApiKey(id));
   });
   ["chunk-size", "chunk-overlap"].forEach((id) => bindIf(id, "input", renderChunkWarning));
   bindIf("web-search-enabled", "change", renderWebSearchSettings);
@@ -145,7 +146,25 @@ async function copyApiKey(inputId) {
     setText("settings-status", "API Key 已复制");
   } catch (reason) { setText("settings-status", `复制失败：${reason.message || reason}`, true); }
 }
-function resetApiKeyInputs() {
+async function clearApiKey(inputId) {
+  const input = $(inputId);
+  const config = API_KEY_FIELDS[inputId];
+  if (!config) return;
+  const hasValue = Boolean(input.value.trim()) || Boolean(state[config.configured]);
+  if (!hasValue) return;
+  try {
+    await api(fetch("/api/settings/clear-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" },
+      body: JSON.stringify({ field: config.field }),
+    }));
+    input.value = "";
+    input.type = "password";
+    state[config.configured] = false;
+    setApiKeyVisibilityIcon(inputId, false);
+    setText("settings-status", "API Key 已清空");
+  } catch (reason) { setText("settings-status", `清空失败：${reason.message || reason}`, true); }
+}function resetApiKeyInputs() {
   Object.keys(API_KEY_FIELDS).forEach((id) => {
     $(id).value = "";
     $(id).type = "password";
@@ -201,13 +220,8 @@ async function loadSettings() {
     const keyPlaceholder = (configured) => configured ? "已保存，可输入新 Key 替换" : "请输入 API Key";
     $("openai-api-key").placeholder = keyPlaceholder(config.openai_api_key_configured);
     $("web-search-api-key").placeholder = keyPlaceholder(config.web_search_api_key_configured);
-    // 设置接口是 localhost-only 管理接口，按用户要求直接显示当前明文 Key。
-    $("openai-api-key").value = config.openai_api_key || "";
-    $("web-search-api-key").value = config.web_search_api_key || "";
-    $("openai-api-key").type = "text";
-    $("web-search-api-key").type = "text";
-    setApiKeyVisibilityIcon("openai-api-key", true);
-    setApiKeyVisibilityIcon("web-search-api-key", true);
+    // 普通设置读取不包含明文 Key；只有用户显式点击显示或复制时才调用 reveal-key。
+    resetApiKeyInputs();
     state.openaiKeyConfigured = config.openai_api_key_configured;
     state.webSearchKeyConfigured = config.web_search_api_key_configured;
     $("openai-base-url").value = config.openai_base_url; $("openai-model").value = config.openai_model;

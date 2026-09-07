@@ -15,7 +15,7 @@
 在源码目录执行：
 
 ```powershell
-Set-Location D:\CodePython\YUMENO
+Set-Location 
 
 # 1. 检查改动
  git status

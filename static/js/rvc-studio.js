@@ -504,7 +504,7 @@ function pollTask(id) {
         else {
           rvcHidden("rvc-progress", false);
           rvcHidden("rvc-empty-result", true);
-          rvcSet("rvc-status", task.error || (state === "cancelled" ? "任务已取消" : "任务失败"), state !== "cancelled");
+          rvcSet("rvc-status", task.output_error || task.error || (state === "cancelled" ? "任务已取消" : "任务失败"), state !== "cancelled");
           updateRvcThinProgress("rvc-task-progress-line", task.progress_percent ?? task.progress ?? 0, { error: state === "failed" });
           const cancel = rvc$("rvc-cancel");
           if (cancel) cancel.disabled = true;
@@ -520,10 +520,51 @@ function pollTask(id) {
   }, 1000);
 }
 
-function renderRvcOutput(item, taskId, index) {
-  const url = item.url || `/api/voice/rvc/tasks/${taskId}/files/${encodeURIComponent(item.file_id)}`;
-  const label = item.kind === "mixed" ? "RVC + Instrumental" : "RVC 人声";
-  return `<div class="rvc-output-item"><div class="rvc-output-title"><b>${label}</b><span>${item.name || "output.wav"}</span></div><div class="rvc-editor-host rvc-task-editor" data-rvc-editor-file="${item.file_id}"></div><div class="rvc-result-actions"><a class="button button-primary" href="${url}" download="${item.name || `rvc-${taskId}.wav`}">另存为 WAV</a></div></div>`;
+function safeRvcOutputUrl(value, taskId, fileId) {
+  const fallback = `/api/voice/rvc/tasks/${encodeURIComponent(taskId)}/files/${encodeURIComponent(fileId)}`;
+  try {
+    const parsed = new URL(String(value || fallback), window.location.origin);
+    if (parsed.origin !== window.location.origin || !parsed.pathname.startsWith("/api/voice/rvc/")) return fallback;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeRvcFilename(value, fallback = "output.wav") {
+  const name = String(value || fallback).split(/[\\/]/).pop().replace(/[\u0000-\u001f\u007f]/g, "").trim();
+  return name || fallback;
+}
+
+function renderRvcOutput(item, taskId) {
+  // 不再用输出文件名和 URL 拼 innerHTML：文件名来自本地上传/模型资源，
+  // 必须作为文本节点写入，避免把文件名当成 HTML 或属性解析。
+  const fileId = String(item?.file_id || "");
+  const url = safeRvcOutputUrl(item?.url, taskId, fileId);
+  const name = safeRvcFilename(item?.name, `rvc-${taskId}.wav`);
+  const label = item?.kind === "mixed" ? "RVC + Instrumental" : "RVC 人声";
+  const root = document.createElement("div");
+  root.className = "rvc-output-item";
+  const title = document.createElement("div");
+  title.className = "rvc-output-title";
+  const strong = document.createElement("b");
+  strong.textContent = label;
+  const filename = document.createElement("span");
+  filename.textContent = name;
+  title.append(strong, filename);
+  const editor = document.createElement("div");
+  editor.className = "rvc-editor-host rvc-task-editor";
+  editor.dataset.rvcEditorFile = fileId;
+  const actions = document.createElement("div");
+  actions.className = "rvc-result-actions";
+  const download = document.createElement("a");
+  download.className = "button button-primary";
+  download.href = url;
+  download.download = name;
+  download.textContent = "另存为 WAV";
+  actions.append(download);
+  root.append(title, editor, actions);
+  return root;
 }
 
 function finishRvcResult(task) {
@@ -533,7 +574,8 @@ function finishRvcResult(task) {
   const vocal = outputs.rvc_vocal || { file_id: "rvc_vocal", kind: "rvc_vocal", name: `rvc-${id}.wav`, url: `/api/voice/rvc/tasks/${id}/output` };
   const list = rvc$("rvc-output-list");
   if (list) {
-    list.innerHTML = Object.values(outputs).map((item) => renderRvcOutput(item, id)).join("") || renderRvcOutput(vocal, id);
+    const items = Object.values(outputs);
+    list.replaceChildren(...(items.length ? items : [vocal]).map((item) => renderRvcOutput(item, id)));
     list.querySelectorAll("[data-rvc-editor-file]").forEach((host) => {
       const item = rvcTask.outputs?.[host.dataset.rvcEditorFile] || vocal;
       mountRvcWaveformEditor(host, item, { scope: "task", taskId: id });

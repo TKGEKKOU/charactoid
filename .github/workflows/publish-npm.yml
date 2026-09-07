@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Check package version
         shell: bash
@@ -41,6 +41,7 @@ jobs:
       - name: Build npm runtime
         run: npm run build:npm
 
-      - name: Publish to npm
+      - name: Upgrade npm for trusted publishing`r`n        run: npm install --global npm@latest`r`n`r`n      - name: Publish to npm
         run: npm publish --access public --provenance
+
 

@@ -64,3 +64,7 @@ runtime/rvc/runtime-ready.json
 
 /package-runtime/
 *.tgz
+
+# Local AI process/handoff docs (do not publish)
+AI_RELEASE_GUIDE.md
+CHARACTOID_PROJECT_HANDOFF.md

@@ -66,12 +66,9 @@ jobs:
         id: npm-tag
         shell: bash
         run: |
-          version=$(node -p "require('./package.json').version")
-          if [[ "$version" == *-* ]]; then
-            echo "tag=rc" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-          fi
+          # CHARACTOID 采用单一发布通道：每次人工确认的发布都更新 latest。
+          # 用户始终可以直接运行 npx charactoid-web 获取最新版本。
+          echo "tag=latest" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
         run: npm publish --access public --tag "${{ steps.npm-tag.outputs.tag }}" --provenance

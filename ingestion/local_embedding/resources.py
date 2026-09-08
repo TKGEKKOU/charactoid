@@ -16,6 +16,32 @@ from voice.resource_directory import open_resource_directory
 
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
+SNAPSHOT_SCRIPT = """
+import traceback
+model_id = %r
+target = %r
+primary = %r
+last = None
+
+def _modelscope():
+    from modelscope import snapshot_download
+    snapshot_download(model_id, local_dir=target)
+
+def _huggingface():
+    from huggingface_hub import snapshot_download
+    snapshot_download(repo_id=model_id, local_dir=target)
+
+order = (_modelscope, _huggingface) if primary == "modelscope" else (_huggingface, _modelscope)
+for download in order:
+    try:
+        download()
+        break
+    except Exception as exc:
+        last = exc
+        traceback.print_exc()
+else:
+    raise last
+"""
 
 
 class EmbeddingInstallCancelled(RuntimeError):
@@ -27,6 +53,23 @@ def validate_model_id(model_id: str) -> str:
     if not MODEL_ID_PATTERN.fullmatch(value) or ".." in value.split("/"):
         raise ValueError("模型 ID 只能包含字母、数字、点、短横线、下划线和单个路径分隔符")
     return value
+
+
+def resolve_local_model_id(model_id: str | None, default: str = DEFAULT_LOCAL_EMBEDDING_MODEL) -> str:
+    """Ignore cloud API model names when choosing a local snapshot id."""
+    value = (model_id or "").strip()
+    if value and "/" in value and MODEL_ID_PATTERN.fullmatch(value) and ".." not in value.split("/"):
+        return value
+    return default
+
+
+def download_env(project_root: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["MODELSCOPE_CACHE"] = str(project_root / "runtime" / "modelscope-cache")
+    env["HF_HOME"] = str(project_root / "runtime" / "huggingface-cache")
+    if "HF_ENDPOINT" not in env:
+        env["HF_ENDPOINT"] = os.getenv("CHARACTOID_HF_ENDPOINT", "https://hf-mirror.com")
+    return env
 
 
 class LocalEmbeddingResourceManager:
@@ -44,6 +87,7 @@ class LocalEmbeddingResourceManager:
         self._error = ""
         self._phase = "idle"
         self._current_file = ""
+        self._install_model_id = ""
         self._started_at: float | None = None
         self._lock = threading.Lock()
 
@@ -70,9 +114,12 @@ class LocalEmbeddingResourceManager:
             return {}
         return value if isinstance(value, dict) else {}
 
+    def resolve_install_model_id(self, model_id: str = "") -> str:
+        return resolve_local_model_id(model_id or None)
+
     def _active(self) -> tuple[Settings, Path, dict]:
         settings = Settings.load(self.project_root)
-        model_id = settings.embedding_model or DEFAULT_LOCAL_EMBEDDING_MODEL
+        model_id = self._install_model_id or resolve_local_model_id(settings.embedding_model)
         directory = self.model_directory(model_id)
         return settings, directory, self._read_metadata(directory)
 
@@ -87,14 +134,22 @@ class LocalEmbeddingResourceManager:
 
     def status(self) -> dict:
         settings, directory, metadata = self._active()
+        model_id = self._install_model_id or resolve_local_model_id(settings.embedding_model)
         elapsed = time.monotonic() - self._started_at if self._started_at else 0
         installed = self._model_complete(directory)
         ready = installed if settings.embedding_provider == "managed_local" else bool(
             settings.embedding_api_key and settings.embedding_base_url and settings.embedding_model
         )
+        phase_progress = {"preparing": 5, "runtime": 20, "model": 50, "loading": 88, "complete": 100}
+        if self._phase == "complete" or (installed and not self._installing):
+            progress = 100 if installed else None
+        elif self._installing:
+            progress = phase_progress.get(self._phase, 5)
+        else:
+            progress = None
         return {
             "provider": settings.embedding_provider,
-            "model_id": settings.embedding_model or DEFAULT_LOCAL_EMBEDDING_MODEL,
+            "model_id": model_id,
             "source": settings.embedding_model_source,
             "device": settings.embedding_device,
             "actual_device": str(metadata.get("actual_device") or ""),
@@ -107,7 +162,7 @@ class LocalEmbeddingResourceManager:
             "current_file": self._current_file,
             "downloaded_bytes": 0,
             "total_bytes": 0,
-            "progress_percent": None,
+            "progress_percent": progress,
             "download_speed_bytes": 0,
             "eta_seconds": None,
             "elapsed_seconds": round(elapsed),
@@ -138,12 +193,12 @@ class LocalEmbeddingResourceManager:
         return self.status()
 
     def start_install(self, model_id: str, source: str, device: str) -> bool:
+        model_id = resolve_local_model_id(model_id)
         validate_model_id(model_id)
         if source not in {"modelscope", "huggingface"}:
             raise ValueError("不支持的模型下载源")
         if device not in {"auto", "cuda", "cpu"}:
             raise ValueError("不支持的运行设备")
-        self.configure(model_id, source, device)
         with self._lock:
             if self._installing:
                 return False
@@ -152,6 +207,7 @@ class LocalEmbeddingResourceManager:
             self._error = ""
             self._phase = "preparing"
             self._current_file = model_id
+            self._install_model_id = model_id
             self._started_at = time.monotonic()
         threading.Thread(
             target=self._install,
@@ -183,6 +239,7 @@ class LocalEmbeddingResourceManager:
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
         with self._lock:
             self._process = process
@@ -242,18 +299,8 @@ class LocalEmbeddingResourceManager:
             self._phase = "model"
             self._current_file = model_id
             directory.mkdir(parents=True, exist_ok=True)
-            if source == "modelscope":
-                code = ("model_id=%r; target=%r; "
-                        "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
-                        "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n") % (model_id, str(directory))
-            else:
-                code = ("model_id=%r; target=%r; "
-                        "try:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
-                        "except Exception:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n") % (model_id, str(directory))
-            env = os.environ.copy()
-            env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
-            env["HF_HOME"] = str(self.project_root / "runtime" / "huggingface-cache")
-            self._run([str(self.runtime_python), "-c", code], env=env)
+            code = SNAPSHOT_SCRIPT % (model_id, str(directory), source)
+            self._run([str(self.runtime_python), "-c", code], env=download_env(self.project_root))
             self._phase = "loading"
             probe = self._run([str(self.runtime_python), str(self.worker_script), "--probe", str(directory), device])
             result = json.loads(probe.stdout.strip().splitlines()[-1])
@@ -273,15 +320,16 @@ class LocalEmbeddingResourceManager:
                 values = json.loads(self.local_settings_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 values = {}
-            values["embedding_dimensions"] = int(result["dimensions"])
-            temporary = self.local_settings_path.with_suffix(".tmp")
-            temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            os.replace(temporary, self.local_settings_path)
+            if values.get("embedding_provider") == "managed_local":
+                values["embedding_dimensions"] = int(result["dimensions"])
+                temporary = self.local_settings_path.with_suffix(".tmp")
+                temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                os.replace(temporary, self.local_settings_path)
             self._phase = "complete"
         except EmbeddingInstallCancelled:
             self._error = ""
             self._phase = "idle"
-        except (OSError, RuntimeError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        except Exception as exc:
             self._error = str(exc)
             self._phase = "error"
         finally:

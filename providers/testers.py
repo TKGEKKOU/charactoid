@@ -4,6 +4,8 @@ Provider testers - 各类提供商连接测试
 import httpx
 from typing import Dict, Any
 
+from rag.reranker_runtime import BailianReranker
+
 
 async def test_llm_provider(api_key: str, base_url: str, model: str) -> Dict[str, Any]:
     """测试 LLM 提供商连接"""
@@ -98,7 +100,7 @@ async def test_stt_provider(provider_id: str, api_key: str, base_url: str, model
                 response = await client.get(f"{base_url.rstrip('/')}")
                 if response.status_code == 200:
                     return {"success": True, "message": "SenseVoice 服务可达"}
-                return {"success": False, "message": f"HTTP {response.status_code}"}
+                return {"success": False, "message": f"HTTP {response.status_code}: {response.text[:300]}"}
         except Exception as e:
             return {"success": False, "message": str(e)}
     elif provider_id in {"whisper_api", "xinference_stt"}:
@@ -114,7 +116,7 @@ async def test_stt_provider(provider_id: str, api_key: str, base_url: str, model
                 )
             if response.status_code in {200, 400, 422}:
                 return {"success": True, "message": "STT 音频接口可达"}
-            return {"success": False, "message": f"HTTP {response.status_code}"}
+            return {"success": False, "message": f"HTTP {response.status_code}: {response.text[:300]}"}
         except Exception as e:
             return {"success": False, "message": str(e)}
     elif provider_id == "mimo_stt":
@@ -133,7 +135,7 @@ async def test_stt_provider(provider_id: str, api_key: str, base_url: str, model
                 )
             if response.status_code in {200, 400, 422}:
                 return {"success": True, "message": "MiMo STT 接口可达（请用真实音频完成识别验证）"}
-            return {"success": False, "message": f"HTTP {response.status_code}"}
+            return {"success": False, "message": f"HTTP {response.status_code}: {response.text[:300]}"}
         except Exception as e:
             return {"success": False, "message": str(e)}
     return {"success": False, "message": "未注册的 STT Provider"}
@@ -144,15 +146,22 @@ test_asr_provider = test_stt_provider
 
 
 async def test_reranker_provider(provider_id: str, api_key: str, base_url: str, model: str) -> Dict[str, Any]:
-    """测试 Reranker Provider；百炼使用其标准 reranks 接口。"""
+    """测试 Reranker Provider；百炼与运行时共用 URL/请求体解析。"""
+    if provider_id == "bailian_rerank":
+        try:
+            reranker = BailianReranker(api_key, base_url, model, timeout=30.0)
+            try:
+                scores = reranker.score_pairs("测试查询", ["文档1", "文档2"])
+            finally:
+                reranker.close()
+            if isinstance(scores, list):
+                return {"success": True, "message": "重排序成功"}
+            return {"success": False, "message": "响应格式错误"}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
     try:
-        endpoint = base_url.rstrip("/")
+        endpoint = base_url.rstrip("/") + "/rerank"
         payload = {"model": model, "query": "测试查询", "documents": ["文档1", "文档2"]}
-        if provider_id == "bailian_rerank":
-            if endpoint.endswith(("/compatible-mode/v1", "/compatible-api/v1", "/v1")):
-                endpoint += "/reranks"
-        else:
-            endpoint += "/rerank"
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 endpoint,
@@ -164,11 +173,11 @@ async def test_reranker_provider(provider_id: str, api_key: str, base_url: str, 
             )
             if response.status_code == 200:
                 data = response.json()
-                results = data.get("results") if provider_id == "bailian_rerank" else data.get("results")
+                results = data.get("results")
                 if isinstance(results, list):
                     return {"success": True, "message": "重排序成功"}
                 return {"success": False, "message": "响应格式错误"}
-            return {"success": False, "message": f"HTTP {response.status_code}"}
+            return {"success": False, "message": f"HTTP {response.status_code}: {response.text[:300]}"}
     except Exception as e:
         return {"success": False, "message": str(e)}
 

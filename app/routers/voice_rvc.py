@@ -28,6 +28,10 @@ audio_resource_router = APIRouter(prefix="/api/providers/resources", tags=["audi
 def ffmpeg_status(request: Request, x_charactoid_request: str = Header(default="")):
     guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.status()
 
+@audio_resource_router.post("/ffmpeg/detect")
+def ffmpeg_detect(request: Request, x_charactoid_request: str = Header(default="")):
+    guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.detect()
+
 @audio_resource_router.post("/ffmpeg/install", status_code=status.HTTP_202_ACCEPTED)
 def ffmpeg_install(request: Request, x_charactoid_request: str = Header(default="")):
     guard(request, x_charactoid_request); return request.app.state.ffmpeg_resources.install()

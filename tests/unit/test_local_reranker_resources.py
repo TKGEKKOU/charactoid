@@ -118,3 +118,29 @@ def test_reranker_cpu_runtime_uses_cpu_requirements_without_cuda_index(tmp_path:
 
     assert commands[0][-1].endswith("requirements-local-cpu.txt")
     assert all("cu128" not in item for item in commands[0])
+
+
+def test_reranker_resolve_local_model_id_ignores_cloud_api_names():
+    from ingestion.local_embedding.resources import resolve_local_model_id
+    from settings import DEFAULT_LOCAL_RERANKER_MODEL
+
+    assert resolve_local_model_id("gte-rerank", DEFAULT_LOCAL_RERANKER_MODEL) == DEFAULT_LOCAL_RERANKER_MODEL
+    assert resolve_local_model_id("Qwen/Qwen3-Reranker-0.6B", DEFAULT_LOCAL_RERANKER_MODEL) == "Qwen/Qwen3-Reranker-0.6B"
+
+
+def test_reranker_start_install_does_not_call_configure(tmp_path, monkeypatch):
+    manager = LocalRerankerResourceManager(tmp_path)
+    called = []
+    monkeypatch.setattr(manager, "configure", lambda *args, **kwargs: called.append((args, kwargs)) if False else called.append((args, kwargs)))
+
+    class FakeThread:
+        def __init__(self, target=None, args=(), kwargs=None, daemon=None, name=None):
+            del target, args, kwargs, daemon, name
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr("ingestion.local_reranker.resources.threading.Thread", FakeThread)
+    assert manager.start_install("gte-rerank", "modelscope", "cpu") is True
+    assert manager._install_model_id == "Qwen/Qwen3-Reranker-0.6B"
+    assert called == []

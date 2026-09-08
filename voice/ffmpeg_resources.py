@@ -16,6 +16,32 @@ def _probe_ffmpeg(path: Path | str | None) -> bool:
     return completed.returncode == 0 and "ffmpeg" in (completed.stdout or "").lower()
 
 
+def _imageio_cache_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    env = os.environ.get("IMAGEIO_FFMPEG_EXE", "").strip()
+    if env:
+        candidates.append(Path(env))
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        return candidates
+    package_file = getattr(imageio_ffmpeg, "__file__", None)
+    if not package_file:
+        return candidates
+    binaries = Path(package_file).resolve().parent / "binaries"
+    if binaries.is_dir():
+        candidates.extend(path for path in sorted(binaries.glob("ffmpeg*")) if path.is_file() and path.suffix.lower() in {".exe", ""})
+    return candidates
+
+
+def _probe_imageio_cache() -> Path | None:
+    """Locate a local imageio-ffmpeg binary without triggering a download."""
+    for candidate in _imageio_cache_candidates():
+        if _probe_ffmpeg(candidate):
+            return candidate
+    return None
+
+
 def resolve_ffmpeg(project_root: Path) -> Path:
     """Resolve a usable FFmpeg binary, preferring the project-managed copy."""
     managed = Path(project_root) / "runtime" / "ffmpeg" / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
@@ -24,14 +50,8 @@ def resolve_ffmpeg(project_root: Path) -> Path:
     located = shutil.which("ffmpeg")
     if _probe_ffmpeg(located):
         return Path(located)
-    # 允许运行时直接使用 imageio-ffmpeg 的受信任缓存；资源安装器仍会
-    # 将它复制到项目 runtime 目录，保证新用户最终拥有可见的完整体。
-    try:
-        from imageio_ffmpeg import get_ffmpeg_exe
-        cached = Path(get_ffmpeg_exe())
-    except (ImportError, OSError, RuntimeError):
-        cached = None
-    if _probe_ffmpeg(cached):
+    cached = _probe_imageio_cache()
+    if cached:
         return cached
     raise RuntimeError("未找到可执行的 ffmpeg，请先在资源管理器安装 FFmpeg")
 
@@ -57,17 +77,42 @@ class FFmpegResourceManager:
         managed = self.binary if self._probe(self.binary) else None
         system = shutil.which("ffmpeg")
         system = system if self._probe(system) else ""
+        cached = _probe_imageio_cache()
+        if cached and managed and Path(cached).resolve() == Path(managed).resolve():
+            cached = None
+        if cached and system and Path(system).resolve() == Path(cached).resolve():
+            cached = None
+        source = "managed" if managed else ("system" if system else ("imageio-cache" if cached else ""))
         return {
-            "ready": bool(managed or system),
+            "ready": bool(managed or system or cached),
             "installed": managed is not None,
             "installing": self.installing,
             "managed_path": str(managed or ""),
             "system_path": system or "",
-            "path": str(managed or system or ""),
+            "cache_path": str(cached or ""),
+            "cache_available": cached is not None,
+            "detected": bool(managed or system or cached),
+            "detection_source": source,
+            "path": str(managed or system or cached or ""),
             "error": self.error,
             "source": "imageio-ffmpeg（由项目主环境依赖安装并按需下载）",
             "note": "用于视频抽音频、格式转换和 GPT-SoVITS 前处理；RVC 不依赖文字转写。",
         }
+
+    def detect(self) -> dict:
+        """Re-probe local FFmpeg locations without downloading."""
+        self.error = ""
+        status = self.status()
+        if status["installed"]:
+            note = "已找到项目托管的 FFmpeg"
+        elif status["system_path"]:
+            note = "已在系统 PATH 中找到 FFmpeg，不必下载；如需项目内副本可再安装"
+        elif status["cache_available"]:
+            note = "已找到本地 FFmpeg 缓存，可安装为项目托管副本"
+        else:
+            note = "未检测到可用的 FFmpeg，需要下载"
+        status["detection_note"] = note
+        return status
 
     def install(self) -> dict:
         if self.installing:

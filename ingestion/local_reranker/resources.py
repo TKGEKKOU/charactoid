@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from ingestion.local_embedding.resources import validate_model_id
+from ingestion.local_embedding.resources import SNAPSHOT_SCRIPT, download_env, resolve_local_model_id, validate_model_id
 from settings import DEFAULT_LOCAL_RERANKER_MODEL, Settings
 from voice.resource_directory import open_resource_directory
 
@@ -36,6 +36,7 @@ class LocalRerankerResourceManager:
         self._error = ""
         self._phase = "idle"
         self._current_file = ""
+        self._install_model_id = ""
         self._started_at = None
         self._lock = threading.Lock()
 
@@ -50,9 +51,12 @@ class LocalRerankerResourceManager:
             raise ValueError("Reranker model directory escapes project models root")
         return directory
 
+    def resolve_install_model_id(self, model_id: str = "") -> str:
+        return resolve_local_model_id(model_id or None, DEFAULT_LOCAL_RERANKER_MODEL)
+
     def _active(self):
         settings = Settings.load(self.project_root)
-        model_id = settings.reranker_model or DEFAULT_LOCAL_RERANKER_MODEL
+        model_id = self._install_model_id or resolve_local_model_id(settings.reranker_model, DEFAULT_LOCAL_RERANKER_MODEL)
         return settings, self.model_directory(model_id)
 
     @staticmethod
@@ -66,10 +70,18 @@ class LocalRerankerResourceManager:
 
     def status(self) -> dict:
         settings, directory = self._active()
+        model_id = self._install_model_id or resolve_local_model_id(settings.reranker_model, DEFAULT_LOCAL_RERANKER_MODEL)
         elapsed = time.monotonic() - self._started_at if self._started_at else 0
         installed = self._model_complete(directory)
+        phase_progress = {"preparing": 5, "runtime": 20, "model": 50, "loading": 88, "complete": 100}
+        if self._phase == "complete" or (installed and not self._installing):
+            progress = 100 if installed else None
+        elif self._installing:
+            progress = phase_progress.get(self._phase, 5)
+        else:
+            progress = None
         return {
-            "model_id": settings.reranker_model or DEFAULT_LOCAL_RERANKER_MODEL,
+            "model_id": model_id,
             "source": settings.reranker_model_source,
             "device": settings.reranker_device,
             "installed": installed,
@@ -78,6 +90,7 @@ class LocalRerankerResourceManager:
             "cancelling": self._installing and self._cancel_requested.is_set(),
             "phase": self._phase,
             "current_file": self._current_file,
+            "progress_percent": progress,
             "elapsed_seconds": round(elapsed),
             "error": self._error,
             "model_dir": str(directory if directory.is_dir() else ""),
@@ -100,7 +113,10 @@ class LocalRerankerResourceManager:
         return self.status()
 
     def start_install(self, model_id: str, source: str, device: str) -> bool:
-        self.configure(model_id, source, device)
+        model_id = resolve_local_model_id(model_id, DEFAULT_LOCAL_RERANKER_MODEL)
+        validate_model_id(model_id)
+        if source not in {"modelscope", "huggingface"} or device not in {"auto", "cuda", "cpu"}:
+            raise ValueError("Invalid local reranker configuration")
         with self._lock:
             if self._installing:
                 return False
@@ -109,6 +125,7 @@ class LocalRerankerResourceManager:
             self._error = ""
             self._phase = "preparing"
             self._current_file = model_id
+            self._install_model_id = model_id
             self._started_at = time.monotonic()
         threading.Thread(target=self._install, args=(model_id, source, device), daemon=True, name="reranker-install").start()
         return True
@@ -127,7 +144,7 @@ class LocalRerankerResourceManager:
     def _run(self, command: list[str], env=None):
         if self._cancel_requested.is_set():
             raise RerankerInstallCancelled()
-        process = subprocess.Popen(command, cwd=self.project_root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8")
+        process = subprocess.Popen(command, cwd=self.project_root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
         with self._lock:
             self._process = process
         stdout, stderr = process.communicate()
@@ -170,7 +187,7 @@ class LocalRerankerResourceManager:
         except RuntimeError:
             pass
         else:
-            marker.write_text(json.dumps(expected, sort_keys=True) + "\\n", encoding="utf-8")
+            marker.write_text(json.dumps(expected, sort_keys=True) + "\n", encoding="utf-8")
             return
         pypi = os.getenv("CHARACTOID_PYPI_INDEX", "https://mirrors.aliyun.com/pypi/simple/")
         indexes = [(pypi, os.getenv("CHARACTOID_PYTORCH_INDEX", "https://mirrors.aliyun.com/pytorch-wheels/cu128/"))] if actual == "cuda" else [(pypi, None)]
@@ -193,18 +210,8 @@ class LocalRerankerResourceManager:
             self._install_runtime(device)
             self._phase = "model"
             directory.mkdir(parents=True, exist_ok=True)
-            if source == "modelscope":
-                code = ("model_id=%r; target=%r; "
-                        "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
-                        "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n") % (model_id, str(directory))
-            else:
-                code = ("model_id=%r; target=%r; "
-                        "try:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
-                        "except Exception:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n") % (model_id, str(directory))
-            env = os.environ.copy()
-            env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
-            env["HF_HOME"] = str(self.project_root / "runtime" / "huggingface-cache")
-            self._run([str(self.runtime_python), "-c", code], env=env)
+            code = SNAPSHOT_SCRIPT % (model_id, str(directory), source)
+            self._run([str(self.runtime_python), "-c", code], env=download_env(self.project_root))
             self._phase = "loading"
             probe = self._run([str(self.runtime_python), str(self.worker_script), "--probe", str(directory), device])
             result = json.loads(probe.stdout.strip().splitlines()[-1])

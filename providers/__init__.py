@@ -193,8 +193,8 @@ RERANKER_PROVIDERS = {
         name="百炼 Rerank",
         type=ProviderType.RERANKER,
         description="阿里云百炼 Rerank API",
-        default_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        default_model="gte-rerank",
+        default_base_url="https://dashscope.aliyuncs.com/compatible-api/v1",
+        default_model="qwen3-rerank",
         icon="cloud"
     ),
     "local_rerank": ProviderMetadata(

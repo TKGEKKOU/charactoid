@@ -73,3 +73,55 @@ def test_install_pip_command_has_bounded_network_retries(tmp_path, monkeypatch):
     pip_command = next(command for command in commands if command[:3] == [str(manager.runtime_python), "-m", "pip"])
     assert pip_command[pip_command.index("--timeout") + 1] == "30"
     assert pip_command[pip_command.index("--retries") + 1] == "1"
+
+
+
+def test_run_defaults_to_utf8_replace(tmp_path, monkeypatch):
+    manager = ASRResourceManager(tmp_path)
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, command, **options):
+            captured.update(options)
+            self.returncode = 0
+
+        def communicate(self):
+            return "", ""
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(asr_install.subprocess, "Popen", FakePopen)
+    manager._run(["echo", "ok"])
+    assert captured["encoding"] == "utf-8"
+    assert captured["errors"] == "replace"
+    assert captured["text"] is True
+    assert captured["stdout"] is asr_install.subprocess.PIPE
+
+
+def test_install_model_uses_snapshot_script_and_hf_mirror(tmp_path, monkeypatch):
+    manager = ASRResourceManager(tmp_path)
+    manager.runtime_python.parent.mkdir(parents=True)
+    manager.runtime_python.write_text("python", encoding="ascii")
+    commands = []
+
+    def fake_run(command, **kwargs):
+        commands.append((list(command), kwargs.get("env")))
+        return asr_install.subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(manager, "_run", fake_run)
+    manager._install()
+    snapshot = next(item for item in commands if len(item[0]) >= 3 and item[0][1] == "-c" and "imageio_ffmpeg" not in item[0][2])
+    assert "snapshot_download" in snapshot[0][2]
+    assert snapshot[1] is not None
+    assert snapshot[1].get("HF_ENDPOINT") or snapshot[1].get("CHARACTOID_HF_ENDPOINT")
+    assert "MODELSCOPE_CACHE" in snapshot[1]
+
+
+def test_install_progress_uses_phase_percent(tmp_path):
+    manager = ASRResourceManager(tmp_path)
+    manager._installing = True
+    manager._phase = "model"
+    status = manager.status()
+    assert status["progress_percent"] == 55
+    assert status["current_file"] == "Qwen/Qwen3-ASR-0.6B"

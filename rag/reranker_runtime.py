@@ -62,7 +62,7 @@ class BailianReranker:
         self.model = model.strip()
         self.return_documents = return_documents
         self.instruct = instruct.strip()
-        self.base_url = self._resolve_url(base_url)
+        self.base_url = self.resolve_url(base_url, self.model)
         self._owns_client = client is None
         self.client = client or httpx.Client(
             timeout=httpx.Timeout(timeout),
@@ -78,16 +78,32 @@ class BailianReranker:
             })
 
     @classmethod
-    def _resolve_url(cls, base_url: str) -> str:
+    def resolve_url(cls, base_url: str, model: str = "") -> str:
+        """Map saved chat-compatible URLs onto the Bailian rerank endpoints.
+
+        Chat/embed use ``/compatible-mode/v1``. Rerank compatible mode lives at
+        ``/compatible-api/v1/reranks``. ``gte-rerank*`` only works on the native
+        text-rerank API, so those models are forced there even if the saved
+        base URL still points at compatible-mode.
+        """
         value = (base_url or "").strip().rstrip("/")
+        model_id = (model or "").strip().lower()
+        if model_id.startswith("gte-rerank"):
+            return cls.DEFAULT_NATIVE_URL
         if not value:
             return cls.DEFAULT_NATIVE_URL
+        if "/compatible-mode/" in value:
+            value = value.replace("/compatible-mode/", "/compatible-api/")
         path = urlsplit(value).path.rstrip("/")
         if path.endswith("/reranks") or path.endswith("/text-rerank/text-rerank"):
             return value
         if path.endswith(cls.COMPATIBLE_BASE_SUFFIXES):
             return f"{value}/reranks"
         return value
+
+    @classmethod
+    def _resolve_url(cls, base_url: str, model: str = "") -> str:
+        return cls.resolve_url(base_url, model)
 
     @property
     def uses_compatible_api(self) -> bool:
@@ -136,10 +152,13 @@ class BailianReranker:
         documents = documents[:500]
         try:
             response = self.client.post(self.base_url, json=self._payload(query, documents))
-            response.raise_for_status()
-            results = self._results(response.json(), self.uses_compatible_api)
         except httpx.HTTPError as exc:
             raise RerankerRuntimeError(f"百炼 Rerank 网络请求失败: {exc}") from exc
+        if response.status_code >= 400:
+            body = (response.text or "")[:300]
+            raise RerankerRuntimeError(f"百炼 Rerank 请求失败: HTTP {response.status_code} {body}".strip())
+        try:
+            results = self._results(response.json(), self.uses_compatible_api)
         except ValueError as exc:
             raise RerankerAPIError("百炼 Rerank 返回了无效 JSON") from exc
 

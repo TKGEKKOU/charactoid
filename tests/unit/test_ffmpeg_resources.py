@@ -43,3 +43,49 @@ def test_ffmpeg_install_removes_invalid_partial(tmp_path, monkeypatch):
     assert result["ready"] is False
     assert "不是可执行的 FFmpeg" in result["error"]
     assert not (tmp_path / "runtime" / "ffmpeg" / "ffmpeg.exe.part").exists()
+
+def test_ffmpeg_status_reports_imageio_cache_without_install(tmp_path, monkeypatch):
+    from voice import ffmpeg_resources
+
+    cached = tmp_path / "binaries"
+    cached.mkdir()
+    binary = cached / "ffmpeg.exe"
+    binary.write_text("binary", encoding="ascii")
+    module = types.ModuleType("imageio_ffmpeg")
+    module.__file__ = str(tmp_path / "imageio_ffmpeg" / "__init__.py")
+    (tmp_path / "imageio_ffmpeg").mkdir()
+    (tmp_path / "imageio_ffmpeg" / "binaries").mkdir()
+    cache_bin = tmp_path / "imageio_ffmpeg" / "binaries" / "ffmpeg.exe"
+    cache_bin.write_text("binary", encoding="ascii")
+    monkeypatch.setitem(sys.modules, "imageio_ffmpeg", module)
+    manager = ffmpeg_resources.FFmpegResourceManager(tmp_path)
+    monkeypatch.setattr(manager, "_probe", lambda path: bool(path) and Path(path).is_file())
+    monkeypatch.setattr(ffmpeg_resources, "_probe_ffmpeg", lambda path: bool(path) and Path(path).is_file())
+
+    called = {"get": False}
+    module.get_ffmpeg_exe = lambda: called.__setitem__("get", True) or str(cache_bin)
+
+    result = manager.detect()
+
+    assert called["get"] is False
+    assert result["installed"] is False
+    assert result["cache_available"] is True
+    assert result["detected"] is True
+    assert "缓存" in result["detection_note"]
+
+
+def test_ffmpeg_detect_prefers_managed_copy(tmp_path, monkeypatch):
+    from voice.ffmpeg_resources import FFmpegResourceManager
+
+    manager = FFmpegResourceManager(tmp_path)
+    managed = tmp_path / "runtime" / "ffmpeg"
+    managed.mkdir(parents=True)
+    binary = managed / "ffmpeg.exe"
+    binary.write_text("managed", encoding="ascii")
+    monkeypatch.setattr(manager, "_probe", lambda path: bool(path) and Path(path).is_file())
+
+    result = manager.detect()
+
+    assert result["installed"] is True
+    assert result["detection_source"] == "managed"
+    assert "托管" in result["detection_note"]

@@ -100,11 +100,28 @@ def _gpt_sovits_status(request: Request) -> dict[str, Any]:
         "service_running": service_running,
         "missing": missing,
         "next_action": next_action,
-        "error": installation.get("error") or service.get("error") or "",
+        "error": _gpt_sovits_error(installation, service, installed=installed),
         "installing": bool(installation.get("installing", False)),
         # A configured external installation is the adapter's source of truth.
         "install_dir": service.get("install_dir") or installation.get("install_dir"),
     }
+
+
+def _is_unconfigured_error(error: str) -> bool:
+    return "未配置" in (error or "")
+
+
+def _gpt_sovits_error(installation: dict[str, Any], service: dict[str, Any], *, installed: bool) -> str:
+    """Probe unconfigured-install-dir messages are status hints, not install failures."""
+    install_error = str(installation.get("error") or "").strip()
+    service_error = str(service.get("error") or "").strip()
+    if installation.get("installing"):
+        return "" if _is_unconfigured_error(install_error) else install_error
+    if install_error and not _is_unconfigured_error(install_error):
+        return install_error
+    if installed and service_error and not _is_unconfigured_error(service_error):
+        return service_error
+    return ""
 
 
 def _resource_status(request: Request, provider_id: str) -> dict[str, Any]:
@@ -132,7 +149,7 @@ def _task_payload(row: ProviderDownloadTask, status: dict[str, Any] | None = Non
     status_name = row.status
     if live and status.get("installing"):
         status_name = "downloading" if status.get("phase") in {"downloading", "download"} else "installing"
-    elif live and status.get("ready"):
+    elif live and (status.get("installed") or status.get("installation_ready")):
         status_name = "ready"
     phase = status.get("phase", row.phase) if live else row.phase
     current_file = status.get("current_file", telemetry.get("current_file", "")) if live else telemetry.get("current_file", "")
@@ -165,20 +182,30 @@ def _sync_task(request: Request, row: ProviderDownloadTask) -> dict[str, Any]:
         progress = value.get("progress_percent", value.get("progress"))
         if progress is not None:
             row.progress = max(0, min(100, int(progress)))
-        if value.get("error"):
-            row.error = str(value["error"])
-            row.status = "failed"
-            row.phase = "failed"
-            row.detail = str(value.get("detail") or value.get("message") or "资源安装失败")
-            row.finished_at = datetime.now(timezone.utc)
-        elif value.get("ready") and not value.get("installing"):
+        installing = bool(value.get("installing"))
+        installed = bool(value.get("installed") or value.get("installation_ready"))
+        phase = str(value.get("phase") or row.phase or "")
+        error = str(value.get("error") or "").strip()
+        if installing:
+            row.phase = phase or row.phase
+            row.detail = str(value.get("current_file") or value.get("message") or value.get("detail") or row.detail)
+        elif installed:
             row.status = "ready"
             row.phase = "done"
             row.progress = 100
+            row.detail = str(value.get("current_file") or value.get("message") or "资源已安装")
+            row.finished_at = datetime.now(timezone.utc)
+        elif phase in {"error", "failed"} or (error and not _is_unconfigured_error(error)):
+            row.error = error or row.error
+            row.status = "failed"
+            row.phase = "failed"
+            row.detail = str(value.get("detail") or value.get("message") or error or "资源安装失败")
             row.finished_at = datetime.now(timezone.utc)
         else:
-            row.phase = str(value.get("phase") or row.phase)
-        row.detail = str(value.get("current_file") or value.get("message") or row.detail)
+            row.status = "interrupted"
+            row.phase = "interrupted"
+            row.detail = error or str(value.get("detail") or "安装过程已中断")
+            row.finished_at = datetime.now(timezone.utc)
         # Keep the most recent byte/speed telemetry in the task JSON.  This makes
         # completed history useful while live fields still come from the manager.
         parameters = dict(row.parameters_json or {})
@@ -214,7 +241,10 @@ def _install(request: Request, provider_id: str, payload: dict[str, Any] | None 
     try:
         if provider_id in {"embedding", "reranker"}:
             current = _status(resource)
-            resource.start_install(payload.get("model_id") or current.get("model_id", ""), payload.get("source", current.get("source", "modelscope")), payload.get("device", current.get("device", "auto")))
+            requested = str(payload.get("model_id") or current.get("model_id") or "")
+            resolver = getattr(resource, "resolve_install_model_id", None)
+            model_id = resolver(requested) if callable(resolver) else requested
+            resource.start_install(model_id, payload.get("source", current.get("source", "modelscope")), payload.get("device", current.get("device", "auto")))
         elif provider_id == "gpt_sovits":
             current = _resource_status(request, provider_id)
             url = payload.get("url") or current.get("download_url")

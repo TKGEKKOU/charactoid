@@ -132,7 +132,7 @@ class GPTSoVITSInstallManager:
             "service_running": False,
             "missing": list(probe.missing),
             "next_action": next_action,
-            "error": snapshot["error"] or probe.error,
+            "error": snapshot["error"],
             "install_dir": str(self.install_dir),
             "patches_dir": str(self.patches_dir) if self.patches_dir.is_dir() else "",
             "external_configured": bool(self.config.values()["install_dir"]),
@@ -193,7 +193,13 @@ class GPTSoVITSInstallManager:
             filename = Path(urlsplit(url).path).name or "gpt-sovits.zip"
             archive = self.download_dir / filename
             self.state.set_progress("download", filename, 0, 0, detail="准备下载…")
-            candidates = [url]
+            candidates = []
+            if "huggingface.co" in url:
+                mirror = url.replace("://huggingface.co", "://hf-mirror.com")
+                if mirror not in candidates:
+                    candidates.append(mirror)
+            if url not in candidates:
+                candidates.append(url)
             for fallback in os.getenv("CHARACTOID_GPT_SOVITS_FALLBACK_URLS", "").split(","):
                 fallback = fallback.strip()
                 if fallback and fallback not in candidates:

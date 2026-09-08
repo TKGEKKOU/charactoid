@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from voice.resource_directory import open_resource_directory
+from ingestion.local_embedding.resources import SNAPSHOT_SCRIPT, download_env
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,20 @@ class STTResourceManager:
     def status(self) -> dict:
         values = self.config()
         resources = self.resolve()
+        elapsed = time.monotonic() - self._started_at if self._started_at else 0
+        phase_progress = {"preparing": 5, "runtime": 20, "model": 55, "ffmpeg": 88, "complete": 100}
+        if self._phase == "complete" or (resources.ready and not self._installing):
+            progress = 100 if resources.ready else None
+        elif self._installing:
+            progress = phase_progress.get(self._phase, 5)
+        else:
+            progress = None
+        if self._phase == "model":
+            current_file = "Qwen/Qwen3-ASR-0.6B"
+        elif self._phase == "ffmpeg":
+            current_file = "ffmpeg"
+        else:
+            current_file = ""
         return {
             **values,
             "installed": resources.ready,
@@ -103,15 +118,16 @@ class STTResourceManager:
             "installing": self._installing,
             "cancelling": self._installing and self._cancel_requested.is_set(),
             "phase": self._phase,
-            "current_file": "Qwen/Qwen3-ASR-0.6B" if self._phase == "model" else "",
-            "progress_percent": None,
+            "current_file": current_file,
+            "progress_percent": progress,
             "downloaded_bytes": 0,
             "total_bytes": 0,
             "download_speed_bytes": 0,
             "eta_seconds": None,
-            "elapsed_seconds": round(time.monotonic() - self._started_at) if self._started_at else 0,
+            "elapsed_seconds": round(elapsed),
             "source": "modelscope",
             "error": self._error,
+            "model_id": "Qwen/Qwen3-ASR-0.6B",
             "resolved_python": str(resources.python or ""),
             "resolved_model": str(resources.model or ""),
             "resolved_ffmpeg": str(resources.ffmpeg or ""),
@@ -144,6 +160,11 @@ class STTResourceManager:
     def _run(self, command: list[str], **options) -> subprocess.CompletedProcess:
         if self._cancel_requested.is_set():
             raise RuntimeError("STT 安装已取消")
+        options.setdefault("stdout", subprocess.PIPE)
+        options.setdefault("stderr", subprocess.PIPE)
+        options.setdefault("text", True)
+        options.setdefault("encoding", "utf-8")
+        options.setdefault("errors", "replace")
         process = subprocess.Popen(command, **options)
         with self._lock:
             self._process = process
@@ -209,18 +230,11 @@ class STTResourceManager:
                     detail = fallback_error.stderr or domestic_error.stderr or "pip install failed"
                     raise RuntimeError(detail[-2000:]) from fallback_error
             model_id = os.getenv("CHARACTOID_STT_MODEL_ID", os.getenv("CHARACTOID_ASR_MODEL_ID", "Qwen/Qwen3-ASR-0.6B"))
-            script = (
-                "model_id=%r; target=%r; "
-                "try:\n from modelscope import snapshot_download; snapshot_download(model_id, local_dir=target)\n"
-                "except Exception:\n from huggingface_hub import snapshot_download; snapshot_download(repo_id=model_id, local_dir=target)\n"
-            ) % (model_id, str(self.managed_model))
-            download_env = os.environ.copy()
-            download_env["MODELSCOPE_CACHE"] = str(self.project_root / "runtime" / "modelscope-cache")
             self._phase = "model"
             self._run(
-                [str(self.runtime_python), "-c", script],
+                [str(self.runtime_python), "-c", SNAPSHOT_SCRIPT % (model_id, str(self.managed_model), "modelscope")],
                 cwd=self.project_root,
-                env=download_env,
+                env=download_env(self.project_root),
             )
             self.managed_ffmpeg.parent.mkdir(parents=True, exist_ok=True)
             ffmpeg_script = (
@@ -230,12 +244,15 @@ class STTResourceManager:
             self._phase = "ffmpeg"
             self._run([str(self.runtime_python), "-c", ffmpeg_script], cwd=self.project_root)
             self._phase = "complete"
-        except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+        except Exception as exc:
             if self._cancel_requested.is_set():
                 self._error = ""
                 self._phase = "idle"
             else:
-                self._error = str(exc)
+                if isinstance(exc, subprocess.CalledProcessError):
+                    self._error = str(exc.stderr or exc.stdout or exc)[-2000:]
+                else:
+                    self._error = str(exc)
                 self._phase = "error"
         finally:
             self._installing = False

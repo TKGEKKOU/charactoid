@@ -24,7 +24,7 @@ def test_bailian_compatible_reranker_posts_qwen_payload_and_parses_scores(monkey
     )
     try:
         assert reranker.score_pairs("query", ["doc-a", "doc-b"]) == [0.12, 0.91]
-        assert requests[0].url.path.endswith("/compatible-mode/v1/reranks")
+        assert requests[0].url.path.endswith("/compatible-api/v1/reranks")
         assert json.loads(requests[0].content) == {
             "model": "qwen3-rerank",
             "query": "query",
@@ -63,5 +63,40 @@ def test_build_reranker_selects_bailian_from_runtime_settings(tmp_path):
     reranker = build_reranker(settings, client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"results": []}))))
     try:
         assert isinstance(reranker, BailianReranker)
+    finally:
+        reranker.close()
+
+
+def test_qwen3_compatible_mode_url_rewrites_to_compatible_api():
+    url = BailianReranker.resolve_url("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3-rerank")
+    assert url.endswith("/compatible-api/v1/reranks")
+
+
+def test_gte_rerank_compatible_mode_url_uses_native_endpoint():
+    url = BailianReranker.resolve_url("https://dashscope.aliyuncs.com/compatible-mode/v1", "gte-rerank")
+    assert url == BailianReranker.DEFAULT_NATIVE_URL
+
+
+def test_bailian_http_error_includes_response_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(404, text='{"code":"InvalidURL","message":"url error"}')
+
+    reranker = BailianReranker(
+        api_key="key",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        model="qwen3-rerank",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    try:
+        try:
+            reranker.score_pairs("q", ["d"])
+            raise AssertionError("expected RerankerRuntimeError")
+        except Exception as exc:
+            from rag.reranker_runtime import RerankerRuntimeError
+            assert isinstance(exc, RerankerRuntimeError)
+            message = str(exc)
+            assert "404" in message
+            assert "InvalidURL" in message
     finally:
         reranker.close()

@@ -83,3 +83,30 @@ def test_auto_without_nvidia_uses_cpu_runtime(tmp_path: Path, monkeypatch):
     manager._install_runtime("auto")
 
     assert commands[0][-1].endswith("requirements-local-cpu.txt")
+
+
+def test_resolve_local_model_id_ignores_cloud_api_names():
+    from ingestion.local_embedding.resources import resolve_local_model_id
+    from settings import DEFAULT_LOCAL_EMBEDDING_MODEL
+
+    assert resolve_local_model_id("text-embedding-v3") == DEFAULT_LOCAL_EMBEDDING_MODEL
+    assert resolve_local_model_id("gte-rerank") == DEFAULT_LOCAL_EMBEDDING_MODEL
+    assert resolve_local_model_id("Qwen/Qwen3-Embedding-0.6B") == "Qwen/Qwen3-Embedding-0.6B"
+
+
+def test_start_install_does_not_call_configure(tmp_path, monkeypatch):
+    manager = LocalEmbeddingResourceManager(tmp_path)
+    called = []
+    monkeypatch.setattr(manager, "configure", lambda *args, **kwargs: called.append((args, kwargs)))
+
+    class FakeThread:
+        def __init__(self, target=None, args=(), kwargs=None, daemon=None, name=None):
+            del target, args, kwargs, daemon, name
+
+        def start(self):
+            return None
+
+    monkeypatch.setattr("ingestion.local_embedding.resources.threading.Thread", FakeThread)
+    assert manager.start_install("text-embedding-v3", "modelscope", "cpu") is True
+    assert manager._install_model_id == "Qwen/Qwen3-Embedding-0.6B"
+    assert called == []

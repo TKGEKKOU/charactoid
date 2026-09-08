@@ -103,19 +103,23 @@ def test_install_model_uses_snapshot_script_and_hf_mirror(tmp_path, monkeypatch)
     manager = ASRResourceManager(tmp_path)
     manager.runtime_python.parent.mkdir(parents=True)
     manager.runtime_python.write_text("python", encoding="ascii")
-    commands = []
+    captured = {}
 
     def fake_run(command, **kwargs):
-        commands.append((list(command), kwargs.get("env")))
         return asr_install.subprocess.CompletedProcess(command, 0, "", "")
 
+    def fake_snapshot(**kwargs):
+        captured.update(kwargs)
+        return "modelscope"
+
     monkeypatch.setattr(manager, "_run", fake_run)
+    monkeypatch.setattr(asr_install, "run_model_snapshot", fake_snapshot)
     manager._install()
-    snapshot = next(item for item in commands if len(item[0]) >= 3 and item[0][1] == "-c" and "imageio_ffmpeg" not in item[0][2])
-    assert "snapshot_download" in snapshot[0][2]
-    assert snapshot[1] is not None
-    assert snapshot[1].get("HF_ENDPOINT") or snapshot[1].get("CHARACTOID_HF_ENDPOINT")
-    assert "MODELSCOPE_CACHE" in snapshot[1]
+    assert captured["model_id"]
+    assert captured["primary"] == "modelscope"
+    assert captured["env"].get("HF_ENDPOINT") or captured["env"].get("CHARACTOID_HF_ENDPOINT")
+    assert "MODELSCOPE_CACHE" in captured["env"]
+    assert captured["python"] == manager.runtime_python
 
 
 def test_install_progress_uses_phase_percent(tmp_path):

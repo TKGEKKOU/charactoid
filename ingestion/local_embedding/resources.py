@@ -11,39 +11,12 @@ import threading
 import time
 from pathlib import Path
 
+from ingestion.model_snapshot import SNAPSHOT_SCRIPT, SnapshotCancelled, kill_process, run_model_snapshot, runtime_lock
 from settings import DEFAULT_LOCAL_EMBEDDING_MODEL, Settings
 from voice.resource_directory import open_resource_directory
 
 
 MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$")
-SNAPSHOT_SCRIPT = """
-import traceback
-model_id = %r
-target = %r
-primary = %r
-last = None
-
-def _modelscope():
-    from modelscope import snapshot_download
-    snapshot_download(model_id, local_dir=target)
-
-def _huggingface():
-    from huggingface_hub import snapshot_download
-    snapshot_download(repo_id=model_id, local_dir=target)
-
-order = (_modelscope, _huggingface) if primary == "modelscope" else (_huggingface, _modelscope)
-for download in order:
-    try:
-        download()
-        break
-    except Exception as exc:
-        last = exc
-        traceback.print_exc()
-else:
-    raise last
-"""
-
-
 class EmbeddingInstallCancelled(RuntimeError):
     pass
 
@@ -225,7 +198,7 @@ class LocalEmbeddingResourceManager:
             self._phase = "cancelling"
             process = self._process
         if process and process.poll() is None:
-            process.terminate()
+            kill_process(process)
         return True
 
     def _run(self, command: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
@@ -263,6 +236,10 @@ class LocalEmbeddingResourceManager:
             return "cpu"
 
     def _install_runtime(self, device: str = "cuda") -> None:
+        with runtime_lock(self.runtime_dir):
+            self._install_runtime_locked(device)
+
+    def _install_runtime_locked(self, device: str = "cuda") -> None:
         self._phase = "runtime"
         actual = self._effective_device(device)
         requirements = self.requirements if actual == "cuda" else self.cpu_requirements
@@ -299,8 +276,27 @@ class LocalEmbeddingResourceManager:
             self._phase = "model"
             self._current_file = model_id
             directory.mkdir(parents=True, exist_ok=True)
-            code = SNAPSHOT_SCRIPT % (model_id, str(directory), source)
-            self._run([str(self.runtime_python), "-c", code], env=download_env(self.project_root))
+
+            def _set_process(process):
+                with self._lock:
+                    self._process = process
+
+            def _on_progress(src, nbytes, elapsed):
+                mb = nbytes / (1024 * 1024)
+                self._current_file = f"{src} · {mb:.1f} MB"
+
+            used = run_model_snapshot(
+                python=self.runtime_python,
+                model_id=model_id,
+                target=directory,
+                primary=source,
+                env=download_env(self.project_root),
+                cwd=self.project_root,
+                cancel_event=self._cancel_requested,
+                set_process=_set_process,
+                on_progress=_on_progress,
+            )
+            self._current_file = f"{used} · {model_id}"
             self._phase = "loading"
             probe = self._run([str(self.runtime_python), str(self.worker_script), "--probe", str(directory), device])
             result = json.loads(probe.stdout.strip().splitlines()[-1])
@@ -326,7 +322,7 @@ class LocalEmbeddingResourceManager:
                 temporary.write_text(json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
                 os.replace(temporary, self.local_settings_path)
             self._phase = "complete"
-        except EmbeddingInstallCancelled:
+        except (EmbeddingInstallCancelled, SnapshotCancelled):
             self._error = ""
             self._phase = "idle"
         except Exception as exc:

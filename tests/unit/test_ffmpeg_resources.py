@@ -89,3 +89,24 @@ def test_ffmpeg_detect_prefers_managed_copy(tmp_path, monkeypatch):
     assert result["installed"] is True
     assert result["detection_source"] == "managed"
     assert "托管" in result["detection_note"]
+
+
+def test_ffmpeg_start_install_does_not_block(tmp_path, monkeypatch):
+    from voice.ffmpeg_resources import FFmpegResourceManager
+    import time
+
+    manager = FFmpegResourceManager(tmp_path)
+    started = time.monotonic()
+
+    def slow_copy():
+        time.sleep(0.4)
+
+    monkeypatch.setattr(manager, "_copy_binary", slow_copy)
+    assert manager.start_install() is True
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.3
+    assert manager.installing is True
+    deadline = time.monotonic() + 2
+    while manager.installing and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert manager.installing is False

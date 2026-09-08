@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from voice.resource_directory import open_resource_directory
-from ingestion.local_embedding.resources import SNAPSHOT_SCRIPT, download_env
+from ingestion.local_embedding.resources import download_env
+from ingestion.model_snapshot import SnapshotCancelled, kill_process, run_model_snapshot
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class STTResourceManager:
         self._phase = "idle"
         self._started_at: float | None = None
         self._error = ""
+        self._current_file = ""
         self._lock = threading.Lock()
 
     @property
@@ -105,11 +107,11 @@ class STTResourceManager:
         else:
             progress = None
         if self._phase == "model":
-            current_file = "Qwen/Qwen3-ASR-0.6B"
+            current_file = self._current_file or "Qwen/Qwen3-ASR-0.6B"
         elif self._phase == "ffmpeg":
             current_file = "ffmpeg"
         else:
-            current_file = ""
+            current_file = self._current_file
         return {
             **values,
             "installed": resources.ready,
@@ -154,7 +156,7 @@ class STTResourceManager:
             self._phase = "cancelling"
             process = self._process
         if process and process.poll() is None:
-            process.terminate()
+            kill_process(process)
         return True
 
     def _run(self, command: list[str], **options) -> subprocess.CompletedProcess:
@@ -231,10 +233,26 @@ class STTResourceManager:
                     raise RuntimeError(detail[-2000:]) from fallback_error
             model_id = os.getenv("CHARACTOID_STT_MODEL_ID", os.getenv("CHARACTOID_ASR_MODEL_ID", "Qwen/Qwen3-ASR-0.6B"))
             self._phase = "model"
-            self._run(
-                [str(self.runtime_python), "-c", SNAPSHOT_SCRIPT % (model_id, str(self.managed_model), "modelscope")],
-                cwd=self.project_root,
+
+            def _set_process(process):
+                with self._lock:
+                    self._process = process
+
+            def _on_progress(src, nbytes, elapsed):
+                mb = nbytes / (1024 * 1024)
+                self._current_file = f"{src} · {mb:.1f} MB"
+
+            self._current_file = model_id
+            run_model_snapshot(
+                python=self.runtime_python,
+                model_id=model_id,
+                target=self.managed_model,
+                primary="modelscope",
                 env=download_env(self.project_root),
+                cwd=self.project_root,
+                cancel_event=self._cancel_requested,
+                set_process=_set_process,
+                on_progress=_on_progress,
             )
             self.managed_ffmpeg.parent.mkdir(parents=True, exist_ok=True)
             ffmpeg_script = (
@@ -244,6 +262,9 @@ class STTResourceManager:
             self._phase = "ffmpeg"
             self._run([str(self.runtime_python), "-c", ffmpeg_script], cwd=self.project_root)
             self._phase = "complete"
+        except SnapshotCancelled:
+            self._error = ""
+            self._phase = "idle"
         except Exception as exc:
             if self._cancel_requested.is_set():
                 self._error = ""

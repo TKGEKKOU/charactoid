@@ -68,3 +68,8 @@ runtime/rvc/runtime-ready.json
 # Local AI process/handoff docs (do not publish)
 AI_RELEASE_GUIDE.md
 CHARACTOID_PROJECT_HANDOFF.md
+
+docs/plans/
+docs/archive/RESUME_*.md
+tmp4*/
+tmpxgc*/

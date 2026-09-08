@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 
@@ -69,6 +70,7 @@ class FFmpegResourceManager:
         self.binary = self.root / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
         self.error = ""
         self.installing = False
+        self._lock = threading.Lock()
 
     def _probe(self, path: Path | str | None) -> bool:
         return _probe_ffmpeg(path)
@@ -114,11 +116,7 @@ class FFmpegResourceManager:
         status["detection_note"] = note
         return status
 
-    def install(self) -> dict:
-        if self.installing:
-            return self.status()
-        self.installing = True
-        self.error = ""
+    def _copy_binary(self) -> None:
         temporary = self.binary.with_suffix(self.binary.suffix + ".part")
         try:
             try:
@@ -135,12 +133,41 @@ class FFmpegResourceManager:
             if not self._probe(temporary):
                 raise RuntimeError("下载得到的文件不是可执行的 FFmpeg，可能是下载不完整或缓存损坏")
             temporary.replace(self.binary)
-        except Exception as exc:
+        except Exception:
             temporary.unlink(missing_ok=True)
+            raise
+
+    def install(self) -> dict:
+        with self._lock:
+            if self.installing:
+                return self.status()
+            self.installing = True
+            self.error = ""
+        try:
+            self._copy_binary()
+        except Exception as exc:
             self.error = str(exc)
         finally:
             self.installing = False
         return self.status()
+
+    def start_install(self) -> bool:
+        with self._lock:
+            if self.installing:
+                return False
+            self.installing = True
+            self.error = ""
+
+        def _worker() -> None:
+            try:
+                self._copy_binary()
+            except Exception as exc:
+                self.error = str(exc)
+            finally:
+                self.installing = False
+
+        threading.Thread(target=_worker, daemon=True, name="ffmpeg-install").start()
+        return True
 
     def remove(self) -> dict:
         self.binary.unlink(missing_ok=True)

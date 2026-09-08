@@ -10,7 +10,8 @@ import threading
 import time
 from pathlib import Path
 
-from ingestion.local_embedding.resources import SNAPSHOT_SCRIPT, download_env, resolve_local_model_id, validate_model_id
+from ingestion.local_embedding.resources import download_env, resolve_local_model_id, validate_model_id
+from ingestion.model_snapshot import SnapshotCancelled, kill_process, run_model_snapshot, runtime_lock
 from settings import DEFAULT_LOCAL_RERANKER_MODEL, Settings
 from voice.resource_directory import open_resource_directory
 
@@ -138,7 +139,7 @@ class LocalRerankerResourceManager:
             self._phase = "cancelling"
             process = self._process
         if process and process.poll() is None:
-            process.terminate()
+            kill_process(process)
         return True
 
     def _run(self, command: list[str], env=None):
@@ -167,6 +168,10 @@ class LocalRerankerResourceManager:
             return "cpu"
 
     def _install_runtime(self, device: str = "cuda") -> None:
+        with runtime_lock(self.runtime_dir):
+            self._install_runtime_locked(device)
+
+    def _install_runtime_locked(self, device: str = "cuda") -> None:
         self._phase = "runtime"
         actual = self._effective_device(device)
         requirements = self.requirements if actual == "cuda" else self.cpu_requirements
@@ -210,15 +215,34 @@ class LocalRerankerResourceManager:
             self._install_runtime(device)
             self._phase = "model"
             directory.mkdir(parents=True, exist_ok=True)
-            code = SNAPSHOT_SCRIPT % (model_id, str(directory), source)
-            self._run([str(self.runtime_python), "-c", code], env=download_env(self.project_root))
+
+            def _set_process(process):
+                with self._lock:
+                    self._process = process
+
+            def _on_progress(src, nbytes, elapsed):
+                mb = nbytes / (1024 * 1024)
+                self._current_file = f"{src} · {mb:.1f} MB"
+
+            used = run_model_snapshot(
+                python=self.runtime_python,
+                model_id=model_id,
+                target=directory,
+                primary=source,
+                env=download_env(self.project_root),
+                cwd=self.project_root,
+                cancel_event=self._cancel_requested,
+                set_process=_set_process,
+                on_progress=_on_progress,
+            )
+            self._current_file = f"{used} · {model_id}"
             self._phase = "loading"
             probe = self._run([str(self.runtime_python), str(self.worker_script), "--probe", str(directory), device])
             result = json.loads(probe.stdout.strip().splitlines()[-1])
             if not result.get("ok"):
                 raise RuntimeError(str(result.get("error") or "Reranker probe failed"))
             self._phase = "complete"
-        except RerankerInstallCancelled:
+        except (RerankerInstallCancelled, SnapshotCancelled):
             self._error, self._phase = "", "idle"
         except Exception as exc:
             self._error, self._phase = str(exc), "error"

@@ -99,16 +99,13 @@ def _seed_knowledge(session: Session, persona: Persona) -> None:
             )
         )
     }
-    try:
-        from ingestion.indexer import ingest_markdown_file
-        from ingestion.markdown_parser import DocumentScope
-    except Exception:
-        ingest_markdown_file = None
-        DocumentScope = None
+    # 启动时只写入资料任务，避免在 lifespan 里抢 Milvus 锁导致整段 seed 失败。
     for path in sorted(knowledge_dir.glob("*.md")):
+        if path.name in existing:
+            continue
         text = path.read_text(encoding="utf-8")
-        if path.name not in existing:
-            job = DocumentJob(
+        session.add(
+            DocumentJob(
                 workspace_id=persona.workspace_id,
                 knowledge_space_id=persona.knowledge_space_id,
                 original_filename=path.name,
@@ -119,24 +116,7 @@ def _seed_knowledge(session: Session, persona: Persona) -> None:
                 status="preview_ready",
                 document_type="markdown",
             )
-            session.add(job)
-            session.flush()
-            document_id = job.document_id
-        else:
-            document_id = f"guide-{path.stem}"
-        if ingest_markdown_file is None:
-            continue
-        try:
-            ingest_markdown_file(
-                path,
-                DocumentScope(
-                    workspace_id=persona.workspace_id,
-                    knowledge_space_id=persona.knowledge_space_id,
-                    document_id=document_id,
-                ),
-            )
-        except Exception as exc:
-            logger.info("guide knowledge %s not indexed: %s", path.name, exc)
+        )
 
 
 def ensure_guide_persona(session: Session) -> Persona:

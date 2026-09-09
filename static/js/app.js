@@ -23,7 +23,6 @@ const LEGACY_TAB_ALIASES = {
   "voice-service": "voice-gpt-sovits", "voice-asset": "voice-gpt-sovits", "voice-library": "voice-gpt-sovits",
   "knowledge-documents": "knowledge-overview", "knowledge-space": "knowledge-overview", "knowledge-retrieval": "knowledge-overview",
   "integration-overview": "integration-qq",
-  "capabilities-overview": "capabilities-skills",
   "capabilities-tools": "capabilities-tools",
   "capabilities-catalog": "capabilities-catalog",
   "system-runtime": "system-overview", "system-storage": "system-overview",
@@ -33,7 +32,7 @@ const TAB_VIEW_ALIASES = {
   "voice-gpt-sovits": "voice", "voice-service": "voice", "voice-asset": "voice", "voice-rvc": "voice", "voice-library": "voice",
   "knowledge-overview": "knowledge", "knowledge-documents": "knowledge", "knowledge-space": "knowledge", "knowledge-retrieval": "knowledge", "knowledge-eval": "knowledge",
   "integration-overview": "integrations", "integration-bili": "integrations", "integration-qq": "integrations",
-  "capabilities": "capabilities", "capabilities-overview": "capabilities", "capabilities-skills": "capabilities", "capabilities-mcp": "capabilities", "capabilities-tools": "capabilities", "capabilities-catalog": "capabilities", "capabilities-catalog": "capabilities",
+  "capabilities": "capabilities", "capabilities-overview": "capabilities", "capabilities-assign": "capabilities", "capabilities-skills": "capabilities", "capabilities-mcp": "capabilities", "capabilities-tools": "capabilities", "capabilities-catalog": "capabilities", "capabilities-catalog": "capabilities",
   "system-overview": "system", "system-runtime": "system", "system-providers": "system", "system-storage": "system",
 };
 
@@ -114,6 +113,26 @@ let currentView = null;
 })();
 
 function bindShellEvents() {
+  const sidebar = document.querySelector(".site-sidebar");
+  let hideTimer = 0;
+  const openSidebar = () => {
+    window.clearTimeout(hideTimer);
+    sidebar?.classList.add("is-open");
+  };
+  const closeSidebar = () => {
+    if (document.body.classList.contains("sidebar-pinned")) return;
+    sidebar?.classList.remove("is-open");
+  };
+  const scheduleClose = () => {
+    window.clearTimeout(hideTimer);
+    hideTimer = window.setTimeout(closeSidebar, 80);
+  };
+  sidebar?.addEventListener("pointerenter", openSidebar);
+  sidebar?.addEventListener("pointerleave", scheduleClose);
+  sidebar?.addEventListener("focusin", openSidebar);
+  sidebar?.addEventListener("focusout", (event) => {
+    if (!sidebar.contains(event.relatedTarget)) scheduleClose();
+  });
   $("sidebar-toggle").addEventListener("click", () => setSidebarPinned(!document.body.classList.contains("sidebar-pinned")));
   $("settings-confirm-cancel").addEventListener("click", () => $("settings-confirm-dialog").close());
   $("settings-confirm-submit").addEventListener("click", confirmSettingsAction);
@@ -155,7 +174,11 @@ function bindShellEvents() {
 
 function setSidebarPinned(pinned) {
   document.body.classList.toggle("sidebar-pinned", pinned);
-  $("sidebar-toggle").setAttribute("aria-pressed", String(pinned));
+  document.querySelector(".site-sidebar")?.classList.toggle("is-open", pinned);
+  const toggle = $("sidebar-toggle");
+  toggle.setAttribute("aria-pressed", String(pinned));
+  toggle.setAttribute("aria-label", pinned ? "取消固定侧边栏" : "固定侧边栏");
+  toggle.title = pinned ? "取消固定，移开后收起" : "固定侧边栏";
 }
 
 function applyWorkbenchTab(workbench, target) {
@@ -225,7 +248,9 @@ function reportViewError(error) {
 }
 
 async function switchView(view, tabTarget = null) {
+  const requested = view;
   view = VIEW_ALIASES[view] || view;
+  tabTarget = tabTarget || VIEW_TAB_ALIASES[requested] || tabTarget;
   const entry = MODULES[view];
   if (!entry) return false;
   const switchEpoch = ++viewSwitchEpoch;

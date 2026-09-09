@@ -96,6 +96,7 @@ function buildPersonaCapabilityChains({ skills = [], servers = [], tools = [], o
 }
 
 function initCreatePage() {
+  showCreateStep("upload");
   bindCreateEvents();
   setupCreateDropZone();
   bindPreviewClose();
@@ -308,20 +309,24 @@ async function uploadDraft(event) {
     state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`));
     renderDraft();
     showCreateStep("confirm");
-  } catch (reason) { setText("upload-error", reason); setText("create-status", "失败"); showCreateStep(""); }
+  } catch (reason) { setText("upload-error", reason); setText("create-status", "失败"); showCreateStep("upload"); }
   finally { submit.disabled = false; setBatchBusy(false); }
 }
 function showCreateStep(step) {
   const rail = $("create-steps");
-  if (!rail) return;
-  if (!step) { rail.classList.add("is-hidden"); return; }
-  rail.classList.remove("is-hidden");
-  const active = CREATE_STEP_ORDER.indexOf(step);
-  rail.querySelectorAll("li").forEach((li) => {
-    const index = CREATE_STEP_ORDER.indexOf(li.dataset.step);
-    li.classList.toggle("is-active", index === active);
-    li.classList.toggle("is-complete", index < active);
-  });
+  const resolved = CREATE_STEP_ORDER.includes(step) ? step : "upload";
+  if (rail) {
+    rail.classList.remove("is-hidden");
+    const active = CREATE_STEP_ORDER.indexOf(resolved);
+    rail.querySelectorAll("li").forEach((li) => {
+      const index = CREATE_STEP_ORDER.indexOf(li.dataset.step);
+      li.classList.toggle("is-active", index === active);
+      li.classList.toggle("is-complete", index < active);
+    });
+  }
+  $("batch-form")?.classList.toggle("is-hidden", resolved !== "upload");
+  $("draft-analyzing")?.classList.toggle("is-hidden", resolved !== "analyze");
+  $("draft-editor")?.classList.toggle("is-hidden", resolved !== "confirm");
 }
 function setBatchBusy(busy) {
   $("batch-form").querySelectorAll("input, textarea").forEach((element) => { element.disabled = busy; });
@@ -350,6 +355,10 @@ function renderDraft() {
 }
 function renderCandidates() {
   const candidates = state.draft.candidates || [];
+  if (state.draft.persona_type === "character" && candidates.length && !state.draft.selected_candidate_id) {
+    selectCandidate(candidates[0].id);
+    return;
+  }
   $("candidate-picker").classList.toggle("is-hidden", !candidates.length);
   $("candidate-list").replaceChildren();
   for (const candidate of candidates) {
@@ -360,7 +369,7 @@ function renderCandidates() {
     const description = document.createElement("span"); description.textContent = candidate.profile?.description || "";
     button.append(name, description); button.addEventListener("click", () => selectCandidate(candidate.id)); $("candidate-list").append(button);
   }
-  $("confirm-draft").disabled = state.draft.persona_type === "character" && !state.draft.selected_candidate_id;
+  $("confirm-draft").disabled = state.draft.persona_type === "character" && candidates.length > 0 && !state.draft.selected_candidate_id;
 }
 function renderDocuments(container, documents, allowRetry = false, allowDelete = false) {
   container.replaceChildren();
@@ -458,7 +467,7 @@ function resetDraft() {
   setText("create-status", "待开始");
   $("draft-editor").classList.add("is-hidden");
   $("draft-analyzing").classList.add("is-hidden");
-  showCreateStep("");
+  showCreateStep("upload");
   summarizeFiles("document-files", "file-summary", "未选择文件");
   setText("upload-error");
 }

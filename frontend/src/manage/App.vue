@@ -16,6 +16,7 @@ const layoutEpoch = ref(0);
 const uploadCompleteToken = ref(0);
 const versionPanelOpen = ref(false);
 const busy = computed(() => workbench.isSaving.value || workbench.operationPending.value);
+const isBuiltinPersona = computed(() => Boolean((workbench.draft.value?.persona.profile as any)?.builtin || (workbench.draft.value?.persona.profile as any)?.guide));
 const fullGraph = computed(() => workbench.draft.value ? buildRoleGraph(workbench.draft.value) : { nodes: [], edges: [] });
 const graph = computed(() => { layoutEpoch.value; return layoutRoleGraph(projectRoleGraph(fullGraph.value, workbench.selectedNodeId.value)); });
 const selectedNode = computed(() => fullGraph.value.nodes.find((node) => node.id === workbench.selectedNodeId.value));
@@ -46,6 +47,7 @@ function toggleVersionPanel() {
 function closeVersionPanel() { versionPanelOpen.value = false; }
 async function onVersionChanged() { await workbench.refreshIfClean(); }
 async function deleteCurrentPersona() {
+  if (isBuiltinPersona.value) return;
   const name = workbench.draft.value?.persona.name;
   if (!name || !window.confirm(`永久删除“${name}”及其资料、记忆、向量和对话？此操作无法恢复。`)) return;
   await workbench.removeCurrentPersona();
@@ -102,7 +104,7 @@ onBeforeUnmount(() => { window.removeEventListener("beforeunload", beforeUnload)
         <div v-else-if="!workbench.personas.value.length" class="workbench-empty"><strong>还没有角色</strong><p>先在“创建角色”页面建立角色。</p></div>
         <RoleGraphCanvas v-else :graph="graph" :selected-node-id="workbench.selectedNodeId.value" @select="workbench.selectNode" @toggle="toggleCapability" @reset="layoutEpoch++"/>
       </main>
-      <NodeInspector v-if="workbench.draft.value" :node="selectedNode" :draft="workbench.draft.value" :disabled="busy" :upload-complete-token="uploadCompleteToken" @profile="workbench.updateProfile" @capability="workbench.setCapability" @server="workbench.setServer" @upload="handleUpload" @delete-document="deleteKnowledgeDocument" @retry-document="workbench.reindexDocument" @delete-persona="deleteCurrentPersona" @preview-voice="previewVoice" @open-voice-studio="openVoiceStudio" @open-rag-eval="openRagEval" @preview-document="previewDocument" @preview-local-file="previewLocalFile" @refresh-live2d="workbench.refreshLive2dResources" @open-live2d-directory="workbench.openLive2dDirectory"/>
+      <NodeInspector v-if="workbench.draft.value" :node="selectedNode" :draft="workbench.draft.value" :disabled="busy" :upload-complete-token="uploadCompleteToken" @profile="workbench.updateProfile" @capability="workbench.setCapability" @server="workbench.setServer" @upload="handleUpload" @delete-document="deleteKnowledgeDocument" @retry-document="workbench.reindexDocument" :can-delete="!isBuiltinPersona" @delete-persona="deleteCurrentPersona" @preview-voice="previewVoice" @open-voice-studio="openVoiceStudio" @open-rag-eval="openRagEval" @preview-document="previewDocument" @preview-local-file="previewLocalFile" @refresh-live2d="workbench.refreshLive2dResources" @open-live2d-directory="workbench.openLive2dDirectory"/>
     </div>
     <VersionPanel v-if="versionPanelOpen && workbench.draft.value" :persona-id="workbench.draft.value.persona.id" :persona-name="workbench.draft.value.persona.name" :disabled="busy || workbench.isDirty.value" @close="closeVersionPanel" @changed="onVersionChanged"/>
   </div>

@@ -10,16 +10,17 @@
 }
 
 .role-workbench {
-  --wb-ink: #18171a;
-  --wb-muted: #6f6f6f;
-  --wb-line: #d1d1d1;
-  --wb-paper: #f5f5f5;
-  --wb-panel: #fff;
-  --wb-cyan: #00afec;
+  --wb-ink: var(--ink, #18171a);
+  --wb-muted: var(--muted, #6f6f6f);
+  --wb-line: var(--line, #d1d1d1);
+  --wb-paper: var(--bg, #f5f5f5);
+  --wb-panel: var(--surface, #fff);
+  --wb-cyan: var(--primary, #00afec);
   position: relative;
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 56px);
+  height: 100%;
+  min-height: 0;
   color: var(--wb-ink);
   background: var(--wb-paper);
   overflow: hidden;

@@ -1,5 +1,7 @@
 """Centralized resource initialization for FastAPI ``app.state``."""
 
+import logging
+
 from fastapi import FastAPI
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -142,6 +144,12 @@ def initialize_agent_runtime(app: FastAPI, settings: Settings, *, initialize_dat
         app.state.agent_service.attach_runtime(app.state.agent_runtime)
         app.state.voice_studio.attach_runtime(app.state.agent_runtime)
         app.state.voice_studio.sync_recovered_runs(recovered_runs)
+        try:
+            from persona.guide import ensure_guide_persona
+            with app.state.session_factory() as seed_session:
+                ensure_guide_persona(seed_session)
+        except Exception:
+            logging.getLogger(__name__).exception("failed to seed guide persona")
     else:
         app.state.agent_service = PersonaAgentService(MemorySaver())
     app.state.agent_runner = getattr(app.state, "agent_runtime", None) or app.state.agent_service

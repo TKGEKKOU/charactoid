@@ -10,6 +10,7 @@ from agents.registry import capability_catalog
 from agents.skills import list_skills
 from agents.capability_packages import build_capability_packages
 from integrations.mcp.config import GLOBAL_ALL
+from persona.guide import BuiltinPersonaProtected
 from persona.service import LOCAL_WORKSPACE_ID, PersonaNotFound, create_persona
 from settings import Settings
 from rag.retrieval_config import validate_retrieval_config
@@ -50,9 +51,10 @@ def _mcp_manager(request: Request):
 
 
 @router.get("/{persona_id}/mcp-grants")
-def get_mcp_grants(persona_id: str, request: Request) -> dict:
+def get_mcp_grants(persona_id: str, request: Request, session: Session = Depends(get_session)) -> dict:
     """返回角色可用的 MCP 服务器及当前授权状态。"""
 
+    local_persona_or_404(session, persona_id)
     manager = _mcp_manager(request)
     return {
         "persona_id": persona_id,
@@ -73,9 +75,10 @@ def get_mcp_grants(persona_id: str, request: Request) -> dict:
 
 
 @router.put("/{persona_id}/mcp-grants")
-def put_mcp_grants(persona_id: str, request: Request, payload: dict) -> dict:
+def put_mcp_grants(persona_id: str, request: Request, payload: dict, session: Session = Depends(get_session)) -> dict:
     """保存角色授权并即时刷新可见性（无需重启）。"""
 
+    local_persona_or_404(session, persona_id)
     manager = _mcp_manager(request)
     wanted = set(str(name) for name in payload.get("server_names") or [])
     servers = manager.list_configs()
@@ -95,8 +98,13 @@ def put_mcp_grants(persona_id: str, request: Request, payload: dict) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     from agents.mcp_grants import refresh_grants
+    from agents.assignment import sync_mcp_wildcard_policy
+    from agents.policy import CapabilityPolicyStore
 
     refresh_grants()
+    store = CapabilityPolicyStore(request.app.state.session_factory)
+    for server in servers:
+        sync_mcp_wildcard_policy(store, server.name, server.allowed_persona_ids)
     return {"persona_id": persona_id, "server_names": sorted(wanted)}
 
 
@@ -243,6 +251,8 @@ def delete_persona(
         request.app.state.persona_delete_service.delete(session, persona_id)
     except PersonaNotFound as exc:
         raise HTTPException(status_code=404, detail="Persona not found") from exc
+    except BuiltinPersonaProtected as exc:
+        raise HTTPException(status_code=403, detail="内置角色不能删除") from exc
     voice = Settings.load().project_root / "data" / "tts" / "voices" / f"{persona_id}.wav"
     voice.unlink(missing_ok=True)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

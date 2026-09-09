@@ -22,6 +22,7 @@ from app.models import (
 )
 from ingestion.document_jobs import DATA_DIR
 from ingestion.milvus_store import KnowledgeSpaceScope, MilvusRagStore
+from persona.guide import BuiltinPersonaProtected, is_builtin_profile
 from persona.service import LOCAL_WORKSPACE_ID, PersonaNotFound
 from settings import Settings
 from structured_data.service import delete_structured_knowledge_space
@@ -58,6 +59,8 @@ class PersonaDeletionService:
         )
         if persona is None:
             raise PersonaNotFound(persona_id)
+        if is_builtin_profile(persona.profile_json):
+            raise BuiltinPersonaProtected(persona_id)
 
         workspace_id = persona.workspace_id
         knowledge_space_id = persona.knowledge_space_id

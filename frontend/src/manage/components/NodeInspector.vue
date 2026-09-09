@@ -5,7 +5,7 @@ import { plainClone } from "../api";
 import KnowledgeQualityPanel from "./KnowledgeQualityPanel.vue";
 import type { PersonaSummary, RetrievalConfig, RoleGraphNode, WorkbenchSnapshot } from "../types";
 
-const props = defineProps<{ node?: RoleGraphNode; draft: WorkbenchSnapshot; disabled?: boolean; uploadCompleteToken?: number }>();
+const props = defineProps<{ node?: RoleGraphNode; draft: WorkbenchSnapshot; disabled?: boolean; uploadCompleteToken?: number; canDelete?: boolean }>();
 const emit = defineEmits<{ profile: [persona: PersonaSummary]; capability: [id: string, mode: "allow" | "deny" | "inherit"]; server: [name: string, allowed: boolean]; upload: [files: File[], text: string]; deleteDocument: [id: string]; retryDocument: [id: string]; deletePersona: []; previewVoice: []; openVoiceStudio: []; openRagEval: []; previewDocument: [document: Record<string, unknown>]; previewLocalFile: [file: File]; refreshLive2d: []; openLive2dDirectory: [] }>();
 const selectedFiles = ref<File[]>([]);
 const directText = ref("");
@@ -58,7 +58,7 @@ watch(() => props.uploadCompleteToken, () => { selectedFiles.value = []; directT
         </template>
         <small>查询时直接使用这里保存的参数，不额外调用模型判断检索模式。</small>
       </fieldset>
-      <button type="button" class="inspect-danger" @click="emit('deletePersona')"><Trash2 :size="15"/>删除当前角色</button>
+      <button v-if="canDelete !== false && !(draft.persona.profile as any)?.builtin && !(draft.persona.profile as any)?.guide" type="button" class="inspect-danger" @click="emit('deletePersona')"><Trash2 :size="15"/>删除当前角色</button>
     </div>
     <div v-else-if="kind === 'rag'" class="inspect-stack rag-inspector">
       <p>{{ draft.documents.length }} 份资料已关联到角色知识空间。</p>

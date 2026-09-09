@@ -1,5 +1,6 @@
 import json
 import logging
+import httpx
 import re
 import time
 from dataclasses import dataclass, field, replace
@@ -11,6 +12,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 
 from agents.context import PersonaAgentContext
+from agents.multimodal import user_turn_content
 from agents.contracts import resolve_error_fields
 from agents.workflows import workflow_from_task
 from agents.intent_funnel import IntentAnalysis, analyze_intents, analyze_message_history
@@ -20,11 +22,20 @@ from agents.registry import capability_summary, specialist_for_tool, tool_specs
 from agents.supervisor import Specialist
 from agents.workflow import WORKERS, build_persona_workflow
 from agents.graph.state import canonicalize_worker_name
-from rag.llm import LLM_UNAVAILABLE_MESSAGE, get_llm, is_transient_provider_error
+from agents.cancellation import TurnCancelled, current_turn_cancel, turn_was_cancelled
+from rag.llm import EmptyCompletionError, LLM_UNAVAILABLE_MESSAGE, get_llm, is_transient_provider_error
+from rag.reasoning import reasoning_from_message
 from settings import Settings
 
 
 logger = logging.getLogger(__name__)
+
+
+def _check_turn_cancelled() -> None:
+    cancel = current_turn_cancel()
+    if cancel is not None:
+        cancel.check()
+
 
 # HTTP/API 仍使用旧的四值 specialist，避免打断 resume 契约。
 # 图内 Worker 名称在对外返回前映射到该集合。
@@ -50,7 +61,9 @@ EXECUTION_DEGRADED_MESSAGE = "请求处理超时或暂时失败，请稍后重�
 
 
 def _execution_error_message(error: Exception) -> str:
-    if isinstance(error, TimeoutError) or error.__class__.__name__.lower().endswith("timeout"):
+    if isinstance(error, EmptyCompletionError):
+        return "模型返回了空回复，请稍后重试。"
+    if isinstance(error, (TimeoutError, httpx.TimeoutException)) or error.__class__.__name__.lower().endswith("timeout"):
         return "请求处理超时，请稍后重试。"
     return EXECUTION_DEGRADED_MESSAGE
 
@@ -88,6 +101,44 @@ def _sanitize_answer(text: str) -> str:
     if "KEY FACTS:" in value and "SOURCES:" in value:
         return ""
     return value
+
+
+class _ReasoningStream:
+    """Turn cumulative or incremental reasoning payloads into UI deltas."""
+
+    def __init__(self) -> None:
+        self._seen = ""
+
+    def feed(self, text: str) -> str:
+        if not text:
+            return ""
+        if text.startswith(self._seen):
+            delta = text[len(self._seen):]
+            self._seen = text
+            return delta
+        self._seen += text
+        return text
+
+
+def _visible_message_text(chunk: object) -> str:
+    content = getattr(chunk, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+                continue
+            if not isinstance(part, dict):
+                continue
+            ptype = str(part.get("type") or "")
+            if ptype in {"reasoning", "thinking", "reasoning_content"}:
+                continue
+            if ptype in {"text", "output_text", ""}:
+                parts.append(str(part.get("text") or ""))
+        return "".join(parts)
+    return ""
 
 
 class _VisibleTextStream:
@@ -251,6 +302,25 @@ class AgentTurnResult:
     task_id: str | None = None
 
 
+
+
+def _preset_guide_turn(question: str, context: PersonaAgentContext, recorder: RunRecorder, started: float | None = None) -> AgentTurnResult | None:
+    from persona.guide import reply_without_llm, should_use_preset_replies
+    if not should_use_preset_replies(context):
+        return None
+    recorder.event("agent", "guide_preset", "向导预设回复")
+    recorder.finish(status="completed")
+    duration = 0.0 if started is None else max(0.0, time.perf_counter() - started)
+    return AgentTurnResult(
+        status="completed",
+        answer=reply_without_llm(question),
+        specialist="conversation",
+        duration_seconds=duration,
+        events=recorder.events(),
+        metrics=recorder.metrics(),
+    )
+
+
 def _find_rvc_task_payload(value: Any) -> dict[str, Any] | None:
     """从 LangGraph update/custom 载荷中提取 RVC 的公开任务摘要。"""
 
@@ -393,12 +463,16 @@ class PersonaAgentService:
     def _intent_for_question(self, graph, context: PersonaAgentContext, question: str) -> IntentAnalysis:
         return analyze_intents(question, self._previous_intent(graph, context))
 
+
     def query(self, question: str, context: PersonaAgentContext) -> AgentTurnResult:
-        graph = self._graph()
         started = time.perf_counter()
         recorder = RunRecorder(source="api")
         recorder.event("agent", "turn_started", "开始处理", status="started")
         context = replace(context, telemetry=recorder)
+        preset = _preset_guide_turn(question, context, recorder, started)
+        if preset is not None:
+            return preset
+        graph = self._graph()
         # 已暂停的写操作必须先由用户处理；不能用新问题绕过上一次确认。
         pending = self._find_pending(graph, context)
         if pending is not None:
@@ -427,7 +501,7 @@ class PersonaAgentService:
             intent = self._intent_for_question(graph, context, question)
             result = graph.invoke(
                 {
-                    "messages": [{"role": "user", "content": question}],
+                    "messages": [HumanMessage(content=user_turn_content(question, context))],
                     "active_worker": None,
                     "loaded_skills": initial_loaded_skills,
                     "intent_decision": intent.to_state(),
@@ -443,6 +517,8 @@ class PersonaAgentService:
                 context=context,
             )
         except Exception as exc:
+            if turn_was_cancelled(exc):
+                raise
             # 模型服务瞬时不可用（429/5xx）时返回统一降级提示，避免整个请求 500；
             # 其他异常仍然上抛，便于定位真实故障。
             if is_transient_provider_error(exc):
@@ -489,10 +565,16 @@ class PersonaAgentService:
         只转发 persona_supervisor（唯一对用户可见的节点）的模型输出，
         Worker 子图的内部生成会被过滤，避免内部交接文本泄漏到对话页。
         """
-        graph = self._graph()
         recorder = RunRecorder(source="api")
         recorder.event("agent", "turn_started", "开始处理", status="started")
         context = replace(context, telemetry=recorder)
+        started = time.perf_counter()
+        preset = _preset_guide_turn(question, context, recorder, started)
+        if preset is not None:
+            yield {"kind": "token", "text": preset.answer}
+            yield {"kind": "result", "result": preset}
+            return
+        graph = self._graph()
         pending = self._find_pending(graph, context)
         if pending is not None:
             is_waiting_input = pending.status == "waiting_input"
@@ -524,19 +606,20 @@ class PersonaAgentService:
             }
             return
         config = self._config(context)
-        started = time.perf_counter()
         failed = False
         emitted_tokens = False
         intent = self._intent_for_question(graph, context, question)
         last_stage: str | None = _initial_stage(intent)
         last_stage_node: str | None = None
         visible_stream = _VisibleTextStream()
+        reasoning_stream = _ReasoningStream()
         yield {"kind": "stage", "stage": last_stage}
         try:
             initial_loaded_skills = []
+            _check_turn_cancelled()
             for _namespace, mode, payload in graph.stream(
                 {
-                    "messages": [{"role": "user", "content": question}],
+                    "messages": [HumanMessage(content=user_turn_content(question, context))],
                     "active_worker": None,
                     "loaded_skills": initial_loaded_skills,
                     "intent_decision": intent.to_state(),
@@ -553,12 +636,16 @@ class PersonaAgentService:
                 subgraphs=True,
                 context=context,
             ):
+                _check_turn_cancelled()
                 if mode == "messages":
                     chunk, metadata = payload
                     if metadata.get("lc_agent_name") != "persona_supervisor":
                         continue
-                    content = getattr(chunk, "content", None)
-                    if isinstance(content, str) and content:
+                    reasoning = reasoning_stream.feed(reasoning_from_message(chunk))
+                    if reasoning:
+                        yield {"kind": "reasoning", "text": reasoning}
+                    content = _visible_message_text(chunk)
+                    if content:
                         visible = visible_stream.feed(content)
                         if visible:
                             recorder.mark_first_token()
@@ -606,7 +693,11 @@ class PersonaAgentService:
                         if payload.get("details"):
                             event["details"] = payload["details"]
                         yield event
+        except TurnCancelled:
+            return
         except Exception as exc:
+            if turn_was_cancelled(exc):
+                return
             if is_transient_provider_error(exc):
                 logger.warning("Agent 流式查询时 LLM 服务瞬时故障，返回降级提示：%s", exc)
                 answer = LLM_UNAVAILABLE_MESSAGE
@@ -614,6 +705,8 @@ class PersonaAgentService:
                 logger.exception("Agent 流式查询执行失败，返回可见降级结果")
                 answer = _execution_error_message(exc)
             failed = True
+        if turn_was_cancelled():
+            return
         trailing = visible_stream.finish()
         if trailing:
             emitted_tokens = True
@@ -797,8 +890,10 @@ class PersonaAgentService:
         emitted_tokens = False
         last_stage: str | None = "正在恢复确认..."
         visible_stream = _VisibleTextStream()
+        reasoning_stream = _ReasoningStream()
         yield {"kind": "stage", "stage": last_stage}
         try:
+            _check_turn_cancelled()
             for _namespace, mode, payload in graph.stream(
                 command,
                 config,
@@ -806,12 +901,16 @@ class PersonaAgentService:
                 subgraphs=True,
                 context=context,
             ):
+                _check_turn_cancelled()
                 if mode == "messages":
                     chunk, metadata = payload
                     if metadata.get("lc_agent_name") != "persona_supervisor":
                         continue
-                    content = getattr(chunk, "content", None)
-                    if isinstance(content, str) and content:
+                    reasoning = reasoning_stream.feed(reasoning_from_message(chunk))
+                    if reasoning:
+                        yield {"kind": "reasoning", "text": reasoning}
+                    content = _visible_message_text(chunk)
+                    if content:
                         visible = visible_stream.feed(content)
                         if visible:
                             recorder.mark_first_token()
@@ -852,7 +951,11 @@ class PersonaAgentService:
                         if payload.get("details"):
                             event["details"] = payload["details"]
                         yield event
+        except TurnCancelled:
+            return
         except Exception as exc:
+            if turn_was_cancelled(exc):
+                return
             if is_transient_provider_error(exc):
                 logger.warning("Agent 流式恢复时 LLM 服务瞬时故障，返回降级提示：%s", exc)
                 answer = LLM_UNAVAILABLE_MESSAGE
@@ -860,6 +963,8 @@ class PersonaAgentService:
                 logger.exception("Agent 流式恢复执行失败，返回可见降级结果")
                 answer = _execution_error_message(exc)
             failed = True
+        if turn_was_cancelled():
+            return
         trailing = visible_stream.finish()
         if trailing:
             emitted_tokens = True
@@ -1039,6 +1144,8 @@ class PersonaAgentService:
                 context=context,
             )
         except Exception as exc:
+            if turn_was_cancelled(exc):
+                raise
             if is_transient_provider_error(exc):
                 logger.warning("Agent 恢复会话时 LLM 服务瞬时故障，返回降级提示：%s", exc)
                 recorder.event("agent", "provider_degraded", "模型服务降级", status="failed")

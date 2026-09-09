@@ -4914,8 +4914,9 @@ async function nf(e, t) {
 function sl() {
   return rt("/api/personas", { cache: "no-store" });
 }
-function of(e) {
-  return rt(`/api/personas/${encodeURIComponent(e)}/documents`, { cache: "no-store" });
+async function of(e) {
+  const t = await rt(`/api/personas/${encodeURIComponent(e)}/documents`, { cache: "no-store" });
+  return Array.isArray(t) ? t : t && typeof t == "object" && Array.isArray(t.items) ? t.items : [];
 }
 async function sf() {
   return (await rt("/api/live2d/models", { cache: "no-store" })).models;

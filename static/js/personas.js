@@ -301,7 +301,7 @@ async function uploadDraft(event) {
   files.forEach((file) => form.append("files", file));
   if (text) form.append("files", new File([text], `text-${Date.now()}.txt`, { type: "text/plain;charset=utf-8" }));
   const submit = $("upload-button"); submit.disabled = true; setText("upload-error");
-  setBatchBusy(true); showCreateStep("upload");
+  setBatchBusy(true); showCreateStep("analyze");
   try {
     state.draft = await api(fetch("/api/persona-drafts/upload", { method: "POST", body: form }));
     showCreateStep("analyze");
@@ -332,14 +332,10 @@ function setBatchBusy(busy) {
   $("batch-form").querySelectorAll("input, textarea").forEach((element) => { element.disabled = busy; });
 }
 async function waitForDraftAnalysis() {
-  $("draft-analyzing").classList.remove("is-hidden");
-  try {
-    while (state.draft && state.draft.status === "analyzing") {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`));
-    }
-  } finally {
-    $("draft-analyzing").classList.add("is-hidden");
+  showCreateStep("analyze");
+  while (state.draft && state.draft.status === "analyzing") {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`));
   }
 }
 function renderDraft() {
@@ -443,9 +439,11 @@ async function confirmDraft() {
     await saveDraft(true);
     state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}/confirm`, { method: "POST" }));
     renderDraft();
+    const personaId = state.draft.persona && state.draft.persona.id;
+    if (personaId) sessionStorage.setItem("charactoid.manage.persona", personaId);
     await switchView("manage");
     await loadPersonas();
-    await selectManagePersona(state.draft.persona.id);
+    if (personaId) await selectManagePersona(personaId);
     moduleMessage("edit-files-message", "角色已创建，可到“角色声音”绑定训练音色");
     pollDraft();
   } catch (reason) { setText("upload-error", reason); }

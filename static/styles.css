@@ -404,8 +404,13 @@ input[type="checkbox"]:disabled:checked {
 .workspace-heading h2, .workspace-heading p { margin: 0; }
 .workspace-heading h2 { font-size: 16px; }
 .workspace-heading p { margin-top: 4px; color: var(--muted); font-size: 11px; }
-#create-material-panel, .role-create-flow { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: 0; }
+#create-material-panel, .role-create-flow { display: grid; grid-template-columns: minmax(0,1fr); align-items: start; gap: 0; max-width: 760px; }
 .role-create-flow > .panel { margin-top: 0; }
+.role-create-flow .panel-heading { align-items: flex-start; gap: 12px; }
+.role-create-flow .panel-heading > div { min-width: 0; }
+.role-create-flow .panel-heading h2 { font-size: 18px; letter-spacing: -.02em; }
+.role-create-flow .panel-subtitle { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.role-create-flow .status-pill { flex: 0 0 auto; }
 .role-workbench-page .workbench-panel[data-workbench-panel="role-manage"] { min-height: min(72vh, 760px); height: calc(100dvh - 148px); display: flex; flex-direction: column; padding-top: 12px; }
 .role-workbench-page .role-workbench-root { flex: 1; min-height: 0; }
 .source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -647,39 +652,69 @@ input[type="checkbox"]:disabled:checked {
 .live2d-more-menu { position: absolute; right: 0; bottom: calc(100% + 8px); width: min(260px, calc(100vw - 36px)); padding: 8px; border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent); border-radius: 12px; display: grid; gap: 8px; background: color-mix(in srgb, var(--surface) 92%, transparent); box-shadow: 0 10px 28px rgb(22 24 20 / 10%); backdrop-filter: blur(14px); }
 .live2d-menu-item:disabled { opacity: .45; pointer-events: none; }
 .live2d-mode-switch {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
   margin: 2px 4px 6px;
   padding: 3px;
   border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-  border-radius: 10px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
 }
+.live2d-mode-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  height: calc(100% - 6px);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--live2d-gold) 18%, var(--surface));
+  box-shadow: 0 1px 4px rgb(22 24 20 / 8%);
+  pointer-events: none;
+  transition: transform 180ms cubic-bezier(.2,.8,.2,1);
+}
+.live2d-mode-switch.is-off .live2d-mode-thumb { transform: translateX(100%); }
 .live2d-mode-option {
+  position: relative;
+  z-index: 1;
   min-height: 30px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
   cursor: pointer;
-  transition: color var(--motion), background var(--motion);
+  transition: color var(--motion);
 }
 .live2d-mode-option:hover { color: var(--ink); }
-.live2d-mode-option.is-active {
-  background: color-mix(in srgb, var(--live2d-gold) 16%, var(--surface));
-  color: var(--live2d-gold);
-}
-.live2d-gaze-toggle .live2d-switch-state {
+.live2d-mode-option.is-active { color: var(--live2d-gold); }
+.live2d-gaze-toggle { align-items: center; }
+.live2d-gaze-toggle .live2d-switch-track {
   margin-left: auto;
-  color: var(--subtle);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 650;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  position: relative;
+  flex: 0 0 auto;
 }
-.live2d-gaze-toggle.is-active .live2d-switch-state { color: var(--live2d-gold); }
+.live2d-gaze-toggle .live2d-switch-track i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(22 24 20 / 16%);
+  transition: transform 180ms cubic-bezier(.2,.8,.2,1);
+}
+.live2d-gaze-toggle.is-active .live2d-switch-track {
+  background: color-mix(in srgb, var(--live2d-gold) 55%, var(--ink));
+}
+.live2d-gaze-toggle.is-active .live2d-switch-track i { transform: translateX(16px); }
 
 .live2d-more-menu.is-hidden { display: none; }
 .live2d-menu-section { display: grid; gap: 3px; }

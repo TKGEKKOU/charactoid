@@ -204,6 +204,7 @@ function applyWorkbenchTab(workbench, target) {
     panel.classList.toggle("is-hidden", !active);
     panel.querySelectorAll(":scope > .view").forEach((viewNode) => viewNode.classList.toggle("is-hidden", !active));
   });
+  if (target === "role-manage") void callModule("manage", "onShow");
   return true;
 }
 

@@ -35,8 +35,13 @@ export function listPersonas(): Promise<PersonaSummary[]> {
   return fetchJson("/api/personas", { cache: "no-store" });
 }
 
-export function listPersonaDocuments(personaId: string): Promise<Array<Record<string, unknown>>> {
-  return fetchJson(`/api/personas/${encodeURIComponent(personaId)}/documents`, { cache: "no-store" });
+export async function listPersonaDocuments(personaId: string): Promise<Array<Record<string, unknown>>> {
+  const payload = await fetchJson<unknown>(`/api/personas/${encodeURIComponent(personaId)}/documents`, { cache: "no-store" });
+  if (Array.isArray(payload)) return payload as Array<Record<string, unknown>>;
+  if (payload && typeof payload === "object" && Array.isArray((payload as { items?: unknown }).items)) {
+    return (payload as { items: Array<Record<string, unknown>> }).items;
+  }
+  return [];
 }
 
 export async function listLive2dModels(): Promise<Live2dModel[]> {

@@ -2,7 +2,7 @@
 
 const MODULES = {
   chat: { view: "chat", init: window.PL.modules.chat?.init, onShow: window.PL.modules.chat?.onShow, onHide: window.PL.modules.chat?.onHide },
-  role: { view: "role", init: initRoleWorkbench },
+  role: { view: "role", init: initRoleWorkbench, onShow: showRoleWorkbench },
   voice: { view: "voice-workbench", init: initVoiceWorkbench, onShow: showVoiceWorkbench },
   knowledge: { view: "knowledge", init: initKnowledgeWorkbench, onShow: showKnowledgeWorkbench, onHide: hideKnowledgeWorkbench },
   integrations: { view: "integrations-workbench", init: initIntegrationsWorkbench, onShow: showIntegrationsWorkbench, onHide: hideIntegrationsWorkbench },
@@ -41,6 +41,7 @@ async function callModule(name, method = "init") {
   if (typeof fn === "function") await fn();
 }
 async function initRoleWorkbench() { await callModule("create"); await callModule("manage"); }
+async function showRoleWorkbench() { await callModule("manage", "onShow"); }
 async function initVoiceWorkbench() { await callModule("voice"); await callModule("rvc"); }
 async function showVoiceWorkbench() { await callModule("voice", "onShow"); }
 async function initKnowledgeWorkbench() { await callModule("test"); await callModule("knowledgeDashboard"); }

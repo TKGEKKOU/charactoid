@@ -27,14 +27,14 @@
 }
 
 .workbench-toolbar {
-  min-height: 68px;
-  padding: 0 clamp(24px, 4vw, 64px);
+  min-height: 48px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--wb-line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  background: transparent;
+  gap: 12px;
+  background: var(--surface, #fff);
 }
 
 .toolbar-identity {

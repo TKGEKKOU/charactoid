@@ -96,8 +96,6 @@ def test_worker_http_transcribe_still_works():
         ("zh", "Chinese"),
         ("ja", "Japanese"),
         ("en", "English"),
-        ("ko", "Korean"),
-        ("yue", "Cantonese"),
     ],
 )
 def test_worker_maps_iso_language_codes(language, expected):

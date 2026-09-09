@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 from agents.context import PersonaAgentContext
 from agents.service import PersonaAgentService
@@ -82,6 +82,42 @@ def test_historical_rvc_worker_does_not_leak_into_new_turn():
         "worker_results": [{"worker": "rvc_worker", "status": "completed"}],
     }
     assert PersonaAgentService._worker_for_state(state) is None
+
+
+def test_stream_query_forwards_reasoning_without_counting_as_first_token():
+    graph = FakeGraph(
+        chunks=[
+            (
+                ("persona_supervisor:x",),
+                "messages",
+                (
+                    AIMessageChunk(content="", additional_kwargs={"reasoning_content": "先分析一下"}),
+                    {"lc_agent_name": "persona_supervisor"},
+                ),
+            ),
+            (
+                ("persona_supervisor:x",),
+                "messages",
+                (AIMessage(content="你好"), {"lc_agent_name": "persona_supervisor"}),
+            ),
+        ],
+        state={
+            "messages": [AIMessage(content="你好")],
+            "active_worker": None,
+            "loaded_skills": [],
+        },
+    )
+    service = PersonaAgentService(checkpointer=object())
+    service._workflow = graph
+
+    events = list(service.stream_query("普通问题", _context()))
+    kinds = [event["kind"] for event in events]
+    assert "reasoning" in kinds
+    assert kinds.index("reasoning") < kinds.index("token")
+    reasoning = [event["text"] for event in events if event["kind"] == "reasoning"]
+    assert reasoning == ["先分析一下"]
+    tokens = [event["text"] for event in events if event["kind"] == "token"]
+    assert tokens == ["你好"]
 
 
 def test_stream_query_yields_only_supervisor_tokens_and_result():

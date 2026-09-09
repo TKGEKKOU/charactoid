@@ -65,9 +65,10 @@ def directory_fingerprint(path: Path) -> tuple[int, int]:
 def kill_process(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
-    if os.name == "nt":
+    pid = getattr(process, "pid", None)
+    if os.name == "nt" and pid:
         subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,

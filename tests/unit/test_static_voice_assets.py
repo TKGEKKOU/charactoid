@@ -200,7 +200,9 @@ def test_primary_navigation_uses_collapsible_sidebar_with_chat_first():
     assert "setSidebarPinned" in script
     assert "personalive:sidebar-collapsed" not in script
     assert ".site-sidebar" in styles
-    assert ".site-sidebar:hover" in styles
+    assert ".site-sidebar.is-open" in styles
+    assert "pointerenter" in script
+    assert "width: 18px" in styles
     assert ".primary-nav" in styles
     assert ".nav-item.is-active" in styles
     assert "body.sidebar-pinned" in styles
@@ -342,6 +344,17 @@ def test_chat_stage_renderer_does_not_use_innerhtml():
     assert "item.innerHTML" not in script
     assert 'createElement("span")' in script
     assert "agent-process-text" in script
+
+
+def test_chat_thinking_card_uses_processed_elapsed_and_reasoning_events():
+    script = read_script("chat")
+    styles = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
+    assert "已处理" in script
+    assert "agent-thinking-" in script
+    assert "agent-thinking-card" in styles
+    assert 'event.type === "agent.reasoning"' in script
+    assert 'event.kind === "reasoning"' in script
+    assert "仍在处理|等待模型" in script
 
 
 def test_chat_progress_uses_agent_process_surface_only():

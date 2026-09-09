@@ -234,10 +234,8 @@ def test_mcp_tool_call_has_timeout_bridge(tmp_path, monkeypatch):
     asyncio.run(manager.connect_all(register=True))
     try:
         spec = next(s for s in tool_specs() if s.name == "slow_search")
-        import pytest
-
-        with pytest.raises(Exception):
-            spec.tool.invoke({"query": "x"})
+        payload = spec.tool.invoke({"query": "x"})
+        assert "timeout" in str(payload)
     finally:
         manager.unregister_all()
 
@@ -586,3 +584,87 @@ def _capture_thread_error(callback, errors):
         callback()
     except Exception as exc:
         errors.append(exc)
+
+def test_mcp_tool_timeout_grades_read_vs_write():
+    from integrations.mcp.client import (
+        MCP_READ_TIMEOUT_SECONDS,
+        MCP_TOOL_TIMEOUT_SECONDS,
+        mcp_tool_timeout_seconds,
+    )
+
+    read_only = _make_tool("read", metadata={"read_only_hint": True})
+    writer = _make_tool("write", metadata={"read_only_hint": False})
+    undeclared = _make_tool("plain")
+    assert mcp_tool_timeout_seconds(read_only) == MCP_READ_TIMEOUT_SECONDS
+    assert mcp_tool_timeout_seconds(writer) == MCP_TOOL_TIMEOUT_SECONDS
+    assert mcp_tool_timeout_seconds(undeclared) == MCP_TOOL_TIMEOUT_SECONDS
+    assert MCP_READ_TIMEOUT_SECONDS < MCP_TOOL_TIMEOUT_SECONDS
+
+
+def test_mcp_read_tool_timeout_returns_error_payload(monkeypatch):
+    from langchain_core.tools import tool as make_tool
+    from integrations.mcp.client import _make_sync_tool
+    import integrations.mcp.client as mcp_client
+
+    @make_tool
+    async def ping() -> str:
+        """Health check."""
+        await asyncio.sleep(2)
+        return "pong"
+
+    ping.metadata = {"read_only_hint": True}
+    monkeypatch.setattr(mcp_client, "MCP_READ_TIMEOUT_SECONDS", 0.2)
+    wrapped = _make_sync_tool(ping, "demo")
+    t0 = time.monotonic()
+    payload = wrapped.invoke({})
+    elapsed = time.monotonic() - t0
+    assert elapsed < 1.5
+    assert "timeout" in str(payload)
+
+
+
+def test_session_call_tool_passes_read_timeout():
+    from types import SimpleNamespace
+    from integrations.mcp.client import _session_call_tool, mcp_timeout_from_metadata
+
+    recorded = {}
+
+    class Session:
+        async def call_tool(self, name, arguments, read_timeout_seconds=None):
+            recorded["name"] = name
+            recorded["arguments"] = arguments
+            recorded["read_timeout_seconds"] = read_timeout_seconds
+            return SimpleNamespace(content=[], is_error=False, structured_content="ok")
+
+    result = asyncio.run(_session_call_tool(Session(), "search", {"q": "x"}, 20))
+    assert result.structured_content == "ok"
+    assert recorded == {
+        "name": "search",
+        "arguments": {"q": "x"},
+        "read_timeout_seconds": 20,
+    }
+    from integrations.mcp.client import MCP_READ_TIMEOUT_SECONDS, MCP_TOOL_TIMEOUT_SECONDS
+    assert mcp_timeout_from_metadata({"read_only_hint": True}) == MCP_READ_TIMEOUT_SECONDS
+    assert mcp_timeout_from_metadata({}) == MCP_TOOL_TIMEOUT_SECONDS
+
+
+def test_ainvoke_mcp_tool_timeout_cancels_same_task():
+    """Timeout must cancel the tool coroutine itself, not a detached wait_for task."""
+
+    from langchain_core.tools import tool as make_tool
+    from integrations.mcp.client import _ainvoke_mcp_tool
+
+    cancelled = threading.Event()
+
+    @make_tool
+    async def slow_ping() -> str:
+        """Ping slowly."""
+        try:
+            await asyncio.sleep(10)
+            return "pong"
+        finally:
+            cancelled.set()
+
+    payload = asyncio.run(_ainvoke_mcp_tool(slow_ping, {}, 0.05))
+    assert "timeout" in str(payload)
+    assert cancelled.wait(1)

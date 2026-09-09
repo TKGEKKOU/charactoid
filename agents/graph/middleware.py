@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import json
 import time
 from typing import Callable
@@ -19,6 +21,52 @@ from agents.mcp_grants import is_mcp_tool_visible
 from agents.registry import capability_catalog
 from agents.skills import get_skill, list_skills, tools_for_skill
 from agents.tools.management import request_confirmation
+from agents.cancellation import turn_was_cancelled
+from rag.llm import EmptyCompletionError, is_empty_model_message
+
+logger = logging.getLogger(__name__)
+
+
+def _tool_result_message(tool_call: dict, payload: dict) -> ToolMessage:
+    name = str(tool_call.get("name") or "")
+    return ToolMessage(
+        content=json.dumps(payload, ensure_ascii=False),
+        tool_call_id=tool_call["id"],
+        name=name,
+        status="error",
+    )
+
+
+def _dispatch_tool_call(request, handler):
+    """Run a tool call; timeout/abort become tool results, not turn failures.
+
+    DeepSeek Harness tools/execute keeps TIMEOUT and ABORTED orthogonal and
+    never ends the turn for a single tool failure. Sync tools cannot be killed
+    safely, so this only normalizes cooperative/async failures and skips work
+    that has not started after the user cancelled.
+    """
+
+    tool_call = request.tool_call
+    if turn_was_cancelled():
+        return _tool_result_message(
+            tool_call,
+            {"status": "aborted_before_dispatch", "reason": "turn_cancelled"},
+        )
+    try:
+        return handler(request)
+    except TimeoutError:
+        return _tool_result_message(
+            tool_call,
+            {"status": "timeout", "reason": "tool_timed_out"},
+        )
+    except Exception as exc:
+        if turn_was_cancelled(exc):
+            return _tool_result_message(
+                tool_call,
+                {"status": "aborted", "reason": "turn_cancelled"},
+            )
+        raise
+
 
 
 def _prompt_middleware(prompt_factory):
@@ -167,7 +215,7 @@ def build_capability_guard_middleware():
         except KeyError:
             # Handoff and lifecycle tools are workflow control primitives, not
             # catalog capabilities, and retain their existing safeguards.
-            return handler(request)
+            return _dispatch_tool_call(request, handler)
         except ValueError as exc:
             return ToolMessage(
                 content=json.dumps({"status": "denied", "reason": str(exc)}, ensure_ascii=False),
@@ -207,7 +255,7 @@ def build_capability_guard_middleware():
                     name=tool_name,
                     status="error",
                 )
-        return handler(request)
+        return _dispatch_tool_call(request, handler)
 
     return capability_guard
 
@@ -309,6 +357,17 @@ def build_runtime_observability_middleware(
         started = time.perf_counter()
         try:
             response = handler(request.override(messages=list(bounded.messages)))
+            ai_messages = [message for message in response.result if isinstance(message, AIMessage)]
+            if (
+                ai_messages
+                and all(is_empty_model_message(message) for message in ai_messages)
+                and not turn_was_cancelled()
+            ):
+                logger.warning("empty model completion; retrying once")
+                response = handler(request.override(messages=list(bounded.messages)))
+                ai_messages = [message for message in response.result if isinstance(message, AIMessage)]
+                if ai_messages and all(is_empty_model_message(message) for message in ai_messages):
+                    raise EmptyCompletionError("empty completion")
         except Exception:
             if telemetry is not None:
                 telemetry.mark_model_call(

@@ -33,3 +33,16 @@ def test_persona_capability_policies_round_trip_with_precedence():
         "mcp/filesystem/*",
         "mcp/filesystem/delete",
     }
+
+
+def test_set_overrides_upserts_and_deletes_without_wiping_others():
+    from agents.policy import CapabilityPolicyStore
+    from app.database import Base
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    store = CapabilityPolicyStore(sessionmaker(bind=engine, autoflush=False, expire_on_commit=False))
+    store.replace_for_persona("persona-a", {"skill/keep": True, "skill/drop": True})
+    store.set_overrides("persona-a", {"skill/drop": None, "skill/new": False})
+    values = {(item.capability_id, item.enabled) for item in store.list_for_persona("persona-a") if item.persona_id == "persona-a"}
+    assert values == {("skill/keep", True), ("skill/new", False)}

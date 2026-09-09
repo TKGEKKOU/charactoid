@@ -6,16 +6,54 @@ window.PL.modules.test = { init: initTestPage };
 
 const DRAFT_STATUS_LABELS = { analyzing: "分析中", draft: "待确认", confirmed: "已创建" };
 const DOCUMENT_STATUS_LABELS = {
-  converting: { label: "正在转换为 Markdown", tone: "pending" },
-  conversion_failed: { label: "转换失败", tone: "failed" },
-  preview_ready: { label: "待写入 Milvus", tone: "pending" },
-  indexing: { label: "正在写入 Milvus 向量库", tone: "pending" },
-  indexed: { label: "已写入 Milvus 向量库", tone: "ok" },
-  index_failed: { label: "Milvus 写入失败", tone: "failed" },
+  converting: { label: "正在整理", tone: "pending" },
+  conversion_failed: { label: "整理失败", tone: "failed" },
+  preview_ready: { label: "待入库", tone: "pending" },
+  indexing: { label: "正在入库", tone: "pending" },
+  indexed: { label: "已入库", tone: "ok" },
+  index_failed: { label: "入库失败", tone: "failed" },
 };
+function friendlyError(reason) {
+  const raw = reason && reason.message ? reason.message : reason;
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const rules = [
+    [/请先|请选择|资料或输入/, text],
+    [/already confirmed/i, ""],
+    [/no files|empty|required/i, "请先添加资料"],
+    [/timeout|timed out/i, "分析没有完成，请重试"],
+    [/failed to fetch|network|econnrefused/i, "连接失败，请重试"],
+    [/unauthorized|api key|invalid key/i, "模型服务未就绪，请先配置密钥"],
+    [/milvus|vector|embedding/i, "资料还在整理，可稍后在角色资料里重试"],
+    [/not found/i, "没有找到对应内容"],
+    [/internal server|traceback|fastapi|exception/i, "处理失败，请重试"],
+  ];
+  for (const [re, msg] of rules) {
+    if (re.test(text)) return typeof msg === "string" ? msg : text;
+  }
+  if (/[一-鿿]/.test(text) && !/[A-Za-z]{4,}/.test(text)) return text;
+  return "操作未完成，请重试";
+}
 const CREATE_STEP_ORDER = ["upload", "analyze", "confirm"];
 let editCapabilityData = null;
 
+function setCreateError(reason) {
+  const text = friendlyError(reason);
+  setText("upload-error", text);
+  setText("create-confirm-error", text);
+}
+
+function createDocumentStatus(item, forCreate) {
+  if (forCreate && item.status !== "converting" && item.status !== "conversion_failed") {
+    return { label: "已就绪", tone: "ok" };
+  }
+  if (item.status === "index_failed") {
+    const hint = String(item.error_message || "");
+    if (/Embedding|向量|Milvus|未就绪/i.test(hint)) return { label: "待整理", tone: "pending" };
+    return { label: "整理未完成", tone: "failed" };
+  }
+  return DOCUMENT_STATUS_LABELS[item.status] || { label: "处理中", tone: "" };
+}
 function applyCapabilityPackagePolicy(data, packageId, mode) {
   const next = {
     ...data,
@@ -124,11 +162,14 @@ function bindSafe(id, event, handler) {
 }
 
 function bindCreateEvents() {
-  bindSafe("document-files", "change", () => summarizeFiles("document-files", "file-summary", "未选择文件"));
+  bindSafe("document-files", "change", () => summarizeFiles("document-files", "file-summary", "尚未添加"));
   bindSafe("batch-form", "submit", uploadDraft);
   bindSafe("reset-batch", "click", resetDraft);
   bindSafe("save-draft", "click", saveDraft);
   bindSafe("confirm-draft", "click", confirmDraft);
+  bindSafe("create-back", "click", backToUpload);
+  bindSafe("create-cancel", "click", resetDraft);
+  bindSafe("analyze-cancel", "click", resetDraft);
 }
 
 function bindManageEvents() {
@@ -252,7 +293,7 @@ function setupCreateDropZone() {
     const transfer = new DataTransfer();
     files.forEach((file) => transfer.items.add(file));
     input.files = transfer.files;
-    summarizeFiles("document-files", "file-summary", "未选择文件");
+    summarizeFiles("document-files", "file-summary", "尚未添加");
   });
 }
 let selectedAudioPlayer = null;
@@ -294,13 +335,13 @@ async function uploadDraft(event) {
   event.preventDefault();
   const files = [...$("document-files").files];
   const text = $("direct-text").value.trim();
-  if (!files.length && !text) return setText("upload-error", "请选择资料或输入文本");
+  if (!files.length && !text) return setText("upload-error", "请先添加资料");
   setText("create-status", "分析中");
   const form = new FormData();
   form.append("mode", document.querySelector('input[name="mode"]:checked').value);
   files.forEach((file) => form.append("files", file));
   if (text) form.append("files", new File([text], `text-${Date.now()}.txt`, { type: "text/plain;charset=utf-8" }));
-  const submit = $("upload-button"); submit.disabled = true; setText("upload-error");
+  const submit = $("upload-button"); submit.disabled = true; setCreateError(); setText("upload-error");
   setBatchBusy(true); showCreateStep("analyze");
   try {
     state.draft = await api(fetch("/api/persona-drafts/upload", { method: "POST", body: form }));
@@ -309,7 +350,7 @@ async function uploadDraft(event) {
     state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`));
     renderDraft();
     showCreateStep("confirm");
-  } catch (reason) { setText("upload-error", reason); setText("create-status", "失败"); showCreateStep("upload"); }
+  } catch (reason) { setCreateError(reason); setText("create-status", "失败"); showCreateStep("upload"); }
   finally { submit.disabled = false; setBatchBusy(false); }
 }
 function showCreateStep(step) {
@@ -343,18 +384,19 @@ function renderDraft() {
   $("draft-name").value = state.draft.suggested_name;
   $("draft-profile").value = state.draft.profile?.description || "";
   loadCreateVoiceOptions();
-  $("draft-status").textContent = DRAFT_STATUS_LABELS[state.draft.status] || state.draft.status;
-  setText("create-status", DRAFT_STATUS_LABELS[state.draft.status] || state.draft.status);
+  $("draft-status").textContent = DRAFT_STATUS_LABELS[state.draft.status] || "待确认";
+  setText("create-status", DRAFT_STATUS_LABELS[state.draft.status] || "待确认");
   renderCandidates();
   renderDocuments($("document-list"), state.draft.documents, true);
   icons();
 }
+function candidateSummary(candidate) {
+  const profile = candidate.profile || {};
+  const text = String(profile.description || profile.identity || "").replace(/未描述/g, "").replace(/\s+/g, " ").trim();
+  return text || "已从资料提取";
+}
 function renderCandidates() {
-  const candidates = state.draft.candidates || [];
-  if (state.draft.persona_type === "character" && candidates.length && !state.draft.selected_candidate_id) {
-    selectCandidate(candidates[0].id);
-    return;
-  }
+  const candidates = (state.draft.candidates || []).filter((item) => item && item.name);
   $("candidate-picker").classList.toggle("is-hidden", !candidates.length);
   $("candidate-list").replaceChildren();
   for (const candidate of candidates) {
@@ -362,10 +404,14 @@ function renderCandidates() {
     button.type = "button"; button.className = "candidate-option";
     button.classList.toggle("is-selected", candidate.id === state.draft.selected_candidate_id);
     const name = document.createElement("strong"); name.textContent = candidate.name;
-    const description = document.createElement("span"); description.textContent = candidate.profile?.description || "";
+    const description = document.createElement("span"); description.textContent = candidateSummary(candidate);
     button.append(name, description); button.addEventListener("click", () => selectCandidate(candidate.id)); $("candidate-list").append(button);
   }
-  $("confirm-draft").disabled = state.draft.persona_type === "character" && candidates.length > 0 && !state.draft.selected_candidate_id;
+  if ($("confirm-draft")) $("confirm-draft").disabled = false;
+}
+function backToUpload() {
+  setText("create-confirm-error");
+  showCreateStep("upload");
 }
 function renderDocuments(container, documents, allowRetry = false, allowDelete = false) {
   container.replaceChildren();
@@ -373,12 +419,12 @@ function renderDocuments(container, documents, allowRetry = false, allowDelete =
   for (const item of documents) {
     const row = document.createElement("div"); row.className = "document-row";
     const name = document.createElement("span"); name.textContent = item.original_filename;
-    const status = DOCUMENT_STATUS_LABELS[item.status] || { label: item.status, tone: "" };
+    const status = createDocumentStatus(item, container.classList.contains("create-document-list"));
     const badge = document.createElement("span"); badge.className = `document-state${status.tone ? ` is-${status.tone}` : ""}`; badge.textContent = status.label;
     const actions = document.createElement("div"); actions.className = "document-actions";
-    const preview = document.createElement("button"); preview.type = "button"; preview.textContent = "预览";
-    preview.addEventListener("click", () => openPreview(item)); actions.append(preview);
-    if (allowRetry && item.status === "index_failed") {
+    const preview = document.createElement("button"); preview.type = "button"; preview.className = "button button-ghost document-preview-button"; preview.textContent = "查看资料";
+    preview.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); openPreview(item); }); actions.append(preview);
+    if (allowRetry && !container.classList.contains("create-document-list") && item.status === "index_failed") {
       const retry = document.createElement("button"); retry.type = "button"; retry.textContent = "重试";
       retry.addEventListener("click", () => retryDocument(item.id)); actions.append(retry);
     }
@@ -386,7 +432,8 @@ function renderDocuments(container, documents, allowRetry = false, allowDelete =
       const del = document.createElement("button"); del.type = "button"; del.className = "is-danger"; del.title = "删除"; del.setAttribute("aria-label", "删除"); del.innerHTML = '<i data-lucide="trash-2"></i>';
       del.addEventListener("click", () => deleteEditDocument(item.id)); actions.append(del);
     }
-    if (["converting", "preview_ready", "indexing"].includes(item.status)) {
+    const showProgress = !container.classList.contains("create-document-list") && ["converting", "indexing"].includes(item.status);
+    if (showProgress) {
       row.classList.add("is-pending");
       const progress = document.createElement("span");
       progress.className = "document-progress";
@@ -398,16 +445,17 @@ function renderDocuments(container, documents, allowRetry = false, allowDelete =
 }
 async function selectCandidate(candidateId) {
   try { state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}/candidates/${candidateId}`, { method: "POST" })); renderDraft(); }
-  catch (reason) { setText("upload-error", reason); }
+  catch (reason) { setCreateError(reason); }
 }
 async function saveDraft(required = false) {
   if (!state.draft) return;
+  if (state.draft.status === "confirmed") return;
   try {
     const assetId = $("create-tts-asset")?.value || "";
     const tts = assetId ? { voice_asset_id: assetId, output_language: $("create-tts-asset-lang")?.value || "auto" } : {};
     state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: $("draft-name").value.trim(), profile: { ...(state.draft.profile || {}), description: $("draft-profile").value.trim(), generation_mode: state.draft.mode, tts } }) }));
     renderDraft();
-  } catch (reason) { setText("upload-error", reason); if (required) throw reason; }
+  } catch (reason) { setCreateError(reason); if (required) throw reason; }
 }
 async function loadCreateVoiceOptions() {
   try {
@@ -419,12 +467,12 @@ async function loadCreateVoiceOptions() {
     select.replaceChildren();
     const empty = document.createElement("option");
     empty.value = "";
-    empty.textContent = "创建后绑定";
+    empty.textContent = "稍后绑定";
     select.append(empty);
     assets.forEach((asset) => {
       const option = document.createElement("option");
       option.value = asset.id;
-      option.textContent = `${asset.name}（GPT-SoVITS）`;
+      option.textContent = asset.name;
       select.append(option);
     });
     select.value = current;
@@ -435,28 +483,38 @@ async function loadCreateVoiceOptions() {
 async function confirmDraft() {
   if (!state.draft) return;
   $("confirm-draft").disabled = true;
+  setCreateError();
   try {
     await saveDraft(true);
     state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}/confirm`, { method: "POST" }));
-    renderDraft();
+    clearTimeout(state.poller);
     const personaId = state.draft.persona && state.draft.persona.id;
     if (personaId) sessionStorage.setItem("charactoid.manage.persona", personaId);
     await switchView("manage");
     await loadPersonas();
     if (personaId) await selectManagePersona(personaId);
-    moduleMessage("edit-files-message", "角色已创建，可到“角色声音”绑定训练音色");
-    pollDraft();
-  } catch (reason) { setText("upload-error", reason); }
-  finally { $("confirm-draft").disabled = false; }
+    moduleMessage("edit-files-message", "角色已创建，资料正在后台整理");
+  } catch (reason) { setCreateError(reason); }
+  finally { if ($("confirm-draft")) $("confirm-draft").disabled = false; }
 }
 async function retryDocument(documentId) {
   try { await api(fetch(`/api/documents/${documentId}/retry-index`, { method: "POST" })); pollDraft(); }
-  catch (reason) { setText("upload-error", reason); }
+  catch (reason) { setCreateError(reason); }
 }
 function pollDraft() {
   clearTimeout(state.poller);
-  if (!state.draft || state.draft.documents.every((item) => ["indexed", "index_failed"].includes(item.status))) return;
-  state.poller = setTimeout(async () => { try { state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`)); renderDraft(); pollDraft(); } catch (reason) { setText("upload-error", reason); } }, 1000);
+  if (!state.draft || state.draft.status === "confirmed") return;
+  if (state.draft.documents.every((item) => ["indexed", "index_failed", "preview_ready", "conversion_failed"].includes(item.status))) return;
+  state.poller = setTimeout(async () => {
+    try {
+      state.draft = await api(fetch(`/api/persona-drafts/${state.draft.id}`));
+      if (state.draft.status === "confirmed") return;
+      renderDraft();
+      pollDraft();
+    } catch (reason) {
+      pollDraft();
+    }
+  }, 1000);
 }
 function resetDraft() {
   clearTimeout(state.poller);
@@ -466,8 +524,8 @@ function resetDraft() {
   $("draft-editor").classList.add("is-hidden");
   $("draft-analyzing").classList.add("is-hidden");
   showCreateStep("upload");
-  summarizeFiles("document-files", "file-summary", "未选择文件");
-  setText("upload-error");
+  summarizeFiles("document-files", "file-summary", "尚未添加");
+  setCreateError(); setText("upload-error");
 }
 async function loadPersonas(selectId = "") {
   try {
@@ -820,8 +878,6 @@ async function previewEditAsset() {
       zh: "你好，这是我的声音。很高兴认识你。",
       ja: "こんにちは、これは私の声です。お会いできてうれしいです。",
       en: "Hello, this is my voice. Nice to meet you.",
-      ko: "안녕하세요. 제 목소리입니다. 만나서 반갑습니다.",
-      yue: "你好，呢個係我嘅聲音，好高興認識你。",
       auto: "こんにちは、这是我的声音。Hello!",
     };
     const response = await fetch(`/api/voice-assets/${assetId}/synthesize`, {
@@ -893,7 +949,7 @@ async function loadEditDocuments() {
   renderDocuments($("edit-document-list"), documents, false, true);
   const busy = documents.some((item) => ["converting", "preview_ready", "indexing"].includes(item.status));
   const message = $("edit-files-message");
-  if (!busy && message && message.textContent === "资料已保存，正在写入 Milvus 向量库…") moduleMessage("edit-files-message", "资料已保存");
+  if (!busy && message && message.textContent === "资料已保存，正在入库…") moduleMessage("edit-files-message", "资料已保存");
   if (busy) state.editPoller = setTimeout(loadEditDocuments, 1200);
 }
 async function saveEditFiles(fromAll = false) {
@@ -923,7 +979,7 @@ async function saveEditFiles(fromAll = false) {
       state.editSelectedFiles = [];
       $("edit-direct-text").value = "";
       renderSelectedChips("edit-files-selected", "files");
-      moduleMessage("edit-files-message", "资料已保存，正在写入 Milvus 向量库…");
+      moduleMessage("edit-files-message", "资料已保存，正在入库…");
     } else {
       moduleMessage("edit-files-message", "资料已保存");
     }

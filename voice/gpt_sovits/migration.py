@@ -9,7 +9,7 @@ from voice.gpt_sovits.language import (
 )
 
 
-LANGUAGE_ALIASES = {"cantonese": "yue"}
+LANGUAGE_ALIASES = {"cantonese": "zh", "yue": "zh", "ko": "zh"}
 
 
 @dataclass(frozen=True)

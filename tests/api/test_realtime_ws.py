@@ -250,3 +250,97 @@ def test_realtime_resumes_waiting_input_with_structured_values(client):
                 break
         assert final is not None
         assert final["answer"] == "已完成"
+
+
+
+def test_realtime_cancel_does_not_persist_assistant(client):
+    import threading
+    import time
+
+    persona = client.post("/api/personas", json={"name": "CancelMem"}).json()
+    started = threading.Event()
+
+    class FakeAgentService:
+        def stream_query(self, question, context):
+            from agents.cancellation import current_turn_cancel
+
+            started.set()
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                cancel = current_turn_cancel()
+                if cancel is not None and cancel.is_set():
+                    return
+                time.sleep(0.05)
+            yield {
+                "kind": "result",
+                "result": AgentTurnResult(
+                    status="completed",
+                    answer="should-not-persist",
+                    specialist="conversation",
+                ),
+            }
+
+    client.app.state.agent_service = FakeAgentService()
+    conversation_id = "conv-cancel"
+    with client.websocket_connect(
+        f"/ws/personas/{persona['id']}/conversations/{conversation_id}"
+    ) as ws:
+        assert ws.receive_json()["type"] == "session.ready"
+        ws.send_text(json.dumps({"type": "text.submit", "question": "hello"}))
+        saw_started = False
+        for _ in range(20):
+            event = ws.receive_json()
+            if event.get("type") == "turn.started":
+                saw_started = True
+                break
+        assert saw_started
+        assert started.wait(2)
+        ws.send_text(json.dumps({"type": "generation.cancel"}))
+        saw_cancel = False
+        for _ in range(40):
+            event = ws.receive_json()
+            if event.get("type") == "turn.cancelled":
+                saw_cancel = True
+                break
+            if event.get("type") == "text.final":
+                raise AssertionError(f"cancelled turn should not complete: {event}")
+        assert saw_cancel
+
+    messages = client.get(
+        f"/api/personas/{persona['id']}/conversations/{conversation_id}/messages"
+    ).json()
+    assert all(message["role"] != "assistant" for message in messages)
+    assert any(message["role"] == "user" for message in messages)
+
+
+def test_realtime_forwards_reasoning_events(client):
+    persona = client.post("/api/personas", json={"name": "Reasoning"}).json()
+
+    class FakeAgentService:
+        def stream_query(self, question, context):
+            yield {"kind": "reasoning", "text": "think"}
+            yield {"kind": "token", "text": "hi"}
+            yield {
+                "kind": "result",
+                "result": AgentTurnResult(status="completed", answer="hi", specialist="conversation"),
+            }
+
+    client.app.state.agent_service = FakeAgentService()
+    with client.websocket_connect(
+        f"/ws/personas/{persona['id']}/conversations/conv-reason"
+    ) as ws:
+        assert ws.receive_json()["type"] == "session.ready"
+        ws.send_text(__import__("json").dumps({"type": "text.submit", "question": "hi"}))
+        seen_reasoning = False
+        seen_delta = False
+        for _ in range(30):
+            event = ws.receive_json()
+            if event.get("type") == "agent.reasoning":
+                seen_reasoning = True
+                assert event["text"] == "think"
+            if event.get("type") == "text.delta":
+                seen_delta = True
+            if event.get("type") == "text.final":
+                break
+        assert seen_reasoning
+        assert seen_delta

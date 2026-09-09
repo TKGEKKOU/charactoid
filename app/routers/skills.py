@@ -61,6 +61,10 @@ def list_skill_tools_api() -> list[dict]:
             "name": spec.name,
             "mutates_data": spec.mutates_data,
             "requires_confirmation": spec.requires_confirmation,
+            "description": str(getattr(spec.tool, "description", "") or ""),
+            "specialist": spec.specialist,
+            "server": spec.server or "",
+            "source": "mcp" if spec.specialist == "mcp" else "builtin",
         }
         for spec in tool_specs()
     ]

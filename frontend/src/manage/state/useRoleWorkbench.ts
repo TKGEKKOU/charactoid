@@ -51,6 +51,10 @@ export function useRoleWorkbench() {
       selectedNodeId.value = `persona:${personaId}`;
       dirtyDomains.value = new Set();
       sessionStorage.setItem("charactoid.manage.persona", personaId);
+      const pending = draft.value.documents.filter((item) => ["converting", "preview_ready", "indexing"].includes(String(item.status)));
+      const failed = draft.value.documents.filter((item) => String(item.status) === "index_failed");
+      if (pending.length) pollDocuments(personaId);
+      else if (failed.length) message.value = "有资料尚未整理完成，可在知识库中重试";
     } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
     finally { loading.value = false; }
   }
@@ -125,7 +129,14 @@ export function useRoleWorkbench() {
   }
   async function reindexDocument(documentId: string) {
     operationPending.value = true; error.value = "";
-    try { const personaId = draft.value?.persona.id || ""; await retryDocument(documentId); await refreshDocuments(); if (personaId) pollDocuments(personaId); message.value = "已重新提交索引"; }
+    try {
+      const personaId = draft.value?.persona.id || "";
+      const current = draft.value?.documents.find((item) => String(item.id) === documentId);
+      await retryDocument(documentId, String(current?.status || ""));
+      await refreshDocuments();
+      if (personaId) pollDocuments(personaId);
+      message.value = "正在重新整理资料";
+    }
     catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
     finally { operationPending.value = false; }
   }
@@ -171,5 +182,19 @@ export function useRoleWorkbench() {
     else error.value = result.failedDomains.map((item) => `${item.domain}: ${item.message}`).join("；");
     isSaving.value = false;
   }
-  return { personas, selectedPersonaId, snapshot, draft, selectedNodeId, dirtyDomains, loading, isSaving, operationPending, error, message, isDirty, initialize, refreshIfClean, selectPersona, selectNode, updateProfile, setCapability, setServer, discard, save, addDocuments, removeDocument, reindexDocument, refreshLive2dResources, openLive2dDirectory, removeCurrentPersona };
+  async function reindexFailedDocuments() {
+    if (!draft.value || operationPending.value) return;
+    const targets = draft.value.documents.filter((item) => ["index_failed", "preview_ready"].includes(String(item.status)));
+    if (!targets.length) { message.value = "没有需要重试的资料"; return; }
+    operationPending.value = true; error.value = "";
+    try {
+      const personaId = draft.value.persona.id;
+      for (const item of targets) await retryDocument(String(item.id), String(item.status || ""));
+      await refreshDocuments();
+      pollDocuments(personaId);
+      message.value = `已重新整理 ${targets.length} 份资料`;
+    } catch (reason) { error.value = reason instanceof Error ? reason.message : String(reason); }
+    finally { operationPending.value = false; }
+  }
+  return { personas, selectedPersonaId, snapshot, draft, selectedNodeId, dirtyDomains, loading, isSaving, operationPending, error, message, isDirty, initialize, refreshIfClean, selectPersona, selectNode, updateProfile, setCapability, setServer, discard, save, addDocuments, removeDocument, reindexDocument, reindexFailedDocuments, refreshLive2dResources, openLive2dDirectory, removeCurrentPersona };
 }

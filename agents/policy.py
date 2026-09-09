@@ -26,6 +26,14 @@ class CapabilityPolicyStore:
         with self._session_factory() as owned_session:
             return self._list_for_persona(owned_session, persona_id)
 
+    def list_all(self) -> list[CapabilityPolicy]:
+        with self._session_factory() as session:
+            rows = session.scalars(select(PersonaCapabilityPolicy))
+            return [
+                CapabilityPolicy(row.persona_id, row.capability_id, row.enabled)
+                for row in rows
+            ]
+
     @staticmethod
     def _list_for_persona(session: Session, persona_id: str) -> list[CapabilityPolicy]:
         rows = session.scalars(
@@ -37,6 +45,47 @@ class CapabilityPolicyStore:
             CapabilityPolicy(row.persona_id, row.capability_id, row.enabled)
             for row in rows
         ]
+
+    def set_overrides(
+        self, persona_id: str, changes: Mapping[str, bool | None]
+    ) -> list[CapabilityPolicy]:
+        """Upsert or delete individual overrides without replacing the rest.
+
+        ``None`` deletes that override so the role falls back to the default.
+        """
+
+        persona_id = str(persona_id).strip()
+        if not persona_id:
+            raise ValueError("persona_id is required")
+        with self._session_factory() as session:
+            for capability_id, enabled in changes.items():
+                cid = str(capability_id).strip()
+                if not cid:
+                    continue
+                row = session.scalar(
+                    select(PersonaCapabilityPolicy).where(
+                        PersonaCapabilityPolicy.persona_id == persona_id,
+                        PersonaCapabilityPolicy.capability_id == cid,
+                    )
+                )
+                if enabled is None:
+                    if row is not None:
+                        session.delete(row)
+                    continue
+                if not isinstance(enabled, bool):
+                    raise ValueError("Capability policy values must be booleans")
+                if row is None:
+                    session.add(
+                        PersonaCapabilityPolicy(
+                            persona_id=persona_id,
+                            capability_id=cid,
+                            enabled=enabled,
+                        )
+                    )
+                else:
+                    row.enabled = enabled
+            session.commit()
+        return self.list_for_persona(persona_id)
 
     def replace_for_persona(
         self, persona_id: str, values: Mapping[str, bool]

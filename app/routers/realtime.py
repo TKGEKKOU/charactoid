@@ -30,6 +30,7 @@ async def persona_realtime(
     await websocket.accept()
     realtime = RealtimeSession()
     send_lock = asyncio.Lock()
+    execution_key = f"{persona_id}:{conversation_id}"
 
     try:
         try:
@@ -83,12 +84,14 @@ async def persona_realtime(
                 last_workflow_signature: str | None = None
                 pending_workflow_task_id: str | None = None
                 agent_runner = agent_runner_for(websocket.app.state)
+                if not realtime.is_current(turn_id):
+                    return
                 async for event in websocket.app.state.realtime_executions.run_stream(
-                    f"{persona_id}:{conversation_id}",
+                    execution_key,
                     lambda: agent_runner.stream_query(question, turn_context),
                 ):
                     if not realtime.is_current(turn_id):
-                        continue
+                        break
                     if event.get("kind") == "clone_session":
                         if event.get("action") == "request_voice_material":
                             await send_if_current(turn_id, "upload.request", purpose="voice_material")
@@ -117,12 +120,14 @@ async def persona_realtime(
                         continue
                     elif event.get("kind") == "token":
                         await send_if_current(turn_id, "text.delta", text=event.get("text") or "")
+                    elif event.get("kind") == "reasoning":
+                        await send_if_current(turn_id, "agent.reasoning", text=event.get("text") or "")
                     elif event.get("kind") == "result":
                         result = event.get("result")
-                if result is None:
-                    raise RuntimeError("Agent turn finished without a result")
                 if not realtime.is_current(turn_id):
                     return
+                if result is None:
+                    raise RuntimeError("Agent turn finished without a result")
                 response = response_for(result).model_dump(by_alias=True)
                 workflow = response.get("workflow")
                 workflow_worker = str(workflow.get("worker") or "").strip() if isinstance(workflow, dict) else ""
@@ -202,8 +207,10 @@ async def persona_realtime(
                         conversation_id,
                         tuple(event.attachment_ids),
                     )
+                if not realtime.is_current(turn_id):
+                    return
                 async for ev in websocket.app.state.realtime_executions.run_stream(
-                    f"{persona_id}:{conversation_id}",
+                    execution_key,
                     lambda: agent_runner.stream_resume(
                         resume_context,
                         event.specialist,
@@ -215,7 +222,7 @@ async def persona_realtime(
                     ),
                 ):
                     if not realtime.is_current(turn_id):
-                        continue
+                        break
                     if ev.get("kind") == "clone_session":
                         if ev.get("action") == "request_voice_material":
                             await send_if_current(turn_id, "upload.request", purpose="voice_material")
@@ -242,12 +249,14 @@ async def persona_realtime(
                         continue
                     elif ev.get("kind") == "token":
                         await send_if_current(turn_id, "text.delta", text=ev.get("text") or "")
+                    elif ev.get("kind") == "reasoning":
+                        await send_if_current(turn_id, "agent.reasoning", text=ev.get("text") or "")
                     elif ev.get("kind") == "result":
                         result = ev.get("result")
-                if result is None:
-                    raise RuntimeError("Agent turn finished without a result")
                 if not realtime.is_current(turn_id):
                     return
+                if result is None:
+                    raise RuntimeError("Agent turn finished without a result")
                 response = response_for(result).model_dump(by_alias=True)
                 workflow = response.get("workflow")
                 workflow_worker = str(workflow.get("worker") or "").strip() if isinstance(workflow, dict) else ""
@@ -322,8 +331,10 @@ async def persona_realtime(
                 await send("session.pong")
             elif isinstance(event, CancelEvent):
                 cancelled = await realtime.cancel()
+                await websocket.app.state.realtime_executions.cancel(execution_key)
                 if cancelled:
                     await send("turn.cancelled", turn_id=cancelled)
+                await realtime.wait_idle()
             elif isinstance(event, TextSubmitEvent):
                 try:
                     await realtime.start(
@@ -341,4 +352,5 @@ async def persona_realtime(
     except WebSocketDisconnect:
         pass
     finally:
+        await websocket.app.state.realtime_executions.cancel(execution_key)
         await realtime.close()

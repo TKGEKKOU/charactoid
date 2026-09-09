@@ -118,11 +118,11 @@ function bindChatGlobalEvents() {
 
   document.addEventListener("click", (event) => {
     const target = event.target;
+    if (!(target instanceof Element) || !target.isConnected) return;
     const insideUtility = target.closest?.("#chat-files-sidebar, #chat-context-sidebar, #chat-settings-sidebar, #chat-files-toggle, #chat-context-peek, #chat-settings-toggle");
     if (insideUtility) return;
     if (!$('chat-settings-sidebar')?.classList.contains("is-hidden")) setChatSettingsOpen(false);
     if (state.chatContextOpen) setChatContextOpen(false);
-    if (state.chatAttachmentsOpen) setChatAttachmentsDrawer(false);
   });
 }
 
@@ -152,6 +152,11 @@ function initChat() {
   state.chatAttachments = [];
   state.composerAttachmentIds = [];
   state.chatAttachmentsOpen = false;
+  state.filesQuery = "";
+  state.filesKindFilter = "all";
+  state.renamingFileId = null;
+  state.pendingDeleteId = null;
+  state.renamingValue = "";
   state.attachmentUploadPending = false;
   state.currentMediaFileId = null;
   state.chatLastFocusedElement = null;
@@ -216,10 +221,13 @@ function bindChatEvents() {
   $("clear-conversation").addEventListener("click", clearConversation);
   bindChatMaterialUpload();
   bindChatAttachmentDrawer();
+  bindChatFilesManager();
   bindChatAttachmentDropzone();
+  bindImageLightbox();
   bindChatContextSidebar();
   $("chat-log")?.addEventListener("click", (event) => { const button = event.target.closest("[data-chat-prompt]"); if (!button) return; const input = $("question"); if (!input) return; input.value = button.dataset.chatPrompt || ""; resizeComposer(); input.focus(); });
   $("chat-persona-toggle").addEventListener("click", togglePersonaDrawer);
+  $("chat-persona-chevron")?.addEventListener("click", togglePersonaDrawer);
   bindChatSettingsSidebar();
 }
 function scheduleRealtimeReconnect() {
@@ -322,6 +330,118 @@ function setSendButton(busy) {
 function resetChatProcess() {
   updateChatStatusCard();
 }
+const thinkingTimers = new WeakMap();
+function updateThinkingElapsed(node) {
+  const started = Number(node?.dataset.thinkingStarted || Date.now());
+  const seconds = Math.max(1, Math.floor((Date.now() - started) / 1000));
+  const label = node?.querySelector(".agent-thinking-elapsed");
+  if (label) label.textContent = "已处理 " + seconds + "秒";
+}
+function startThinkingTimer(node) {
+  if (!node || thinkingTimers.has(node)) return;
+  node.dataset.thinkingStarted = String(Date.now());
+  updateThinkingElapsed(node);
+  thinkingTimers.set(node, setInterval(() => updateThinkingElapsed(node), 1000));
+}
+function stopThinkingCard(node) {
+  if (!node) return;
+  const timer = thinkingTimers.get(node);
+  if (timer) {
+    clearInterval(timer);
+    thinkingTimers.delete(node);
+  }
+  node.querySelectorAll(".agent-thinking-card").forEach((item) => item.remove());
+}
+function ensureThinkingCard(node) {
+  if (!node) return null;
+  let card = node.querySelector(".agent-thinking-card");
+  if (card) return card;
+  card = document.createElement("div");
+  card.className = "agent-thinking-card";
+  card.setAttribute("data-role", "agent-thinking");
+  const elapsed = document.createElement("div");
+  elapsed.className = "agent-thinking-elapsed";
+  elapsed.textContent = "已处理 1秒";
+  const divider = document.createElement("div");
+  divider.className = "agent-thinking-divider";
+  const primary = document.createElement("div");
+  primary.className = "agent-thinking-primary";
+  primary.textContent = "正在组织回复…";
+  const secondary = document.createElement("div");
+  secondary.className = "agent-thinking-secondary";
+  card.append(elapsed, divider, primary, secondary);
+  const list = node.querySelector(".agent-process-list");
+  if (list) node.insertBefore(card, list);
+  else node.append(card);
+  startThinkingTimer(node);
+  return card;
+}
+function applyThinkingStage(node, stage) {
+  const card = ensureThinkingCard(node);
+  if (!card || card.dataset.hasReasoning === "1") return;
+  const primary = card.querySelector(".agent-thinking-primary");
+  if (primary && stage) primary.textContent = stage;
+}
+function recordThinkingReasoning(node, fullText) {
+  const list = node?.querySelector(".agent-process-list");
+  if (!list) return;
+  let item = list.querySelector('[data-stage-key="__reasoning__"]');
+  if (!item) {
+    item = document.createElement("div");
+    item.className = "agent-process-item is-done";
+    item.dataset.stageKey = "__reasoning__";
+    item.dataset.stage = "reasoning";
+    const glyph = document.createElement("span");
+    glyph.className = "agent-process-check";
+    const text = document.createElement("span");
+    text.className = "agent-process-text";
+    item.append(glyph, text);
+    list.append(item);
+  }
+  item.querySelector(".agent-process-text")?.replaceChildren(document.createTextNode(fullText));
+}
+function splitThinkingLines(full) {
+  const completed = [];
+  let pending = "";
+  const chars = Array.from(String(full || ""));
+  const hardBreak = /[\u3002\uFF01\uFF1F!?\uFF1B;\n]/;
+  const softBreak = /[\u3001,\u2014]/;
+  for (let i = 0; i < chars.length; i += 1) {
+    const ch = chars[i];
+    pending += ch;
+    const next = chars[i + 1] || "";
+    const ended = hardBreak.test(ch) || (ch === "." && (!next || /\s/.test(next)));
+    const wrapped = pending.length >= 42 && (ch === " " || softBreak.test(ch));
+    if (!ended && !wrapped) continue;
+    const item = pending.replace(/\s+/g, " ").trim();
+    if (item) completed.push(item);
+    pending = "";
+  }
+  return { completed, pending: pending.replace(/\s+/g, " ").trim() };
+}
+function liveThinkingTail(text) {
+  const value = String(text || "").replace(/\s+/g, " ").trim();
+  const max = 52;
+  if (value.length <= max) return value;
+  return "\u2026" + value.slice(1 - max);
+}
+function applyThinkingReasoning(node, delta) {
+  if (!node || !delta) return;
+  const card = ensureThinkingCard(node);
+  if (!card) return;
+  card.dataset.hasReasoning = "1";
+  const full = (card.dataset.reasoningFull || "") + String(delta);
+  card.dataset.reasoningFull = full;
+  const { completed, pending } = splitThinkingLines(full);
+  const primary = card.querySelector(".agent-thinking-primary");
+  const secondary = card.querySelector(".agent-thinking-secondary");
+  if (completed.length && primary) primary.textContent = completed[completed.length - 1];
+  if (secondary) {
+    secondary.textContent = liveThinkingTail(pending);
+    secondary.classList.toggle("is-live", Boolean(pending) || card.dataset.hasReasoning === "1");
+  }
+  recordThinkingReasoning(node, full);
+}
 function showReplyLoading() {
   if (state.pendingReplyNode?.isConnected) return state.pendingReplyNode;
 
@@ -341,6 +461,7 @@ function showReplyLoading() {
   processList.className = "agent-process-list";
   processList.setAttribute("data-role", "agent-process");
   node.append(processList);
+  ensureThinkingCard(node);
   setReplyStage(node, "正在分析请求…");
   state.pendingReplyNode = node;
   return node;
@@ -416,6 +537,7 @@ function collapseReplyStages(node) {
 
 function finishReply(node) {
   if (!node) return;
+  stopThinkingCard(node);
   node.classList.remove("message-loading");
   delete node.dataset.pendingTurn;
   delete node.querySelector("p")?.dataset.stage;
@@ -427,6 +549,7 @@ function finishReply(node) {
 function clearStaleReplyLoading() {
   document.querySelectorAll(".message-loading[data-pending-turn]").forEach((node) => {
     if (!node.isConnected || hasVisibleReply(node) || node.querySelector(".voice-bubble-status")) return;
+    stopThinkingCard(node);
     node.remove();
   });
 }
@@ -532,6 +655,13 @@ function handleRealtimeEvent(event) {
     return;
   }
   if (event.turn_id && event.turn_id !== state.realtimeTurnId) return;
+  if (event.type === "agent.reasoning") {
+    if (state.realtimeStageEpoch === "closed") return;
+    state.realtimeStageEpoch = state.realtimeCompletionEpoch || 0;
+    if (!state.realtimeAnswerNode) state.realtimeAnswerNode = showReplyLoading();
+    applyThinkingReasoning(state.realtimeAnswerNode, event.text);
+    return;
+  }
   if (event.type === "agent.stage") {
     if (state.realtimeStageEpoch === "closed") return;
     state.realtimeStageEpoch = state.realtimeCompletionEpoch || 0;
@@ -557,6 +687,7 @@ function handleRealtimeEvent(event) {
     state.realtimeStageEpoch = state.realtimeCompletionEpoch || 0;
     if (!state.realtimeAnswerNode) state.realtimeAnswerNode = showReplyLoading();
     if (!state.realtimeAnswerNode) return;
+    stopThinkingCard(state.realtimeAnswerNode);
     state.realtimeAnswerNode.classList.remove("message-loading");
     collapseReplyStages(state.realtimeAnswerNode);
     if (window.PLLive2DHub) window.PLLive2DHub.setAgentState("idle");
@@ -816,6 +947,7 @@ function setReplyStage(node, stage, details = null) {
   const stageKey = String(label).replace(/\.{3}/g, "…").replace(/\s+/g, " ").trim();
   const group = stageGroupFor(stageKey);
   const detail = formatStageDetail(details);
+  applyThinkingStage(node, stageKey);
   // 同一阶段可能同时来自 turn.started、graph stage 和最终结果。
   // 只更新现有行，不把“正在分析请求…”重复堆叠成两行。
   const existing = Array.from(list.children).find((item) => item.dataset.stageKey === stageKey);
@@ -881,7 +1013,11 @@ function stageGroupFor(stage) {
 
 function formatStageDetail(details) {
   if (details == null) return "";
-  if (typeof details === "string") return details.trim();
+  if (typeof details === "string") {
+    const text = details.trim();
+    if (/仍在处理|等待模型/.test(text)) return "";
+    return text;
+  }
   if (Array.isArray(details)) return details.map(formatStageDetail).filter(Boolean).join(" · ");
   if (typeof details === "object") {
     return Object.entries(details)
@@ -1109,14 +1245,20 @@ function flushPendingVoiceQuestion() {
   const toggle = $("chat-persona-toggle");
   if (!menu || !toggle) return;
   const open = menu.classList.toggle("is-hidden");
-  toggle.setAttribute("aria-expanded", String(!open));
+  const expanded = String(!open);
+  toggle.setAttribute("aria-expanded", expanded);
+  $("chat-persona-chevron")?.setAttribute("aria-expanded", expanded);
   if (!open && (!Array.isArray(state.personas) || !state.personas.length)) {
     const list = $("persona-list");
     if (list) list.textContent = "正在加载角色…";
     void loadPersonas();
   }
 }
-function closePersonaMenu() { $("chat-persona-menu").classList.add("is-hidden"); $("chat-persona-toggle").setAttribute("aria-expanded", "false"); }
+function closePersonaMenu() {
+  $("chat-persona-menu")?.classList.add("is-hidden");
+  $("chat-persona-toggle")?.setAttribute("aria-expanded", "false");
+  $("chat-persona-chevron")?.setAttribute("aria-expanded", "false");
+}
 const CHAT_PREFERENCE_KEYS = {
   voice: "charactoid:assistant-voice",
   live2d: "charactoid:chat-live2d",
@@ -1183,6 +1325,7 @@ function bindChatSettingsSidebar() {
   button.dataset.bound = "true";
   const voice = $("assistant-voice-toggle");
   const live2d = $("chat-live2d-setting");
+  const live2dBackdrop = $("chat-live2d-backdrop-setting");
   const thinking = $("chat-thinking-setting");
   const workflow = $("chat-workflow-setting");
   const debug = $("chat-debug-setting");
@@ -1204,8 +1347,18 @@ function bindChatSettingsSidebar() {
       };
       requestAnimationFrame(() => tryOpen());
     };
-    live2d.addEventListener("change", () => setLive2dVisibility(live2d.checked));
+    live2d.addEventListener("change", () => {
+      setLive2dVisibility(live2d.checked);
+      if (live2dBackdrop) live2dBackdrop.disabled = !live2d.checked;
+    });
     if (live2d.checked) setLive2dVisibility(true);
+  }
+  if (live2dBackdrop) {
+    live2dBackdrop.checked = localStorage.getItem("charactoid:live2d:backdrop") !== "0";
+    live2dBackdrop.disabled = !(live2d && live2d.checked);
+    live2dBackdrop.addEventListener("change", () => {
+      window.PLLive2DHub?.setBackdrop?.(live2dBackdrop.checked);
+    });
   }
   if (thinking) { thinking.checked = readChatPreference(CHAT_PREFERENCE_KEYS.thinking, false); syncThinkingPreference(thinking.checked); thinking.addEventListener("change", () => { writeChatPreference(CHAT_PREFERENCE_KEYS.thinking, thinking.checked); syncThinkingPreference(thinking.checked); }); }
   if (workflow) { workflow.checked = readChatPreference(CHAT_PREFERENCE_KEYS.workflow, false); workflow.addEventListener("change", () => { writeChatPreference(CHAT_PREFERENCE_KEYS.workflow, workflow.checked); syncWorkflowPreference(workflow.checked); }); }
@@ -1213,7 +1366,11 @@ function bindChatSettingsSidebar() {
   document.addEventListener("charactoid:live2d-visibility", (event) => {
     const open = Boolean(event.detail?.open);
     if (live2d) live2d.checked = open;
+    if (live2dBackdrop) live2dBackdrop.disabled = !open;
     writeChatPreference(CHAT_PREFERENCE_KEYS.live2d, open);
+  });
+  document.addEventListener("charactoid:live2d-backdrop", (event) => {
+    if (live2dBackdrop) live2dBackdrop.checked = Boolean(event.detail?.on);
   });
   $("chat-settings-close")?.addEventListener("click", () => setChatSettingsOpen(false));
   $("chat-settings-backdrop")?.addEventListener("click", () => setChatSettingsOpen(false));
@@ -1361,7 +1518,9 @@ async function submitQuestion(event) {
     void cancelActiveChatTask();
     return;
   }
-  const question = $("question").value.trim(); if (!question) return;
+  const question = $("question").value.trim();
+  const hasAttachments = getSelectedAttachmentIds().length > 0;
+  if (!question && !hasAttachments) return;
   // 如果上一次确认已经发出但服务端没有消费，允许新消息清掉这条失效确认，
   // 不让旧 pendingAction 永久占住发送入口；尚未响应的真实确认仍需用户明确处理。
   if (state.pendingAction && state.confirmationResponded) releaseFailedConfirmation();
@@ -1384,7 +1543,7 @@ async function submitQuestion(event) {
     if (!state.activePersona) return;
   }
   // 等待 Worker 输入时允许自然语言回答，继续当前 Agent checkpoint。
-  if (state.pendingInput && (state.rvcInline || state.voiceInline) && !state.voiceActive) {
+  if (question && state.pendingInput && (state.rvcInline || state.voiceInline) && !state.voiceActive) {
     $("question-form").reset();
     appendMessage("user", question);
     state.pendingInputValues = { ...(state.pendingInputValues || {}), user_message: question, text: question };
@@ -1422,6 +1581,7 @@ async function submitQuestion(event) {
   }
   const attachments = selected.filter((item) => ["ready", "selected", "completed"].includes(item.status));
   const attachmentIds = attachments.map((item) => item.file_id).filter((id) => id && !String(id).startsWith("upload-"));
+  const outgoingQuestion = question || (attachments.length ? "（图片）" : "");
   // 先清空已发送文本，避免后续 UI 渲染异常时把用户输入残留在输入框。
   $("question-form").reset();
   appendMessage("user", question, undefined, attachments);
@@ -1429,15 +1589,15 @@ async function submitQuestion(event) {
   showReplyLoading();
   setText("chat-error");
   updateComposerControls();
-  if (/克隆音色|音色克隆|克隆声音|声音克隆|训练音色|音色训练|语音克隆/.test(question)) {
+  if (/克隆音色|音色克隆|克隆声音|声音克隆|训练音色|音色训练|语音克隆/.test(outgoingQuestion)) {
     setReplyStage(state.pendingReplyNode, "已识别为声音克隆，正在准备上传会话…");
   }
-  if (sendRealtime({ type: "text.submit", question, attachment_ids: attachmentIds })) {
-    awaitRealtimeAcknowledgement(question);
+  if (sendRealtime({ type: "text.submit", question: outgoingQuestion, attachment_ids: attachmentIds })) {
+    awaitRealtimeAcknowledgement(outgoingQuestion);
     clearSelectedAttachments(); resizeComposer();
     return;
   }
-  void streamAgentQuery(question, attachmentIds);
+  void streamAgentQuery(outgoingQuestion, attachmentIds);
   clearSelectedAttachments(); resizeComposer();
 }
 
@@ -1499,6 +1659,13 @@ function handleAgentStreamEvent(event) {
     setText("question-status", "请选择视频或音频素材，或点击输入框左侧 + 上传。");
     return;
   }
+  if (event.kind === "reasoning") {
+    if (state.agentStageEpoch === "closed") return;
+    state.agentStageEpoch = "open";
+    if (!state.pendingReplyNode) state.pendingReplyNode = showReplyLoading();
+    applyThinkingReasoning(state.pendingReplyNode, event.text);
+    return;
+  }
   if (event.kind === "stage") {
     if (state.agentStageEpoch === "closed") return;
     state.agentStageEpoch = "open";
@@ -1509,6 +1676,7 @@ function handleAgentStreamEvent(event) {
     state.agentStageEpoch = "open";
     if (!state.pendingReplyNode) state.pendingReplyNode = showReplyLoading();
     if (!state.pendingReplyNode) return;
+    stopThinkingCard(state.pendingReplyNode);
     state.pendingReplyNode.classList.remove("message-loading");
     collapseReplyStages(state.pendingReplyNode);
     if (window.PLLive2DHub) window.PLLive2DHub.setAgentState("idle");
@@ -1532,7 +1700,7 @@ function handleAgentStreamEvent(event) {
 function resizeComposer() {
   const input = $("question");
   input.style.height = "0px";
-  const height = Math.min(Math.max(input.scrollHeight, 40), 200);
+  const height = Math.min(Math.max(input.scrollHeight, 28), 200);
   input.style.height = `${height}px`;
   input.style.overflowY = input.scrollHeight > 200 ? "auto" : "hidden";
 }
@@ -1541,10 +1709,18 @@ function appendMessage(type, text, createdAt, attachments = []) {
   if ($("chat-log").querySelector(".empty-state, .chat-empty-state")) clearChatLogContents();
   const node = document.createElement("article");
   node.className = `message message-${type}`;
-  const body = document.createElement("p");
-  body.textContent = text;
-  node.append(body);
-  if (attachments?.length) {
+  if (type === "user" && attachments?.length) {
+    const attachmentGroup = document.createElement("div");
+    attachmentGroup.className = "message-attachments";
+    attachments.forEach((item) => attachmentGroup.append(createAttachmentPreview(item, { compact: true })));
+    node.append(attachmentGroup);
+  }
+  if (String(text || "").trim()) {
+    const body = document.createElement("p");
+    body.textContent = text;
+    node.append(body);
+  }
+  if (type !== "user" && attachments?.length) {
     const attachmentGroup = document.createElement("div");
     attachmentGroup.className = "message-attachments";
     attachments.forEach((item) => attachmentGroup.append(createAttachmentPreview(item, { compact: true })));
@@ -2550,6 +2726,66 @@ function appendResultDetails(node, result) {
   if (parts.length) { const summary = document.createElement("div"); summary.className = "agent-turn-metrics"; summary.textContent = parts.join(" · "); debugDetails.append(summary); }
   if (debugDetails.children.length > 1) node.append(debugDetails);
 }
+
+function bindImageLightbox() {
+  if (document.body.dataset.imageLightboxBound === "true") return;
+  document.body.dataset.imageLightboxBound = "true";
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const dialog = $("chat-image-lightbox");
+    if (dialog?.open) dialog.close();
+  });
+}
+function ensureImageLightbox() {
+  let dialog = $("chat-image-lightbox");
+  if (dialog) return dialog;
+  dialog = document.createElement("dialog");
+  dialog.id = "chat-image-lightbox";
+  dialog.className = "chat-image-lightbox";
+  dialog.setAttribute("aria-label", "图片预览");
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "chat-image-lightbox-close";
+  close.title = "关闭预览";
+  close.setAttribute("aria-label", "关闭预览");
+  close.innerHTML = '<i data-lucide="x"></i>';
+  close.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dialog.close();
+  });
+  const image = document.createElement("img");
+  image.alt = "图片预览";
+  dialog.append(close, image);
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  document.body.append(dialog);
+  return dialog;
+}
+function openImageLightbox(src, alt) {
+  if (!src) return;
+  const dialog = ensureImageLightbox();
+  const image = dialog.querySelector("img");
+  image.src = src;
+  image.alt = alt || "图片预览";
+  if (typeof dialog.showModal === "function") {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "");
+  }
+  icons();
+}
+function bindImageZoom(image, src, alt) {
+  if (!image || !src) return;
+  image.classList.add("is-zoomable");
+  image.title = "点击放大";
+  image.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openImageLightbox(src, alt);
+  });
+}
 function bindChatMaterialUpload() {
   const button = $("chat-attachment");
   const input = $("chat-voice-material");
@@ -2566,7 +2802,7 @@ function bindChatMaterialUpload() {
     input.value = "";
     input.dataset.rvcInline = "false";
     input.dataset.voiceInline = "false";
-    input.accept = ".pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,audio/*,video/*";
+    input.accept = ".pdf,.txt,.md,.docx,.xlsx,.pptx,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,audio/*,video/*";
     files.forEach((file) => void ((inlineRvc || inlineVoice || state.pendingUploadRequest?.purpose === "voice_material") ? uploadChatVoiceMaterial(file) : uploadChatAttachment(file)));
   });
 }
@@ -2578,7 +2814,7 @@ function openChatVoiceUpload() {
 function uploadChatVoiceMaterial(file) { if (!file) { setText("chat-error", "音色素材上传失败：未选择文件", true); return Promise.resolve(null); } return uploadChatAttachment(file, { errorPrefix: "音色素材", inlineRvc: Boolean(state.rvcInline), inlineVoice: Boolean(state.voiceInline) }); }
 function bindChatAttachmentDropzone() {
   const form = $("question-form");
-  const dropzones = [form, $("chat-files-dropzone")].filter(Boolean);
+  const dropzones = [form, $("chat-files-sidebar"), $("chat-files-dropzone")].filter(Boolean);
   if (!dropzones.length || form?.dataset.dropBound === "true") return;
   if (form) form.dataset.dropBound = "true";
   dropzones.forEach((zone) => {
@@ -2611,7 +2847,37 @@ function bindChatAttachmentDrawer() {
   $("chat-files-close")?.addEventListener("click", () => setChatAttachmentsDrawer(false));
   $("chat-files-backdrop")?.addEventListener("click", () => setChatAttachmentsDrawer(false));
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.chatAttachmentsOpen) setChatAttachmentsDrawer(false);
+    if (event.key !== "Escape") return;
+    if ($("chat-image-lightbox")?.open) return;
+    if (state.renamingFileId) {
+      state.renamingFileId = null;
+      renderChatAttachments();
+      return;
+    }
+    if (state.pendingDeleteId) {
+      state.pendingDeleteId = null;
+      renderChatAttachments();
+      return;
+    }
+    if (state.chatAttachmentsOpen) setChatAttachmentsDrawer(false);
+  });
+}
+function bindChatFilesManager() {
+  const search = $("chat-files-search");
+  if (search && search.dataset.bound !== "true") {
+    search.dataset.bound = "true";
+    search.addEventListener("input", () => {
+      state.filesQuery = search.value;
+      renderChatAttachments();
+    });
+  }
+  document.querySelectorAll("[data-files-kind]").forEach((button) => {
+    if (button.dataset.bound === "true") return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", () => {
+      state.filesKindFilter = button.dataset.filesKind || "all";
+      renderChatAttachments();
+    });
   });
 }
 function attachmentApiBase() {
@@ -2656,7 +2922,33 @@ function formatAttachmentSize(size) {
   return `${amount >= 10 || index === 0 ? Math.round(amount) : amount.toFixed(1)} ${units[index]}`;
 }
 function attachmentMeta(item) {
-  return [item.mime_type || item.mime, formatAttachmentSize(item.size), item.duration ? `${Math.round(Number(item.duration))} 秒` : ""].filter(Boolean).join(" · ");
+  const duration = item.duration ? `${Math.round(Number(item.duration))} \u79d2` : "";
+  const measure = item.width && item.height ? `${item.width}\u00d7${item.height}` : "";
+  return [attachmentTypeLabel(item), formatAttachmentSize(item.size), duration, measure].filter(Boolean).join(" \u00b7 ");
+}
+function fileKindGroup(item) {
+  const kind = attachmentKind(item);
+  if (kind === "image") return "image";
+  if (kind === "audio" || kind === "video") return "media";
+  return "document";
+}
+function visibleChatAttachments() {
+  const query = String(state.filesQuery || "").trim().toLowerCase();
+  const filter = state.filesKindFilter || "all";
+  return (state.chatAttachments || []).filter((item) => {
+    if (filter !== "all" && fileKindGroup(item) !== filter) return false;
+    if (query && !String(item.name || "").toLowerCase().includes(query)) return false;
+    return true;
+  });
+}
+function nextAttachmentName(current, raw) {
+  const cleaned = String(raw || "").trim();
+  if (!cleaned) return "";
+  const oldSuffix = (String(current || "").match(/\.[^.]+$/) || [""])[0];
+  if (!oldSuffix) return cleaned.slice(0, 255);
+  const hasSuffix = cleaned.toLowerCase().endsWith(oldSuffix.toLowerCase());
+  const stem = (hasSuffix ? cleaned.slice(0, -oldSuffix.length) : cleaned.replace(/\.[^.]+$/, "")) || "attachment";
+  return `${stem}${oldSuffix}`.slice(0, 255);
 }
 function getSelectedAttachmentIds() { return Array.from(new Set((state.composerAttachmentIds || []).filter(Boolean))); }
 function selectedAttachments() { const ids = new Set(getSelectedAttachmentIds()); return (state.chatAttachments || []).filter((item) => ids.has(item.file_id)); }
@@ -2668,14 +2960,15 @@ function setAttachmentSelected(fileId, selected) {
   const item = state.chatAttachments?.find((entry) => String(entry.file_id) === String(fileId));
   if (item) item.status = selected ? (item.status === "ready" ? "selected" : item.status) : (item.status === "selected" ? "ready" : item.status);
   if (selected) setPendingAttachment(fileId);
+  else unsetPendingAttachment(fileId);
   renderChatAttachments(); renderChatContext(); updateComposerControls();
 }
 function createAttachmentPreview(item, options = {}) {
   const kind = attachmentKind(item); const wrap = document.createElement("div");
   wrap.className = `attachment-preview attachment-preview-${kind}${options.compact ? " attachment-preview-compact" : ""}`;
-  const url = getAttachmentUrl(item);
-  if (kind === "image") { const image = document.createElement("img"); image.src = url; image.alt = item.name; image.loading = "lazy"; wrap.append(image); }
-  else if (kind === "audio" || kind === "video") { const media = document.createElement(kind); media.src = url; media.controls = true; media.preload = "metadata"; wrap.append(media); }
+  const url = item.previewUrl || getAttachmentUrl(item);
+  if (kind === "image") { const image = document.createElement("img"); image.src = url; image.alt = item.name || "图片"; image.loading = "lazy"; bindImageZoom(image, url, item.name); wrap.append(image); }
+  else if (!options.compact && (kind === "audio" || kind === "video")) { const media = document.createElement(kind); media.src = url; media.controls = true; media.preload = "metadata"; wrap.append(media); }
   else {
     const icon = document.createElement("i"); icon.dataset.lucide = attachmentIcon(item);
     const copy = document.createElement("span"); copy.className = "attachment-preview-copy";
@@ -2713,43 +3006,227 @@ function renderAttachmentChip(item) {
   const remove = document.createElement("button"); remove.type = "button"; remove.className = "chat-attachment-remove"; remove.title = "移出待发送附件"; remove.setAttribute("aria-label", `移出 ${item.name}`); remove.innerHTML = '<i data-lucide="x"></i>'; remove.addEventListener("click", () => setAttachmentSelected(item.file_id, false));
   chip.append(icon, label, meta, remove); return chip;
 }
+function renderComposerPreview(item) {
+  const kind = attachmentKind(item);
+  const wrap = document.createElement("div");
+  wrap.className = `composer-preview composer-preview-${kind}`;
+  if (kind === "image") {
+    const image = document.createElement("img");
+    image.src = item.previewUrl || getAttachmentUrl(item);
+    image.alt = item.name || "图片";
+    bindImageZoom(image, image.src, item.name);
+    wrap.append(image);
+  } else {
+    const icon = document.createElement("i");
+    icon.dataset.lucide = attachmentIcon(item);
+    const label = document.createElement("span");
+    label.textContent = item.name || attachmentTypeLabel(item);
+    wrap.append(icon, label);
+  }
+  if (item.status === "uploading") {
+    const stateNode = document.createElement("small");
+    stateNode.className = "composer-preview-state";
+    stateNode.textContent = `${Math.round(item.progress || 0)}%`;
+    wrap.append(stateNode);
+  }
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "composer-preview-remove";
+  remove.title = "移出待发送附件";
+  remove.setAttribute("aria-label", `移出 ${item.name || "附件"}`);
+  remove.innerHTML = "<i data-lucide=\"x\"></i>";
+  remove.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setAttachmentSelected(item.file_id, false);
+  });
+  wrap.append(remove);
+  return wrap;
+}
 function renderChatAttachments() {
   const strip = $("chat-attachment-strip"); const lists = [$("chat-files-list"), $("chat-attachments-list-mobile")].filter(Boolean); const items = state.chatAttachments || []; const selected = new Set(getSelectedAttachmentIds());
-  if (strip) {
-    strip.replaceChildren();
-    if (isInlineRvcActive() || isInlineVoiceActive()) strip.classList.add("is-hidden");
-    else {
-      if (selected.size) { const count = document.createElement("span"); count.className = "chat-selection-summary"; count.textContent = `${selected.size} 个待发送`; strip.append(count); }
-      strip.classList.toggle("is-hidden", !selected.size);
+  if (strip) { strip.replaceChildren(); strip.classList.add("is-hidden"); }
+  const previews = $("composer-previews");
+  const form = $("question-form");
+  if (previews) {
+    previews.replaceChildren();
+    const hideComposer = isInlineRvcActive() || isInlineVoiceActive();
+    const selectedItems = Array.from(selected).map((id) => items.find((item) => item.file_id === id)).filter(Boolean);
+    if (!hideComposer) selectedItems.forEach((item) => previews.append(renderComposerPreview(item)));
+    previews.classList.toggle("is-hidden", hideComposer || !selectedItems.length);
+    form?.classList.toggle("has-previews", !hideComposer && selectedItems.length > 0);
+  }
+  const visible = visibleChatAttachments();
+  document.querySelectorAll("[data-files-kind]").forEach((button) => {
+    button.classList.toggle("is-active", (button.dataset.filesKind || "all") === (state.filesKindFilter || "all"));
+  });
+  lists.forEach((list) => {
+    list.replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "chat-attachments-empty";
+      empty.textContent = "\u5f53\u524d\u4f1a\u8bdd\u8fd8\u6ca1\u6709\u9644\u4ef6";
+      list.append(empty);
+    } else if (!visible.length) {
+      const empty = document.createElement("p");
+      empty.className = "chat-attachments-empty";
+      empty.textContent = "\u6ca1\u6709\u7b26\u5408\u6761\u4ef6\u7684\u6587\u4ef6";
+      list.append(empty);
+    } else {
+      visible.forEach((item) => list.append(renderAttachmentRow(item)));
+    }
+  });
+  const count = $("chat-files-count"); if (count) { count.textContent = String(items.length); count.classList.toggle("is-empty", items.length === 0); } const countLabel = $("chat-files-count-label"); if (countLabel) countLabel.textContent = String(visible.length); const summary = $("chat-attachments-summary"); if (summary) summary.textContent = items.length ? `${items.length} 个文件 · ${selected.size} 个待发送` : "当前会话中的文件"; const fileSummary = $("chat-files-summary"); if (fileSummary) fileSummary.textContent = items.length ? `${items.length} 个文件 · ${selected.size} 个待发送` : "上传后可在对话中使用";
+  const workbench = $("chat-media-workbench");
+  if (workbench) { workbench.replaceChildren(); workbench.classList.add("is-hidden"); }
+  state.currentMediaFileId = null;
+  renderChatContext(); icons();
+}
+function renderFileThumb(item) {
+  const thumb = document.createElement('div');
+  thumb.className = 'chat-attachment-thumb is-' + attachmentKind(item);
+  const ready = item.status !== 'uploading' && !String(item.file_id || '').startsWith('upload-');
+  if (attachmentKind(item) === 'image') {
+    const image = document.createElement('img');
+    image.src = item.previewUrl || getAttachmentUrl(item);
+    image.alt = item.name || '图片';
+    if (ready) bindImageZoom(image, image.src, item.name);
+    thumb.append(image);
+  } else {
+    const icon = document.createElement('i');
+    icon.dataset.lucide = attachmentIcon(item);
+    thumb.append(icon);
+    if (ready) {
+      thumb.title = '打开文件';
+      thumb.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const url = getAttachmentUrl(item);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      });
     }
   }
-  lists.forEach((list) => { list.replaceChildren(); if (!items.length) { const empty = document.createElement("p"); empty.className = "chat-attachments-empty"; empty.textContent = "当前会话还没有附件"; list.append(empty); } else items.forEach((item) => list.append(renderAttachmentRow(item))); });
-  const count = $("chat-files-count"); if (count) count.textContent = String(items.length); const countLabel = $("chat-files-count-label"); if (countLabel) countLabel.textContent = String(items.length); const summary = $("chat-attachments-summary"); if (summary) summary.textContent = items.length ? `${items.length} 个文件 · ${selected.size} 个待发送` : "当前会话中的文件"; const fileSummary = $("chat-files-summary"); if (fileSummary) fileSummary.textContent = items.length ? `${items.length} 个文件 · ${selected.size} 个待发送` : "上传后可在对话中使用";
-  renderChatMediaWorkbench(Array.from(selected).map((id) => items.find((item) => item.file_id === id)).filter(Boolean)); renderChatContext(); icons();
+  return thumb;
 }
 function renderAttachmentRow(item) {
-  const row = document.createElement("article"); row.className = "chat-attachment-row";
-  const head = document.createElement("div"); head.className = "chat-attachment-row-head";
-  const title = document.createElement("strong"); title.textContent = item.name;
-  const meta = document.createElement("small"); meta.textContent = item.status === "uploading" ? `上传中 ${item.progress || 0}%` : item.status === "error" ? (item.error || "上传失败") : (attachmentMeta(item) || "已就绪");
-  head.append(title, meta); row.append(head);
-  if (item.status === "uploading") { const progress = document.createElement("progress"); progress.max = 100; progress.value = Number(item.progress) || 0; row.append(progress); return row; }
-  if (["ready", "selected", "completed"].includes(item.status)) row.append(createAttachmentPreview(item));
-  const actions = document.createElement("div"); actions.className = "chat-attachment-actions";
-  if (item.status === "error") actions.append(attachmentAction("重试", "rotate-ccw", () => void retryChatAttachment(item)));
-  else {
-    const selected = getSelectedAttachmentIds().includes(item.file_id); const select = attachmentAction(selected ? "移出" : "用于本次对话", selected ? "check" : "plus", () => setAttachmentSelected(item.file_id, !selected));
-    actions.append(select);
-    if (attachmentKind(item) === "audio" || attachmentKind(item) === "video") actions.append(attachmentAction("发送到 RVC", "audio-waveform", () => sendAttachmentTo(item, "rvc")));
-    if (["text", "pdf", "office", "file"].includes(attachmentKind(item))) actions.append(attachmentAction("发送到知识库", "library", () => sendAttachmentTo(item, "rag")));
-    actions.append(attachmentAction("复制 file_id", "copy", (event) => copyAttachmentId(item.file_id, event.currentTarget)));
-    actions.append(attachmentAction("重命名", "pencil", () => renameChatAttachment(item)));
-    actions.append(attachmentAction("删除", "trash-2", () => deleteChatAttachment(item), true));
+  const selected = getSelectedAttachmentIds().includes(item.file_id);
+  const row = document.createElement('article');
+  row.className = 'chat-attachment-row' + (selected ? ' is-queued' : '');
+  row.dataset.fileId = item.file_id;
+  row.append(renderFileThumb(item));
+  const body = document.createElement('div');
+  body.className = 'chat-attachment-body';
+  const renaming = state.renamingFileId === item.file_id && item.status !== 'uploading';
+  const deleting = state.pendingDeleteId === item.file_id && item.status !== 'uploading';
+  if (renaming) {
+    const input = document.createElement('input');
+    input.className = 'chat-attachment-rename';
+    input.value = state.renamingValue || item.name;
+    input.maxLength = 255;
+    input.setAttribute('aria-label', '新的文件名');
+    input.addEventListener('input', () => { state.renamingValue = input.value; });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); void commitRenameChatAttachment(item, input.value); }
+      if (event.key === 'Escape') { event.preventDefault(); state.renamingFileId = null; renderChatAttachments(); }
+    });
+    input.addEventListener('blur', () => { if (state.renamingFileId === item.file_id) void commitRenameChatAttachment(item, input.value); });
+    body.append(input);
+  } else {
+    const title = document.createElement('strong');
+    title.className = 'chat-attachment-name';
+    title.textContent = item.name;
+    title.title = item.name;
+    body.append(title);
   }
-  row.append(actions); return row;
+  const meta = document.createElement('small');
+  meta.className = 'chat-attachment-meta';
+  meta.textContent = item.status === 'uploading'
+    ? ('上传中 ' + Math.round(item.progress || 0) + '%')
+    : item.status === 'error'
+      ? (item.error || '上传失败')
+      : (attachmentMeta(item) || '已就绪');
+  body.append(meta);
+  if (item.status === 'uploading') {
+    const progress = document.createElement('progress');
+    progress.max = 100;
+    progress.value = Number(item.progress) || 0;
+    body.append(progress);
+  }
+  if (deleting) {
+    const confirmRow = document.createElement('div');
+    confirmRow.className = 'chat-attachment-confirm';
+    confirmRow.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); });
+    const copy = document.createElement('span');
+    copy.textContent = '确认删除？';
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'chat-attachment-confirm-yes';
+    yes.textContent = '删除';
+    yes.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void deleteChatAttachment(item);
+    });
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'chat-attachment-confirm-no';
+    no.textContent = '取消';
+    no.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      state.pendingDeleteId = null;
+      renderChatAttachments();
+    });
+    confirmRow.append(copy, yes, no);
+    body.append(confirmRow);
+  }
+  row.append(body);
+  const actions = document.createElement('div');
+  actions.className = 'chat-attachment-actions';
+  const ready = ['ready', 'selected', 'completed'].includes(item.status);
+  const temp = String(item.file_id || '').startsWith('upload-');
+  if (item.status === 'error') {
+    actions.append(attachmentAction('重试', 'rotate-ccw', () => void retryChatAttachment(item)));
+    actions.append(attachmentAction('移除', 'x', () => void deleteChatAttachment(item), true));
+  } else if (item.status === 'uploading') {
+    actions.append(attachmentAction('取消上传', 'x', () => beginDeleteChatAttachment(item), true));
+  } else if (!deleting) {
+    if (ready) {
+      const taskWaiting = Boolean(state.pendingInput || isInlineRvcActive() || isInlineVoiceActive());
+      const queue = attachmentAction(
+        selected ? (taskWaiting ? '移出当前任务' : '移出发送') : (taskWaiting ? '用于当前任务' : '加入发送'),
+        selected ? 'check' : 'plus',
+        () => setAttachmentSelected(item.file_id, !selected),
+      );
+      if (selected) queue.classList.add('is-active');
+      actions.append(queue);
+      actions.append(attachmentAction('下载', 'download', () => void downloadChatAttachment(item)));
+      if (!temp) actions.append(attachmentAction('重命名', 'pencil', () => beginRenameChatAttachment(item)));
+    }
+    if (!temp) actions.append(attachmentAction('删除', 'trash-2', () => beginDeleteChatAttachment(item), true));
+  }
+  row.append(actions);
+  return row;
 }
-function attachmentAction(label, icon, onClick, danger = false) { const button = document.createElement("button"); button.type = "button"; button.className = `chat-attachment-action${danger ? " is-danger" : ""}`; button.title = label; button.setAttribute("aria-label", label); const glyph = document.createElement("i"); glyph.dataset.lucide = icon; button.append(glyph); button.addEventListener("click", onClick); return button; }
-async function copyAttachmentId(id, button) { try { await navigator.clipboard.writeText(id); } catch {} button.title = "已复制"; setTimeout(() => { button.title = "复制 file_id"; }, 1200); }
+function attachmentAction(label, icon, onClick, danger = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `chat-attachment-action${danger ? " is-danger" : ""}`;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  const glyph = document.createElement("i");
+  glyph.dataset.lucide = icon;
+  button.append(glyph);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    onClick(event);
+  });
+  return button;
+}
 function setChatAttachmentsDrawer(open) {
   const drawer = $("chat-attachments-drawer");
   const sidebar = $("chat-files-sidebar");
@@ -2760,20 +3237,19 @@ function setChatAttachmentsDrawer(open) {
   sidebar?.classList.toggle("is-open", Boolean(open));
   sidebar?.setAttribute("aria-hidden", String(!open));
   drawer?.classList.toggle("is-hidden", !open);
-  backdrop?.classList.toggle("is-hidden", !open);
+  const mobile = window.matchMedia("(max-width: 880px)").matches;
+  backdrop?.classList.toggle("is-hidden", !open || !mobile);
   $("chat-files-toggle")?.setAttribute("aria-expanded", String(Boolean(open)));
-  if (open) {
-    renderChatAttachments();
-    $("chat-files-upload")?.focus();
-  } else state.chatLastFocusedElement?.focus?.();
+  $("chat-files-toggle")?.classList.toggle("is-active", Boolean(open));
+  if (open) renderChatAttachments();
 }
 function toggleChatAttachmentsDrawer() { setChatAttachmentsDrawer(!state.chatAttachmentsOpen); }
 async function loadChatAttachments() { if (!state.activePersona) return; try { const result = await api(fetch(attachmentApiBase(), { cache: "no-store" })); state.chatAttachments = (Array.isArray(result) ? result : (result.attachments || result.files || [])).map(normalizeAttachment).filter((item) => item?.file_id); state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => state.chatAttachments.some((item) => item.file_id === id)); renderChatAttachments(); } catch (reason) { state.chatAttachments = []; renderChatAttachments(); if (reason?.status !== 404) setText("chat-error", `附件列表加载失败：${reason.message || reason}`); } }
 function uploadWithProgress(file, onProgress) { return new Promise((resolve, reject) => { const xhr = new XMLHttpRequest(); xhr.open("POST", attachmentApiBase()); xhr.setRequestHeader("X-CHARACTOID-Request", "web"); xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); }; xhr.onload = () => { let data = {}; try { data = JSON.parse(xhr.responseText || "{}"); } catch {} if (xhr.status >= 200 && xhr.status < 300) resolve(data); else reject(new Error(data.detail || `HTTP ${xhr.status}`)); }; xhr.onerror = () => reject(new Error("网络错误")); xhr.onabort = () => reject(new Error("上传已取消")); const form = new FormData(); form.append("files", file, file.name); xhr.send(form); }); }
 async function uploadChatAttachment(file, options = {}) {
   if (!state.activePersona) return;
-  if (file.size > 500 * 1024 * 1024) {
-    setText("chat-error", `${file.name} 超过 500 MB 限制`, true);
+  if (file.size > 512 * 1024 * 1024) {
+    setText("chat-error", `${file.name} 超过 512 MB 限制`, true);
     return;
   }
   const isRvcSource = Boolean(
@@ -2793,6 +3269,7 @@ async function uploadChatAttachment(file, options = {}) {
     status: "uploading",
     progress: 0,
     localFile: file,
+    previewUrl: String(file.type || "").startsWith("image/") ? URL.createObjectURL(file) : "",
   };
   state.chatAttachments.unshift(item);
   state.composerAttachmentIds.unshift(tempId);
@@ -2800,12 +3277,25 @@ async function uploadChatAttachment(file, options = {}) {
   try {
     const result = await uploadWithProgress(file, (progress) => {
       item.progress = progress;
-      renderChatAttachments();
+      const rowNode = document.querySelector(`[data-file-id="${CSS.escape(tempId)}"]`);
+      if (!rowNode) return;
+      const bar = rowNode.querySelector("progress");
+      if (bar) bar.value = progress;
+      const meta = rowNode.querySelector(".chat-attachment-meta");
+      if (meta) meta.textContent = `\u4e0a\u4f20\u4e2d ${progress}%`;
     });
     const saved = normalizeAttachment((result?.attachments || result?.files || [result])[0]);
+    if (item.cancelled) {
+      if (saved?.file_id) {
+        void api(fetch(`${attachmentApiBase()}/${encodeURIComponent(saved.file_id)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } })).catch(() => {});
+      }
+      return null;
+    }
     if (!saved?.file_id) throw new Error("服务端未返回 file_id");
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     state.chatAttachments = state.chatAttachments.map((entry) => entry.file_id === tempId ? saved : entry);
     state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== tempId);
+    if (!isRvcSource && !isVoiceSource) state.composerAttachmentIds.unshift(saved.file_id);
     renderChatAttachments();
 
     if (isRvcSource && state.rvcInline) {
@@ -2832,23 +3322,108 @@ async function uploadChatAttachment(file, options = {}) {
       await resumeVoiceWorkerWithAttachment(saved.file_id);
     } else {
       setPendingAttachment(saved.file_id);
-      setText("question-status", `已添加附件：${saved.name}`);
     }
     return saved;
   } catch (reason) {
     item.status = "error";
     item.error = reason.message || String(reason);
+    if (item.previewUrl) { URL.revokeObjectURL(item.previewUrl); item.previewUrl = ""; }
     state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== tempId);
     renderChatAttachments();
     setText("chat-error", `${options.errorPrefix ? `${options.errorPrefix}上传失败` : `${file.name} 上传失败`}：${item.error}`, true);
     return null;
   }
 }
-async function retryChatAttachment(item) { if (!item?.localFile) return setText("chat-error", "无法重试：浏览器未保留原文件，请重新上传", true); await uploadChatAttachment(item.localFile); }
-async function renameChatAttachment(item) { const name = prompt("输入新的文件名", item.name); if (!name || name === item.name) return; try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ name: name.trim() }) })); const saved = normalizeAttachment(result); Object.assign(item, saved || { name: name.trim() }); renderChatAttachments(); } catch (reason) { setText("chat-error", `重命名失败：${reason.message || reason}`, true); } }
-async function deleteChatAttachment(item) { if (!confirm(`删除附件“${item.name}”？`)) return; try { await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } })); state.chatAttachments = state.chatAttachments.filter((entry) => entry.file_id !== item.file_id); state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== item.file_id); renderChatAttachments(); } catch (reason) { setText("chat-error", `删除失败：${reason.message || reason}`, true); } }
-async function sendAttachmentTo(item, target) { try { const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}/send-to-${target}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ file_id: item.file_id }) })); setText("question-status", result.message || (target === "rvc" ? "已发送到 RVC" : "已发送到知识库")); } catch (reason) { setText("chat-error", `发送失败：${reason.message || reason}`, true); } }
-
+async function retryChatAttachment(item) {
+  if (!item?.localFile) return setText("chat-error", "\u65e0\u6cd5\u91cd\u8bd5\uff1a\u6d4f\u89c8\u5668\u672a\u4fdd\u7559\u539f\u6587\u4ef6\uff0c\u8bf7\u91cd\u65b0\u4e0a\u4f20", true);
+  state.chatAttachments = state.chatAttachments.filter((entry) => entry.file_id !== item.file_id);
+  state.composerAttachmentIds = state.composerAttachmentIds.filter((id) => id !== item.file_id);
+  await uploadChatAttachment(item.localFile);
+}
+async function downloadChatAttachment(item) {
+  const url = getAttachmentUrl(item);
+  if (!url) return;
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(response.statusText || `HTTP ${response.status}`);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = item.name || "attachment";
+    link.rel = "noopener";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch (reason) {
+    setText("chat-error", `下载失败：${reason.message || reason}`, true);
+  }
+}
+function beginRenameChatAttachment(item) {
+  if (!item?.file_id || String(item.file_id).startsWith("upload-")) return;
+  state.renamingFileId = item.file_id;
+  state.renamingValue = item.name;
+  state.pendingDeleteId = null;
+  renderChatAttachments();
+  const input = document.querySelector(`[data-file-id="${CSS.escape(item.file_id)}"] .chat-attachment-rename`);
+  input?.focus();
+  input?.select();
+}
+async function commitRenameChatAttachment(item, rawName) {
+  const name = nextAttachmentName(item.name, rawName);
+  state.renamingFileId = null;
+  state.renamingValue = "";
+  if (!name || name === item.name) { renderChatAttachments(); return; }
+  try {
+    const result = await api(fetch(`${attachmentApiBase()}/${encodeURIComponent(item.file_id)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CHARACTOID-Request": "web" }, body: JSON.stringify({ name }) }));
+    const saved = normalizeAttachment(result);
+    Object.assign(item, saved || { name });
+    renderChatAttachments();
+  } catch (reason) {
+    renderChatAttachments();
+    setText("chat-error", `\u91cd\u547d\u540d\u5931\u8d25\uff1a${reason.message || reason}`, true);
+  }
+}
+function beginDeleteChatAttachment(item) {
+  if (!item?.file_id) return;
+  if (item.status === "error" || item.status === "uploading" || String(item.file_id).startsWith("upload-")) {
+    item.cancelled = true;
+    void deleteChatAttachment(item);
+    return;
+  }
+  state.pendingDeleteId = item.file_id;
+  state.renamingFileId = null;
+  renderChatAttachments();
+}
+async function deleteChatAttachment(item) {
+  const fileId = item?.file_id;
+  if (!fileId) return;
+  const dropLocal = () => {
+    if (item.previewUrl) { URL.revokeObjectURL(item.previewUrl); item.previewUrl = ""; }
+    state.chatAttachments = (state.chatAttachments || []).filter((entry) => entry.file_id !== fileId);
+    state.composerAttachmentIds = (state.composerAttachmentIds || []).filter((id) => id !== fileId);
+    state.pendingDeleteId = null;
+    renderChatAttachments();
+  };
+  try {
+    if (item.status === "error" || item.status === "uploading" || String(fileId).startsWith("upload-")) {
+      item.cancelled = true;
+      dropLocal();
+      return;
+    }
+    const response = await fetch(`${attachmentApiBase()}/${encodeURIComponent(fileId)}`, { method: "DELETE", headers: { "X-CHARACTOID-Request": "web" } });
+    if (!response.ok && response.status !== 404) {
+      const data = response.headers.get("content-type")?.includes("application/json") ? await response.json().catch(() => null) : null;
+      throw new Error(typeof data?.detail === "string" ? data.detail : `删除失败 (${response.status})`);
+    }
+    dropLocal();
+  } catch (reason) {
+    state.pendingDeleteId = null;
+    renderChatAttachments();
+    setText("chat-error", `删除失败：${reason.message || reason}`, true);
+  }
+}
 function pendingResourceAction() {
   const pending = state.pendingAction;
   const action = pending?.action || {};
@@ -2917,6 +3492,16 @@ function setPendingAttachment(fileId) {
   if (attachmentKind(item) === "audio") values.audio_file_id = fileId;
   else delete values.audio_file_id;
   values.attachment_ids = Array.from(new Set([...(values.attachment_ids || []), fileId]));
+  state.pendingInputValues = values;
+  renderChatContext();
+}
+function unsetPendingAttachment(fileId) {
+  if (!fileId) return;
+  const values = { ...(state.pendingInputValues || {}) };
+  const ids = (Array.isArray(values.attachment_ids) ? values.attachment_ids : []).filter((id) => String(id) !== String(fileId));
+  if (ids.length) values.attachment_ids = ids;
+  else delete values.attachment_ids;
+  if (String(values.audio_file_id || "") === String(fileId)) delete values.audio_file_id;
   state.pendingInputValues = values;
   renderChatContext();
 }
@@ -3610,9 +4195,10 @@ function voiceWorkspaceNode() {
   if (!node) return null;
   node.classList.remove("message-loading");
   delete node.dataset.pendingTurn;
+  stopThinkingCard(node);
   clearReplyStage(node);
   node.querySelectorAll(
-    ".agent-process-list, .agent-process-details, .thinking-indicator, [data-role=\"agent-stage\"], p[data-stage]",
+    ".agent-process-list, .agent-process-details, .agent-thinking-card, .thinking-indicator, [data-role=\"agent-stage\"], p[data-stage]",
   ).forEach((item) => item.remove());
   const body = node.querySelector('[data-role="voice-reply"]') || node.querySelector("p");
   if (body) { body.textContent = "\u58f0\u97f3\u4efb\u52a1\u5df2\u5c31\u7eea\uff0c\u8bf7\u6309\u63d0\u793a\u7ee7\u7eed\u3002"; delete body.dataset.stage; }
@@ -4223,11 +4809,12 @@ function rvcWorkspaceNode() {
   // Agent 先发出的临时阶段在工作区接管后必须清理，避免“正在分析请求…”与卡片叠加。
   node.classList.remove("message-loading");
   delete node.dataset.pendingTurn;
+  stopThinkingCard(node);
   clearReplyStage(node);
   // 清掉所有历史阶段节点。旧版本可能同时留下列表、详情和独立 stage 行，
   // 不能只删除第一个匹配项，否则“正在分析请求…”仍会出现在卡片旁边。
   node.querySelectorAll(
-    ".agent-process-list, .agent-process-details, .thinking-indicator, [data-role=\"agent-stage\"], p[data-stage]",
+    ".agent-process-list, .agent-process-details, .agent-thinking-card, .thinking-indicator, [data-role=\"agent-stage\"], p[data-stage]",
   ).forEach((item) => item.remove());
   const body = node.querySelector('[data-role="voice-reply"]') || node.querySelector("p");
   if (body) { body.textContent = "请上传需要变声的音频或视频。"; delete body.dataset.stage; }

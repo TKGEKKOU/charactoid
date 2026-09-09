@@ -119,3 +119,80 @@ def test_recovered_document_runtime_marks_indexing_job_failed(
     assert client.get(f"/api/documents/{job_id}").json()["error_message"] == (
         "服务重启后，未完成的运行已安全结束，请重新发起。"
     )
+
+
+
+def test_orphan_indexing_job_is_failed_without_runtime_result(
+    client, db_session, monkeypatch, tmp_path
+):
+    from app.models import DocumentJob
+    from agents.runtime.models import AgentRun, RunStatus
+    from ingestion.document_jobs import sync_recovered_document_runs
+
+    persona = _create_persona(client, "孤儿索引角色")
+    monkeypatch.setattr("ingestion.document_jobs.DATA_DIR", tmp_path)
+    job_id = "document-orphan-job"
+    run_id = "document-orphan-run"
+    db_session.add(
+        DocumentJob(
+            id=job_id,
+            workspace_id="local-default",
+            knowledge_space_id=persona["knowledge_space_id"],
+            document_id="document-orphan-doc",
+            original_filename="guide.md",
+            markdown_filename="guide.md",
+            source_path=str(tmp_path / "guide.md"),
+            markdown_path=str(tmp_path / "preview.md"),
+            status="indexing",
+            run_id=run_id,
+        )
+    )
+    db_session.commit()
+    runtime = _attach_runtime(client, db_session)
+    runtime.run_store.create(
+        AgentRun(
+            run_id=run_id,
+            action="document_index",
+            status=RunStatus.RUNNING,
+            workspace_id="local-default",
+            thread_id=job_id,
+            resume_state={"phase": "indexing", "document_job_id": job_id},
+        )
+    )
+
+    recovered = runtime.run_store.recover_incomplete_runs()
+    sync_recovered_document_runs(client.app.state.session_factory, recovered)
+
+    payload = client.get(f"/api/documents/{job_id}").json()
+    assert payload["status"] == "index_failed"
+    assert payload["error_message"] == "服务重启后，未完成的运行已安全结束，请重新发起。"
+
+
+def test_leftover_indexing_job_is_failed_even_without_recovered_runs(
+    client, db_session, monkeypatch, tmp_path
+):
+    from app.models import DocumentJob
+    from ingestion.document_jobs import sync_recovered_document_runs
+
+    persona = _create_persona(client, "遗留索引角色")
+    monkeypatch.setattr("ingestion.document_jobs.DATA_DIR", tmp_path)
+    job_id = "document-leftover-job"
+    db_session.add(
+        DocumentJob(
+            id=job_id,
+            workspace_id="local-default",
+            knowledge_space_id=persona["knowledge_space_id"],
+            document_id="document-leftover-doc",
+            original_filename="guide.md",
+            markdown_filename="guide.md",
+            source_path=str(tmp_path / "guide.md"),
+            markdown_path=str(tmp_path / "preview.md"),
+            status="indexing",
+        )
+    )
+    db_session.commit()
+
+    sync_recovered_document_runs(client.app.state.session_factory, [])
+
+    payload = client.get(f"/api/documents/{job_id}").json()
+    assert payload["status"] == "index_failed"

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
 
@@ -31,10 +32,21 @@ class RealtimeSession:
         async with self._lock:
             turn_id = self._turn_id
             self._turn_id = None
+            task = self._task
+        if task is not None and not task.done():
+            task.cancel()
         return turn_id
 
     def is_current(self, turn_id: str) -> bool:
         return self._turn_id == turn_id
+
+    async def wait_idle(self) -> None:
+        async with self._lock:
+            task = self._task
+        if task is None or task.done():
+            return
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
 
     async def finish(self, turn_id: str) -> None:
         async with self._lock:
@@ -44,3 +56,4 @@ class RealtimeSession:
 
     async def close(self) -> None:
         await self.cancel()
+        await self.wait_idle()

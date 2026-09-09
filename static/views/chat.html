@@ -8,16 +8,28 @@
           <small id="chat-files-summary">上传后可在对话中使用</small>
         </div>
         <div class="chat-files-head-actions">
-          <button id="chat-files-upload" class="icon-button" type="button" title="上传文件" aria-label="上传文件"><i data-lucide="plus"></i></button>
-          <button id="chat-files-close" class="icon-button chat-files-close" type="button" title="收起文件栏" aria-label="收起文件栏"><i data-lucide="panel-left-close"></i></button>
+          <button id="chat-files-upload" class="chat-files-upload-btn" type="button" title="上传文件" aria-label="上传文件"><i data-lucide="plus"></i><span>上传</span></button>
+          <button id="chat-files-close" class="icon-button chat-files-close" type="button" title="关闭文件栏" aria-label="关闭文件栏"><i data-lucide="x"></i></button>
         </div>
       </header>
       <div id="chat-files-dropzone" class="chat-files-dropzone" tabindex="0" role="button" aria-label="上传文件或拖拽到此处">
         <i data-lucide="upload-cloud"></i>
         <span>拖拽文件到这里</span>
-        <small>或点击上传</small>
+        <small>图片、文档、音视频都可以</small>
       </div>
-      <div class="chat-files-list-label"><span>当前附件</span><span id="chat-files-count-label">0</span></div>
+      <div class="chat-files-toolbar">
+        <label class="chat-files-search">
+          <i data-lucide="search"></i>
+          <input id="chat-files-search" type="search" placeholder="搜索文件名" maxlength="80" autocomplete="off" spellcheck="false">
+        </label>
+        <div class="chat-files-filters" role="tablist" aria-label="按类型筛选">
+          <button type="button" class="chat-files-filter is-active" data-files-kind="all">全部</button>
+          <button type="button" class="chat-files-filter" data-files-kind="image">图片</button>
+          <button type="button" class="chat-files-filter" data-files-kind="media">音视频</button>
+          <button type="button" class="chat-files-filter" data-files-kind="document">文档</button>
+        </div>
+      </div>
+      <div class="chat-files-list-label"><span>当前文件</span><span id="chat-files-count-label">0</span></div>
       <div id="chat-files-list" class="chat-files-list"></div>
     </aside>
     <button id="chat-files-backdrop" class="chat-files-backdrop is-hidden" type="button" aria-label="关闭文件栏"></button>
@@ -26,53 +38,57 @@
       <header class="chat-toolbar">
         <div class="chat-toolbar-inner">
           <div class="chat-toolbar-leading">
-            <button id="live2d-toggle" class="icon-button" type="button" title="角色面板" aria-label="角色面板" aria-pressed="false"><i data-lucide="scan-face"></i></button>
+            <button id="chat-files-toggle" class="icon-button chat-files-entry chat-toolbar-labeled" type="button" title="打开会话文件" aria-label="打开会话文件" aria-haspopup="dialog" aria-expanded="false"><span class="chat-toolbar-labeled-icon"><i data-lucide="files"></i><span id="chat-files-count" class="chat-files-count is-empty" aria-label="附件数量">0</span></span><span class="chat-toolbar-caption">会话文件</span></button>
+          </div>
+          <div class="chat-toolbar-center">
             <div class="chat-persona-picker">
+              <button id="live2d-toggle" class="icon-button live2d-entry chat-persona-side" type="button" title="打开角色舞台" aria-label="打开角色舞台" aria-pressed="false"><i data-lucide="scan-face"></i></button>
               <button id="chat-persona-toggle" class="chat-persona-trigger" type="button" aria-haspopup="menu" aria-expanded="false">
-                <strong id="chat-title">选择角色</strong><i data-lucide="chevron-down"></i>
+                <strong id="chat-title">选择角色</strong>
               </button>
+              <button id="chat-persona-chevron" class="icon-button chat-persona-side chat-persona-chevron" type="button" title="选择角色" aria-label="选择角色" aria-haspopup="menu" aria-expanded="false"><i data-lucide="chevron-down"></i></button>
               <div id="chat-persona-menu" class="persona-menu is-hidden" role="menu"><div id="persona-list" class="persona-list"></div></div>
             </div>
           </div>
           <div class="chat-toolbar-actions">
-            <button id="chat-files-toggle" class="icon-button" type="button" title="打开会话文件" aria-label="打开会话文件" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="paperclip"></i><span id="chat-files-count" class="chat-files-count" aria-label="附件数量">0</span></button>
             <button id="chat-context-peek" class="icon-button chat-context-peek is-hidden" type="button" aria-controls="chat-context-sidebar" aria-expanded="false" title="打开任务与流程" aria-label="打开任务与流程"><i data-lucide="panel-right-open"></i><span id="chat-context-peek-label" class="chat-context-peek-label">任务</span><b id="chat-context-peek-count" class="is-hidden">0</b></button>
-            <button id="chat-settings-toggle" class="icon-button" type="button" title="对话设置" aria-label="对话设置" aria-haspopup="dialog" aria-expanded="false"><i data-lucide="settings-2"></i></button>
+            <button id="chat-settings-toggle" class="icon-button chat-settings-entry chat-toolbar-labeled" type="button" title="对话设置" aria-label="对话设置" aria-haspopup="dialog" aria-expanded="false"><span class="chat-toolbar-caption">选项</span><span class="chat-toolbar-labeled-icon"><i data-lucide="settings-2"></i></span></button>
           </div>
         </div>
       </header>
 
       <div class="chat-scroll-region">
-        <div class="chat-main-inner">
-          <section id="live2d-dock" class="live2d-stage-pane" aria-label="角色舞台" hidden>
+        <section id="live2d-dock" class="live2d-stage-pane" aria-label="角色舞台" hidden>
             <div id="live2d-stage" class="live2d-stage">
               <canvas id="live2d-canvas" class="live2d-canvas"></canvas>
-              <div id="live2d-resize" class="live2d-resize" title="拖动调整舞台高度" aria-label="拖动调整舞台高度"></div>
+              <div id="live2d-resize" class="live2d-resize" aria-label="拖动调整舞台高度"></div>
               <button id="live2d-focus-hint" class="live2d-focus-hint is-hidden" type="button">已进入专注模式 · 点击退出</button>
-            </div>
-            <footer class="live2d-foot">
               <p id="live2d-status" class="live2d-status" data-state="idle" aria-live="polite"><span class="live2d-led"></span><em id="live2d-status-text">空闲</em></p>
-              <div class="live2d-controls">
-                <button id="live2d-more" class="icon-button live2d-icon-btn" type="button" title="更多选项" aria-label="更多选项" aria-haspopup="menu" aria-expanded="false"><i data-lucide="more-horizontal"></i></button>
+              <div id="live2d-controls" class="live2d-controls">
+                <button id="live2d-backdrop" class="icon-button live2d-icon-btn" type="button" aria-label="退出完整背景" aria-pressed="false"><i data-lucide="minimize-2"></i></button>
+                <button id="live2d-more" class="icon-button live2d-icon-btn" type="button" aria-label="Live2D 设置" aria-haspopup="menu" aria-expanded="false"><i data-lucide="sliders-horizontal"></i></button>
                 <div id="live2d-more-menu" class="live2d-more-menu is-hidden" role="menu">
-                  <button id="live2d-model-toggle" class="live2d-menu-item live2d-menu-expand" type="button" role="menuitem" aria-expanded="false" aria-controls="live2d-model-panel"><i data-lucide="gallery-vertical-end"></i><span>更换模型</span><i class="live2d-menu-chevron" data-lucide="chevron-down"></i></button>
-                  <div id="live2d-model-panel" class="live2d-subpanel is-hidden">
-                    <label for="live2d-model">当前模型</label>
-                    <select id="live2d-model" class="live2d-select" title="更换模型" aria-label="更换模型"></select>
+                  <div class="live2d-menu-section">
+                    <p class="live2d-menu-kicker">动作</p>
+                    <div class="live2d-mode-switch" role="radiogroup" aria-label="自动动作">
+                      <span class="live2d-mode-thumb" aria-hidden="true"></span>
+                      <button class="live2d-mode-option" type="button" role="radio" data-live2d-motion="auto" aria-checked="false">自动</button>
+                      <button class="live2d-mode-option" type="button" role="radio" data-live2d-motion="off" aria-checked="false">不自动</button>
+                    </div>
+                    <button class="live2d-menu-item live2d-gaze-toggle" type="button" role="switch" data-live2d-gaze aria-checked="false"><i data-lucide="eye"></i><span>视线跟随</span><span class="live2d-switch-track" aria-hidden="true"><i></i></span></button>
                   </div>
-                  <button id="vts-details-toggle" class="live2d-menu-item live2d-menu-expand" type="button" role="menuitem" aria-expanded="false" aria-controls="vts-connection-card"><i data-lucide="radio-tower"></i><span>连接 VTube Studio</span><small id="vts-menu-state">未连接</small><i class="live2d-menu-chevron" data-lucide="chevron-down"></i></button>
-                  <div class="vts-connection-card is-hidden" id="vts-connection-card">
-                    <div class="vts-connection-head"><div><strong>VTube Studio</strong><small id="vts-connection-detail">未连接</small></div><span id="vts-connection-dot" class="vts-connection-dot"></span></div>
-                    <p id="vts-connection-message" class="vts-connection-message">连接后由 CHARACTOID 驱动口型、眨眼与角色摇晃。</p>
-                    <label class="vts-endpoint-field"><span>WebSocket 地址</span><input id="vts-endpoint-input" type="url" spellcheck="false" autocomplete="off" value="ws://127.0.0.1:8001"></label>
-                    <div class="vts-connection-actions"><button id="vts-connect" class="button button-primary" type="button"><i data-lucide="plug-zap"></i><span>连接</span></button><button id="vts-clear-token" class="button button-secondary" type="button"><i data-lucide="key-round"></i><span>重新授权</span></button></div>
+                  <div class="live2d-menu-section">
+                    <p class="live2d-menu-kicker">模型</p>
+                    <label class="live2d-menu-field" for="live2d-model">当前预览</label>
+                    <select id="live2d-model" class="live2d-select" aria-label="切换模型"></select>
+                    <button id="live2d-bind-model" class="live2d-menu-item" type="button" role="menuitem"><i data-lucide="link"></i><span>绑定到角色</span></button>
+                    <button id="live2d-manage" class="live2d-menu-item" type="button" role="menuitem"><i data-lucide="folder-open"></i><span>管理模型</span></button>
                   </div>
-                  <button id="live2d-flip" class="live2d-menu-item" type="button" role="menuitem"><i data-lucide="flip-horizontal-2"></i><span>镜像</span></button>
-                  <button id="live2d-manage" class="live2d-menu-item" type="button" role="menuitem"><i data-lucide="folder-cog"></i><span>管理</span></button>
                 </div>
               </div>
-            </footer>
+            </div>
           </section>
+        <div class="chat-main-inner">
 
           <div id="chat-log" class="chat-log selectable"><div class="chat-empty-state" aria-hidden="true"></div>
           <section id="chat-task-workspace" class="chat-task-workspace is-hidden" aria-label="当前任务工作区" aria-live="polite">
@@ -97,11 +113,15 @@
           <div class="chat-inline-status is-hidden"><p id="audio-status" class="audio-status" aria-live="polite"></p><p id="question-status" class="question-status" aria-live="polite"></p><p id="chat-error" class="inline-error chat-error"></p></div>
           <section id="confirmation-panel" class="confirmation-panel is-hidden" aria-hidden="true"><div><strong id="confirmation-title">确认操作</strong><p id="confirmation-detail"></p></div><div class="confirmation-actions"><button id="cancel-action" class="button button-secondary" type="button">取消</button><button id="confirm-action" class="button button-warning" type="button">确认</button></div></section>
           <form id="question-form" class="composer">
-            <input id="chat-voice-material" class="visually-hidden-input" type="file" accept=".pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,audio/*,video/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wma,.mp4,.mkv,.webm,.mov,.avi" multiple>
-            <button id="chat-attachment" class="icon-button" type="button" title="上传附件" aria-label="上传附件" disabled><i data-lucide="paperclip"></i></button>
-            <textarea id="question" rows="1" maxlength="12000" placeholder="输入消息，Enter 发送" required></textarea>
-            <button id="voice-chat" class="icon-button composer-voice-button" type="button" title="语音输入" aria-label="语音输入"><i data-lucide="mic"></i></button>
-            <button id="send-question" class="send-button" type="submit" title="发送" disabled><i data-lucide="arrow-up"></i></button>
+            <div id="composer-previews" class="composer-previews is-hidden" aria-label="待发送附件"></div>
+            <input id="chat-voice-material" class="visually-hidden-input" type="file" accept=".pdf,.txt,.md,.docx,.xlsx,.pptx,.csv,.json,.png,.jpg,.jpeg,.webp,.gif,audio/*,video/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus,.mp4,.mkv,.webm,.mov,.avi" multiple>
+            <textarea id="question" rows="1" maxlength="12000" placeholder="输入消息，Enter 发送"></textarea>
+            <div class="composer-toolbar">
+              <button id="chat-attachment" class="icon-button" type="button" title="添加" aria-label="添加附件" disabled><i data-lucide="plus"></i></button>
+              <span class="composer-toolbar-spacer" aria-hidden="true"></span>
+              <button id="voice-chat" class="icon-button composer-voice-button" type="button" title="语音输入" aria-label="语音输入"><i data-lucide="mic"></i></button>
+              <button id="send-question" class="send-button" type="submit" title="发送" disabled><i data-lucide="arrow-up"></i></button>
+            </div>
           </form>
         </div>
       </footer>
@@ -145,8 +165,10 @@
         </section>
         <section class="chat-settings-section" aria-labelledby="chat-settings-display-title">
           <div class="chat-settings-section-title"><h3 id="chat-settings-display-title">显示与交互</h3><span>本机偏好</span></div>
-          <label class="chat-setting-row"><span><strong>显示 Live2D</strong><small>打开角色舞台，不改变对话布局</small></span><input id="chat-live2d-setting" type="checkbox"></label>
-          <label class="chat-setting-row"><span><strong>显示思考内容</strong><small>显示意图识别、Agent 交接和处理步骤</small></span><input id="chat-thinking-setting" type="checkbox"></label><label class="chat-setting-row"><span><strong>显示调试信息</strong><small>显示模型、工具、耗时、压缩和证据等运行数据</small></span><input id="chat-debug-setting" type="checkbox"></label>
+          <label class="chat-setting-row"><span><strong>显示 Live2D</strong><small>在对话页显示角色</small></span><input id="chat-live2d-setting" type="checkbox"></label>
+          <label class="chat-setting-row"><span><strong>Live2D 完整背景</strong><small>铺在对话文字后面和两侧，默认开启</small></span><input id="chat-live2d-backdrop-setting" type="checkbox" checked></label>
+          <label class="chat-setting-row"><span><strong>显示思考内容</strong><small>显示意图识别、Agent 交接和处理步骤</small></span><input id="chat-thinking-setting" type="checkbox"></label>
+          <label class="chat-setting-row"><span><strong>显示调试信息</strong><small>显示模型、工具、耗时、压缩和证据等运行数据</small></span><input id="chat-debug-setting" type="checkbox"></label>
           <label class="chat-setting-row"><span><strong>展开流程详情</strong><small>任务栏默认展开流程图</small></span><input id="chat-workflow-setting" type="checkbox"></label>
         </section>
         <section class="chat-settings-section" aria-labelledby="chat-settings-status-title">

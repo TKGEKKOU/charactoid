@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph
 from langgraph.config import get_stream_writer
 
 from agents.context import PersonaAgentContext
+from agents.multimodal import message_text
 from agents.graph.knowledge import _default_web_search_executor, _knowledge_subgraph
 from agents.graph.policy import direct_worker_for_intent
 from agents.graph.state import WORKERS, PersonaWorkflowState, worker_node_name
@@ -38,10 +39,7 @@ _DIRECT_STAGE_LABELS = {
 def _latest_question(state: PersonaWorkflowState) -> str:
     for message in reversed(state.get("messages", [])):
         if isinstance(message, HumanMessage):
-            content = message.content
-            if isinstance(content, str):
-                return content
-            return str(content)
+            return message_text(message.content)
     return ""
 
 

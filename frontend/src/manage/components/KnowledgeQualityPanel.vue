@@ -16,6 +16,7 @@ const props = defineProps<{
   documents: Array<Record<string, unknown>>;
   disabled?: boolean;
 }>();
+const emit = defineEmits<{ retryFailed: [] }>();
 
 const report = ref<KnowledgeSpaceReport | null>(null);
 const evaluations = ref<KnowledgeEvaluationSummary[]>([]);
@@ -43,7 +44,7 @@ const acceptedRate = computed(() => latestEvaluation.value?.metrics?.accepted_ra
 const reportVersion = computed(() => {
   const versions = report.value?.index_version_counts;
   if (!versions) return "";
-  const [version] = Object.keys(versions);
+  const [version] = Object.keys(versions).filter((item) => item && item !== "unknown");
   return version ? `索引 ${version}` : "";
 });
 
@@ -119,6 +120,7 @@ onMounted(refresh);
     </div>
 
     <p v-if="error" class="knowledge-quality-error">读取质量数据失败：{{ error }}</p>
+    <button v-if="reportDocumentSummary.failed > 0" type="button" class="inspect-action" :disabled="disabled" @click="emit('retryFailed')">重新整理失败资料</button>
   </section>
 </template>
 

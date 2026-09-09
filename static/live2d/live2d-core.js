@@ -16,6 +16,8 @@
  *   PLLive2D.show() / PLLive2D.hide()      // keep renderer alive
  *   PLLive2D.setModel(id) / setPreferredModel(id)
  *   PLLive2D.setFlip(bool) / setScale(n) / resetPosition()
+ *   PLLive2D.setMotionMode("off" | "auto")
+ *   PLLive2D.setGazeFollow(bool)
  *   PLLive2D.setMode("embedded" | "vts")
  *   PLLive2D.setAgentState("thinking" | "idle")
  *   PLLive2D.setVoiceState("listening" | "idle" | "connecting")
@@ -34,7 +36,21 @@ window.PLLive2D = (function () {
     mode: "charactoid:live2d:mode",
     posX: "charactoid:live2d:posx",
     posY: "charactoid:live2d:posy",
+    motion: "charactoid:live2d:motion",
+    gaze: "charactoid:live2d:gaze",
   };
+
+  function readMotionMode() {
+    const value = localStorage.getItem(LS.motion);
+    return value === "off" || value === "gaze" ? "off" : "auto";
+  }
+
+  function readGazeFollow() {
+    const stored = localStorage.getItem(LS.gaze);
+    if (stored === "1") return true;
+    if (stored === "0") return false;
+    return localStorage.getItem(LS.motion) === "gaze";
+  }
 
   const LIP_IDS = ["ParamMouthOpenY", "ParamMouthForm"];
   const DEFAULT_MODEL_ID = "sakiko2_vts";
@@ -79,6 +95,26 @@ window.PLLive2D = (function () {
       this._blinkAmount = 0;
       this._angleZMotion = window.PLAngleZMotion ? window.PLAngleZMotion.create() : null;
       this._wheelAcc = 0;
+      this.motionMode = readMotionMode();
+      this.gazeFollow = readGazeFollow();
+      this._gazeX = 0;
+      this._gazeY = 0;
+      this._gazeTX = 0;
+      this._gazeTY = 0;
+      this._gazeBound = false;
+      this._pointerClientX = 0;
+      this._pointerClientY = 0;
+      this._hasPointer = false;
+      this._idleGroup = null;
+      this._naturalFrozen = false;
+      this._savedBreath = undefined;
+      this._savedPhysics = undefined;
+      this._savedEyeBlink = undefined;
+      this._savedPose = undefined;
+      this._savedNaturalMovements = undefined;
+      this._savedUpdateFocus = undefined;
+      this._savedIdleRequest = undefined;
+      this._idleStopped = false;
     }
 
     /* ---------- lifecycle ---------- */
@@ -105,6 +141,7 @@ window.PLLive2D = (function () {
       this.app.renderer.on("resize", () => this._fit());
       this._bindAudioEvents();
       if (this.layout === "stage") this._bindStagePointer();
+      this._bindGaze();
       this._visible = true;
       this._startLoop();
       await this.refreshModels();
@@ -161,7 +198,8 @@ window.PLLive2D = (function () {
 
     /* ---------- models ---------- */
 
-    async refreshModels() {
+    async refreshModels(options = {}) {
+      const keepCurrent = Boolean(options && options.keepCurrent);
       let list = [];
       try {
         const response = await fetch("/api/live2d/models");
@@ -170,20 +208,23 @@ window.PLLive2D = (function () {
       this.models = list;
       const saved = localStorage.getItem(LS.model);
       const usable = (model) => model && model.compatible !== false;
-      const target = list.find((m) => m.id === this.preferredId && usable(m))
-        || list.find((m) => m.id === saved && usable(m))
-        || list.find((m) => m.id === DEFAULT_MODEL_ID && usable(m))
+      const byId = (id) => list.find((m) => m.id === id && usable(m));
+      const target = (keepCurrent ? byId(this.currentId) : null)
+        || byId(this.preferredId)
+        || byId(this.currentId)
+        || byId(DEFAULT_MODEL_ID)
+        || byId(saved)
         || list.find(usable) || null;
       if (target) {
         if (target.id !== this.currentId) await this.loadModel(target.id);
       } else {
         this._emit({ type: "status", level: "warn", message: "未找到 Live2D 模型，请将模型放入 data/live2d/" });
       }
-      this._emit({ type: "models", models: list, current: target ? target.id : null });
+      this._emit({ type: "models", models: list, current: target ? target.id : this.currentId });
       return list;
     }
 
-    async loadModel(id) {
+    async loadModel(id, options = {}) {
       const entry = this.models.find((m) => m.id === id);
       if (!entry || !this.app) return;
       if (entry.compatible === false) {
@@ -194,7 +235,7 @@ window.PLLive2D = (function () {
       const url = "/live2d-assets/" + entry.entry;
       let next;
       try {
-        next = await window.PIXI.live2d.Live2DModel.from(url, { autoInteract: true });
+        next = await window.PIXI.live2d.Live2DModel.from(url, { autoInteract: false });
       } catch (e) {
         this._emit({ type: "status", level: "error", message: "模型加载失败：" + (e && e.message ? e.message : e) });
         return;
@@ -208,26 +249,32 @@ window.PLLive2D = (function () {
       this.model = next;
       this.app.stage.addChild(next);
       next.on("hit", (areas) => {
+        if (this._isFrozen()) return;
         if (Array.isArray(areas) && areas.some((a) => String(a).toLowerCase().includes("body"))) {
           try { next.motion("TapBody"); } catch (e) { /* no tap motion */ }
         }
       });
       this._fit();
       this.currentId = entry.id;
-      localStorage.setItem(LS.model, entry.id);
+      if (options && options.persist) localStorage.setItem(LS.model, entry.id);
       this._detectAutoBlink();
+      this._resetNaturalMotionCache();
       if (this._angleZMotion) this._angleZMotion.reset(performance.now());
+      this._installModelHooks();
+      this._hideWatermark();
+      this._syncIdle();
       this._emit({ type: "model", name: this._displayName(entry), id: entry.id });
       this._emit({ type: "status", level: "ok", message: this._displayName(entry) });
     }
 
     setModel(id) {
-      if (id && id !== this.currentId) this.loadModel(id);
+      if (id && id !== this.currentId) this.loadModel(id, { persist: false });
     }
 
     setPreferredModel(id) {
       this.preferredId = id || null;
-      if (id && this._ready && id !== this.currentId) this.loadModel(id);
+      if (id) localStorage.setItem(LS.model, id);
+      if (id && this._ready && id !== this.currentId) this.loadModel(id, { persist: true });
     }
 
     _detectAutoBlink() {
@@ -324,6 +371,312 @@ window.PLLive2D = (function () {
       canvas.style.cursor = "grab";
     }
 
+    _bindGaze() {
+      if (this._gazeBound) return;
+      this._gazeBound = true;
+      window.addEventListener("pointermove", (event) => {
+        this._pointerClientX = event.clientX;
+        this._pointerClientY = event.clientY;
+        this._hasPointer = true;
+      }, { passive: true });
+    }
+
+
+    _updateGazeTarget() {
+      if (!this._hasPointer || !this.model || !this.canvas) return;
+      const rect = this.canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const screen = this.app && this.app.screen;
+      const worldW = Math.max((screen && screen.width) || rect.width, 1);
+      const worldH = Math.max((screen && screen.height) || rect.height, 1);
+      const scaleX = rect.width / worldW;
+      const scaleY = rect.height / worldH;
+      let headX = rect.left + this.model.x * scaleX;
+      let headY = rect.top + this.model.y * scaleY;
+      try {
+        const bounds = this.model.getBounds();
+        headX = rect.left + (bounds.x + bounds.width * 0.5) * scaleX;
+        headY = rect.top + (bounds.y + bounds.height * 0.18) * scaleY;
+      } catch (e) {
+        headY -= Math.min(rect.height, 320) * 0.16;
+      }
+      const dx = this._pointerClientX - headX;
+      const dy = this._pointerClientY - headY;
+      const span = 140;
+      this._gazeTX = Math.max(-1, Math.min(1, dx / span));
+      this._gazeTY = Math.max(-1, Math.min(1, dy / span));
+    }
+
+    _motionManager() {
+      return this.model && this.model.internalModel && this.model.internalModel.motionManager;
+    }
+
+    _internalModel() {
+      return this.model && this.model.internalModel;
+    }
+
+    _resetNaturalMotionCache() {
+      this._idleGroup = null;
+      this._naturalFrozen = false;
+      this._savedBreath = undefined;
+      this._savedPhysics = undefined;
+      this._savedEyeBlink = undefined;
+      this._savedPose = undefined;
+      this._savedNaturalMovements = undefined;
+      this._savedUpdateFocus = undefined;
+      this._savedIdleRequest = undefined;
+      this._idleStopped = false;
+    }
+
+
+    _isFrozen() {
+      return this.motionMode === "off" && !this.gazeFollow;
+    }
+
+    _wantsIdle() {
+      return this.motionMode === "auto";
+    }
+
+    _installModelHooks() {
+      const model = this.model;
+      const internal = this._internalModel();
+      const self = this;
+      if (model && !model._charactoidRenderHooked && typeof model._render === "function") {
+        model._charactoidRenderHooked = true;
+        const originalRender = model._render.bind(model);
+        model._render = function (renderer) {
+          if (self._isFrozen()) {
+            this.deltaTime = 0;
+            self._holdStillFrame();
+          }
+          originalRender(renderer);
+        };
+      }
+      if (model && !model._charactoidTickerHooked && typeof model.onTickerUpdate === "function") {
+        model._charactoidTickerHooked = true;
+        const originalTicker = model.onTickerUpdate.bind(model);
+        model.onTickerUpdate = function () {
+          if (self._isFrozen()) {
+            this.deltaTime = 0;
+            return;
+          }
+          originalTicker();
+        };
+      }
+      if (model && !model._charactoidUpdateHooked && typeof model.update === "function") {
+        model._charactoidUpdateHooked = true;
+        const originalUpdate = model.update.bind(model);
+        model.update = function (dt) {
+          if (self._isFrozen()) {
+            this.deltaTime = 0;
+            return;
+          }
+          originalUpdate(dt);
+        };
+      }
+      if (internal && !internal._charactoidNaturalHooked && typeof internal.updateNaturalMovements === "function") {
+        internal._charactoidNaturalHooked = true;
+        const originalNatural = internal.updateNaturalMovements.bind(internal);
+        internal.updateNaturalMovements = function (dt, now) {
+          if (!self._wantsIdle()) return;
+          originalNatural(dt, now);
+        };
+      }
+      if (internal && !internal._charactoidFocusHooked && typeof internal.updateFocus === "function") {
+        internal._charactoidFocusHooked = true;
+        const originalFocus = internal.updateFocus.bind(internal);
+        internal.updateFocus = function () {
+          if (!self._wantsIdle() || self.gazeFollow) return;
+          originalFocus();
+        };
+      }
+      if (!internal || internal._charactoidHooked) return;
+      internal._charactoidHooked = true;
+      const original = internal.update.bind(internal);
+      internal.update = function (dt, now) {
+        if (self._isFrozen()) {
+          self._holdStillFrame();
+          return;
+        }
+        if (self._wantsIdle()) self._restoreNaturalMotion(internal);
+        else self._disableIdle();
+        if (self._wantsIdle()) self._enableIdle();
+        original(dt, now);
+        if (self._wantsIdle()) self._applyLife();
+        if (self.gazeFollow) self._applyGaze();
+        else self._applyBlinkFallback();
+        self._applyParams(self.mouth, self.mouthForm);
+        self._flushCore();
+      };
+    }
+
+
+    _freezeNaturalMotion(internal) {
+      if (!internal) return;
+      if (!this._naturalFrozen) {
+        this._savedBreath = internal.breath;
+        this._savedPhysics = internal.physics;
+        this._savedEyeBlink = internal.eyeBlink;
+        this._savedPose = internal.pose;
+        this._naturalFrozen = true;
+      }
+      internal.breath = null;
+      internal.physics = null;
+      internal.eyeBlink = null;
+      internal.pose = null;
+      try {
+        if (internal.focusController && typeof internal.focusController.focus === "function") {
+          internal.focusController.focus(0, 0, true);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+
+    _restoreNaturalMotion(internal) {
+      if (!internal || !this._naturalFrozen) return;
+      if (this._savedBreath !== undefined) internal.breath = this._savedBreath;
+      if (this._savedPhysics !== undefined) internal.physics = this._savedPhysics;
+      if (this._savedEyeBlink !== undefined) internal.eyeBlink = this._savedEyeBlink;
+      if (this._savedPose !== undefined) internal.pose = this._savedPose;
+      this._savedBreath = undefined;
+      this._savedPhysics = undefined;
+      this._savedEyeBlink = undefined;
+      this._savedPose = undefined;
+      this._naturalFrozen = false;
+    }
+
+    _holdStillFrame() {
+      if (this.model) this.model.deltaTime = 0;
+      this._disableIdle();
+      this._freezeNaturalMotion(this._internalModel());
+      this._applyDefaultPose();
+      this._holdNeutralPose();
+      this._applyParams(this.mouth, this.mouthForm);
+      this._flushCore();
+    }
+
+    _disableIdle() {
+      const manager = this._motionManager();
+      if (!manager) return;
+      if (!this._idleGroup && manager.groups && manager.groups.idle) {
+        this._idleGroup = manager.groups.idle;
+      }
+      try { if (typeof manager.stopAllMotions === "function") manager.stopAllMotions(); } catch (e) { /* ignore */ }
+      this._idleStopped = true;
+      if (manager.groups) manager.groups.idle = "";
+      if (manager.state) {
+        if (this._savedIdleRequest === undefined) this._savedIdleRequest = manager.state.shouldRequestIdleMotion;
+        manager.state.shouldRequestIdleMotion = function () { return false; };
+        manager.state.reservedIdleGroup = undefined;
+        manager.state.reservedIdleIndex = undefined;
+      }
+    }
+
+    _enableIdle() {
+      const wasStopped = this._idleStopped;
+      this._idleStopped = false;
+      const manager = this._motionManager();
+      if (!manager) return;
+      if (manager.groups) manager.groups.idle = this._idleGroup || manager.groups.idle || "Idle";
+      if (manager.state && this._savedIdleRequest !== undefined) {
+        manager.state.shouldRequestIdleMotion = this._savedIdleRequest;
+        this._savedIdleRequest = undefined;
+      }
+      if (wasStopped && this.model && typeof this.model.motion === "function") {
+        try { this.model.motion("Idle"); } catch (e) { /* no idle motion */ }
+      }
+    }
+
+    _flushCore() {
+      const core = this.model && this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
+      try { if (typeof core.update === "function") core.update(); } catch (e) { /* ignore */ }
+    }
+
+    _holdNeutralPose() {
+      const core = this.model && this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
+      this._gazeTX = 0;
+      this._gazeTY = 0;
+      this._gazeX = 0;
+      this._gazeY = 0;
+      [
+        ["ParamAngleX", 0], ["PARAM_ANGLE_X", 0],
+        ["ParamAngleY", 0], ["PARAM_ANGLE_Y", 0],
+        ["ParamAngleZ", 0], ["PARAM_ANGLE_Z", 0],
+        ["ParamBodyAngleX", 0], ["PARAM_BODY_ANGLE_X", 0],
+        ["ParamEyeBallX", 0], ["PARAM_EYE_BALL_X", 0],
+        ["ParamEyeBallY", 0], ["PARAM_EYE_BALL_Y", 0],
+        ["ParamBreath", 0.5], ["PARAM_BREATH", 0.5],
+      ].forEach(([id, value]) => this._setParameter(core, id, value));
+    }
+
+    _paramCount(core) {
+      if (!core) return 0;
+      if (typeof core.getParameterCount === "function") return core.getParameterCount();
+      if (core._model && core._model.parameters && Number.isFinite(core._model.parameters.count)) {
+        return core._model.parameters.count;
+      }
+      if (typeof core.getParamCount === "function") return core.getParamCount();
+      return 0;
+    }
+
+    _paramDefault(core, index) {
+      if (typeof core.getParameterDefaultValue === "function") {
+        const value = core.getParameterDefaultValue(index);
+        if (Number.isFinite(value)) return value;
+      }
+      const parameters = core._model && core._model.parameters;
+      if (parameters && parameters.defaultValues && Number.isFinite(parameters.defaultValues[index])) {
+        return parameters.defaultValues[index];
+      }
+      if (typeof core.getParamDefault === "function") {
+        const value = core.getParamDefault(index);
+        if (Number.isFinite(value)) return value;
+      }
+      return 0;
+    }
+
+    _setParamByIndex(core, index, value) {
+      try {
+        if (typeof core.setParameterValueByIndex === "function") core.setParameterValueByIndex(index, value);
+        else if (typeof core.setParamFloat === "function") core.setParamFloat(index, value);
+        else if (core._model && core._model.parameters && core._model.parameters.values) {
+          core._model.parameters.values[index] = value;
+        }
+      } catch (e) { /* parameter missing */ }
+    }
+
+    _applyDefaultPose() {
+      const core = this.model && this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
+      const count = this._paramCount(core);
+      for (let i = 0; i < count; i += 1) this._setParamByIndex(core, i, this._paramDefault(core, i));
+      this._hideWatermark();
+    }
+
+    _hideWatermark() {
+      const core = this.model && this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
+      this._setParameter(core, 'Param137', 1);
+    }
+
+    _syncIdle() {
+      const frozen = this._isFrozen();
+      if (this.model) {
+        this.model.autoUpdate = !frozen;
+        if (frozen) this.model.deltaTime = 0;
+      }
+      if (frozen) {
+        this._holdStillFrame();
+        return;
+      }
+      this._restoreNaturalMotion(this._internalModel());
+      if (this._wantsIdle()) this._enableIdle();
+      else this._disableIdle();
+    }
+
+
     _savePosition() {
       if (!this.model || !this.app || !Number.isFinite(this.model.x) || !Number.isFinite(this.model.y)) return;
       const w = this.app.renderer.width || 1;
@@ -357,6 +710,32 @@ window.PLLive2D = (function () {
       localStorage.setItem(LS.scale, String(this.scale));
       this._fit();
       this._emit({ type: "config", flip: this.flip, scale: this.scale, mode: this.mode });
+    }
+
+    setMotionMode(mode) {
+      if (mode !== "off" && mode !== "auto") return;
+      const previous = this.motionMode;
+      this.motionMode = mode;
+      localStorage.setItem(LS.motion, mode);
+      if (mode === "off") this._idleStopped = true;
+      else if (previous === "off") this._idleStopped = true;
+      if (mode === "auto" && this._angleZMotion) this._angleZMotion.reset(performance.now());
+      this._syncIdle();
+      this._emit({ type: "motion", mode: this.motionMode, gaze: this.gazeFollow });
+    }
+
+    setGazeFollow(enabled) {
+      const next = Boolean(enabled);
+      this.gazeFollow = next;
+      localStorage.setItem(LS.gaze, next ? "1" : "0");
+      if (!next) {
+        this._gazeTX = 0;
+        this._gazeTY = 0;
+        this._gazeX = 0;
+        this._gazeY = 0;
+      }
+      this._syncIdle();
+      this._emit({ type: "motion", mode: this.motionMode, gaze: this.gazeFollow });
     }
 
     setMode(mode) {
@@ -509,14 +888,13 @@ window.PLLive2D = (function () {
       this.mouthForm += formDelta * 0.45;
       const open = Math.max(0, Math.min(1, this.mouth));
       const form = Math.max(-1, Math.min(1, this.mouthForm));
-      this._applyParams(open, form);
-      this._applyLife();
       this._vtsSend(open, form);
       const talking = open > 0.035;
       if (talking !== this._talking) {
         this._talking = talking;
         this._emitState();
       }
+      if (this._isFrozen()) this._holdStillFrame();
     }
 
     setLipSyncText(text, language) {
@@ -542,62 +920,151 @@ window.PLLive2D = (function () {
         : [];
     }
 
+
     _applyParams(open, form) {
       if (!this.model || !this.model.internalModel || !this.model.internalModel.coreModel) return;
       const core = this.model.internalModel.coreModel;
-      for (const id of LIP_IDS) {
+      this._setParameter(core, "ParamMouthOpenY", open);
+      this._setParameter(core, "ParamMouthForm", form);
+    }
+
+    _paramAliases(id) {
+      const map = {
+        ParamAngleX: "PARAM_ANGLE_X",
+        ParamAngleY: "PARAM_ANGLE_Y",
+        ParamAngleZ: "PARAM_ANGLE_Z",
+        ParamBodyAngleX: "PARAM_BODY_ANGLE_X",
+        ParamBodyAngleY: "PARAM_BODY_ANGLE_Y",
+        ParamBodyAngleZ: "PARAM_BODY_ANGLE_Z",
+        ParamBustX: "PARAM_BUST_X",
+        ParamBustY: "PARAM_BUST_Y",
+        ParamEyeBallX: "PARAM_EYE_BALL_X",
+        ParamEyeBallY: "PARAM_EYE_BALL_Y",
+        ParamEyeLOpen: "PARAM_EYE_L_OPEN",
+        ParamEyeROpen: "PARAM_EYE_R_OPEN",
+        ParamMouthOpenY: "PARAM_MOUTH_OPEN_Y",
+        ParamMouthForm: "PARAM_MOUTH_FORM",
+        ParamBreath: "PARAM_BREATH",
+      };
+      const alt = map[id];
+      return alt ? [id, alt] : [id];
+    }
+
+    _paramRange(core, id, fallback) {
+      const fallbackMin = fallback[0];
+      const fallbackMax = fallback[1];
+      const getIndex = typeof core.getParameterIndex === "function"
+        ? core.getParameterIndex.bind(core)
+        : typeof core.getParamIndex === "function" ? core.getParamIndex.bind(core) : null;
+      for (const name of this._paramAliases(id)) {
         try {
-          const value = id === "ParamMouthOpenY" ? open : form;
-          if (typeof core.setParameterValueById === "function") {
-            core.setParameterValueById(id, value);
-          } else if (typeof core.getParamIndex === "function") {
-            const index = core.getParamIndex(id);
-            if (index >= 0) core.setParamFloat(index, value);
-          }
-        } catch (e) { /* parameter missing on this model */ }
+          const index = getIndex ? getIndex(name) : -1;
+          if (index < 0) continue;
+          let minimum;
+          let maximum;
+          if (typeof core.getParameterMinimumValue === "function") minimum = core.getParameterMinimumValue(index);
+          if (typeof core.getParameterMaximumValue === "function") maximum = core.getParameterMaximumValue(index);
+          const parameters = core._model && core._model.parameters;
+          if (!Number.isFinite(minimum) && parameters && parameters.minimumValues) minimum = parameters.minimumValues[index];
+          if (!Number.isFinite(maximum) && parameters && parameters.maximumValues) maximum = parameters.maximumValues[index];
+          if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) return [minimum, maximum];
+        } catch (e) { /* try alias */ }
       }
+      return [fallbackMin, fallbackMax];
     }
 
     _angleZRange(core) {
-      try {
-        const getIndex = typeof core.getParameterIndex === "function"
-          ? core.getParameterIndex.bind(core)
-          : typeof core.getParamIndex === "function" ? core.getParamIndex.bind(core) : null;
-        const index = getIndex ? getIndex("ParamAngleZ") : -1;
-        if (index < 0) return [-30, 30];
-        let minimum;
-        let maximum;
-        if (typeof core.getParameterMinimumValue === "function") minimum = core.getParameterMinimumValue(index);
-        if (typeof core.getParameterMaximumValue === "function") maximum = core.getParameterMaximumValue(index);
-        const parameters = core._model && core._model.parameters;
-        if (!Number.isFinite(minimum) && parameters && parameters.minimumValues) minimum = parameters.minimumValues[index];
-        if (!Number.isFinite(maximum) && parameters && parameters.maximumValues) maximum = parameters.maximumValues[index];
-        if (Number.isFinite(minimum) && Number.isFinite(maximum) && minimum < maximum) return [minimum, maximum];
-      } catch (e) { /* use the standard Angle Z range */ }
-      return [-30, 30];
+      return this._paramRange(core, "ParamAngleZ", [-30, 30]);
     }
+
+    _lerp(from, to, amount) {
+      return from + (to - from) * amount;
+    }
+
 
     _setParameter(core, id, value) {
-      try {
-        if (typeof core.setParameterValueById === "function") {
-          core.setParameterValueById(id, value);
-        } else if (typeof core.getParamIndex === "function") {
-          const index = core.getParamIndex(id);
-          if (index >= 0) core.setParamFloat(index, value);
-        }
-      } catch (e) { /* parameter missing */ }
+      for (const name of this._paramAliases(id)) {
+        try {
+          if (typeof core.setParameterValueById === "function") {
+            core.setParameterValueById(name, value);
+            return;
+          }
+          if (typeof core.getParamIndex === "function") {
+            const index = core.getParamIndex(name);
+            if (index >= 0) {
+              core.setParamFloat(index, value);
+              return;
+            }
+          }
+        } catch (e) { /* try alias */ }
+      }
     }
 
-    _applyLife() {
+    _applyGaze() {
       if (!this.model) return;
       const core = this.model.internalModel && this.model.internalModel.coreModel;
       if (!core) return;
+      this._updateGazeTarget();
+      this._gazeX = this._lerp(this._gazeX, this._gazeTX, 0.22);
+      this._gazeY = this._lerp(this._gazeY, this._gazeTY, 0.22);
+      const [minX, maxX] = this._paramRange(core, "ParamAngleX", [-30, 30]);
+      const [minY, maxY] = this._paramRange(core, "ParamAngleY", [-30, 30]);
+      const [minEyeX, maxEyeX] = this._paramRange(core, "ParamEyeBallX", [-1, 1]);
+      const [minEyeY, maxEyeY] = this._paramRange(core, "ParamEyeBallY", [-1, 1]);
+      const headScale = this._wantsIdle() ? 0.18 : 0.26;
+      this._setParameter(core, "ParamAngleX", this._gazeX * Math.max(Math.abs(minX), Math.abs(maxX)) * headScale);
+      this._setParameter(core, "ParamAngleY", -this._gazeY * Math.max(Math.abs(minY), Math.abs(maxY)) * headScale);
+      if (!this._wantsIdle()) {
+        const [minZ, maxZ] = this._angleZRange(core);
+        this._setParameter(core, "ParamAngleZ", this._gazeX * Math.max(Math.abs(minZ), Math.abs(maxZ)) * 0.12);
+      }
+      this._setParameter(core, "ParamEyeBallX", this._gazeX * Math.max(Math.abs(minEyeX), Math.abs(maxEyeX)));
+      this._setParameter(core, "ParamEyeBallY", -this._gazeY * Math.max(Math.abs(minEyeY), Math.abs(maxEyeY)));
+      this._applyBlinkFallback();
+    }
+
+    _idleWave(seconds, speed, phase) {
+      return Math.sin(seconds * speed + phase);
+    }
+
+    _applyLife() {
+      if (!this.model || !this._wantsIdle() || this.mode === "vts") return;
+      const core = this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
       const now = performance.now();
+      const seconds = now / 1000;
+      const activity = this.agentState === "thinking" ? 1.2 : this._talking ? 0.78 : 1;
       if (this._angleZMotion) {
         const [minimum, maximum] = this._angleZRange(core);
         this._setParameter(core, "ParamAngleZ", this._angleZMotion.sample(now, minimum, maximum));
       }
-      if (this._hasAutoBlink) return;
+      if (!this.gazeFollow) {
+        const [minX, maxX] = this._paramRange(core, "ParamAngleX", [-30, 30]);
+        const [minY, maxY] = this._paramRange(core, "ParamAngleY", [-30, 30]);
+        const angleX = (this._idleWave(seconds, 0.72, 0) * 0.62 + this._idleWave(seconds, 0.21, 1.4) * 0.38);
+        const angleY = (this._idleWave(seconds, 0.43, 0.8) * 0.7 + this._idleWave(seconds, 0.17, 2.1) * 0.3);
+        this._setParameter(core, "ParamAngleX", angleX * Math.max(Math.abs(minX), Math.abs(maxX)) * 0.48 * activity);
+        this._setParameter(core, "ParamAngleY", angleY * Math.max(Math.abs(minY), Math.abs(maxY)) * 0.22 * activity);
+      }
+      const [minBX, maxBX] = this._paramRange(core, "ParamBodyAngleX", [-10, 10]);
+      const [minBY, maxBY] = this._paramRange(core, "ParamBodyAngleY", [-10, 10]);
+      const [minBZ, maxBZ] = this._paramRange(core, "ParamBodyAngleZ", [-10, 10]);
+      const bodyX = this._idleWave(seconds, 0.55, 0.2) * 0.58 + this._idleWave(seconds, 0.19, 1.7) * 0.42;
+      const bodyY = this._idleWave(seconds, 0.34, 0.6);
+      const bodyZ = this._idleWave(seconds, 0.48, 1.1);
+      this._setParameter(core, "ParamBodyAngleX", bodyX * Math.max(Math.abs(minBX), Math.abs(maxBX)) * 0.86 * activity);
+      this._setParameter(core, "ParamBodyAngleY", bodyY * Math.max(Math.abs(minBY), Math.abs(maxBY)) * 0.36 * activity);
+      this._setParameter(core, "ParamBodyAngleZ", bodyZ * Math.max(Math.abs(minBZ), Math.abs(maxBZ)) * 0.32 * activity);
+      this._setParameter(core, "ParamBreath", 0.5 + 0.42 * this._idleWave(seconds, 0.45, 0));
+      this._setParameter(core, "ParamBustX", this._idleWave(seconds, 0.9, 0.3) * 0.38 * activity);
+      this._setParameter(core, "ParamBustY", this._idleWave(seconds, 1.05, 1.2) * 0.28 * activity);
+    }
+
+    _applyBlinkFallback() {
+      if (this._hasAutoBlink || this._isFrozen()) return;
+      const core = this.model && this.model.internalModel && this.model.internalModel.coreModel;
+      if (!core) return;
+      const now = performance.now();
       if (now >= this._blinkAt) {
         this._blinkAmount = 0.999;
         this._blinkAt = now + 2200 + Math.random() * 3400;
@@ -607,20 +1074,8 @@ window.PLLive2D = (function () {
         if (this._blinkAmount < 0.012) this._blinkAmount = 0;
       }
       const eyeOpen = 1 - this._blinkAmount;
-      const breath = 0.5 + 0.42 * Math.sin(now / 2200);
-      const set = (id, value) => {
-        try {
-          if (typeof core.setParameterValueById === "function") {
-            core.setParameterValueById(id, value);
-          } else if (typeof core.getParamIndex === "function") {
-            const index = core.getParamIndex(id);
-            if (index >= 0) core.setParamFloat(index, value);
-          }
-        } catch (e) { /* parameter missing */ }
-      };
-      set("ParamEyeLOpen", eyeOpen);
-      set("ParamEyeROpen", eyeOpen);
-      set("ParamBreath", breath);
+      this._setParameter(core, "ParamEyeLOpen", eyeOpen);
+      this._setParameter(core, "ParamEyeROpen", eyeOpen);
     }
 
     _vtsSend(open, form) {

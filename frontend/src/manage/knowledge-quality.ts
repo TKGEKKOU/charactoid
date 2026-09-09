@@ -59,3 +59,31 @@ export function evaluationStatusLabel(status?: string): string {
   return ({ completed: "已完成", complete: "已完成", running: "进行中", pending: "等待中", failed: "失败", error: "失败" } as Record<string, string>)[status || ""] || status || "已保存";
 }
 
+
+
+const DOCUMENT_STATUS_LABELS: Record<string, string> = {
+  converting: "正在整理",
+  conversion_failed: "整理失败",
+  preview_ready: "待入库",
+  indexing: "正在入库",
+  indexed: "已入库",
+  index_failed: "整理未完成",
+  failed: "整理未完成",
+  error: "整理未完成",
+};
+
+export function documentStatusLabel(status?: string): string {
+  return DOCUMENT_STATUS_LABELS[String(status || "")] || "处理中";
+}
+
+export function documentCanRetry(status?: string): boolean {
+  return ["index_failed", "preview_ready"].includes(String(status || ""));
+}
+
+export function documentStatusTone(status?: string): string {
+  const value = String(status || "");
+  if (value === "indexed") return "ok";
+  if (value.endsWith("_failed") || value === "failed" || value === "error") return "failed";
+  if (["converting", "indexing", "preview_ready"].includes(value)) return "pending";
+  return "";
+}

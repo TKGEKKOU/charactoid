@@ -143,3 +143,23 @@ def test_multi_attachment_upload_failure_removes_prior_file(client, tmp_path):
     assert response.status_code == 415
     attachment_root = tmp_path / "data" / "attachments"
     assert not list(attachment_root.rglob("*.wav"))
+
+
+def test_attachment_rename_keeps_original_suffix(client, tmp_path):
+    client.app.state.settings = replace(client.app.state.settings, project_root=tmp_path)
+    item = _upload(client, "conversation-rename").json()["attachments"][0]
+    renamed = client.patch(
+        f"/api/conversations/conversation-rename/attachments/{item['file_id']}",
+        headers={"X-CHARACTOID-Request": "web"},
+        json={"name": "voice-take"},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "voice-take.wav"
+    changed = client.patch(
+        f"/api/conversations/conversation-rename/attachments/{item['file_id']}",
+        headers={"X-CHARACTOID-Request": "web"},
+        json={"name": "other.mp3"},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["name"] == "other.wav"
+

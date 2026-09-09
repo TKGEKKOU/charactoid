@@ -28,6 +28,15 @@ def validate_model_id(model_id: str) -> str:
     return value
 
 
+def reject_unsafe_model_id(model_id: str) -> None:
+    """Reject path-like IDs before cloud-name remapping."""
+    value = (model_id or "").strip()
+    if not value:
+        return
+    if ".." in value or "\\" in value or value.startswith("/") or (len(value) >= 2 and value[1] == ":"):
+        raise ValueError("模型 ID 只能包含字母、数字、点、短横线、下划线和单个路径分隔符")
+
+
 def resolve_local_model_id(model_id: str | None, default: str = DEFAULT_LOCAL_EMBEDDING_MODEL) -> str:
     """Ignore cloud API model names when choosing a local snapshot id."""
     value = (model_id or "").strip()
@@ -166,6 +175,7 @@ class LocalEmbeddingResourceManager:
         return self.status()
 
     def start_install(self, model_id: str, source: str, device: str) -> bool:
+        reject_unsafe_model_id(model_id)
         model_id = resolve_local_model_id(model_id)
         validate_model_id(model_id)
         if source not in {"modelscope", "huggingface"}:

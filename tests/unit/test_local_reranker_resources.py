@@ -98,6 +98,13 @@ def test_reranker_cancel_install_terminates_active_process(tmp_path: Path):
         def terminate(self):
             self.terminated = True
 
+        def wait(self, timeout=None):
+            del timeout
+            return 0
+
+        def kill(self):
+            self.terminate()
+
     process = FakeProcess()
     manager._installing = True
     manager._process = process

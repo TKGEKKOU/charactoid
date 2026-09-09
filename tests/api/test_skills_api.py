@@ -31,9 +31,21 @@ def test_skills_api_lists_available_tools(client):
     response = client.get("/api/skills/tools")
 
     assert response.status_code == 200
-    names = {item["name"] for item in response.json()}
-    assert "search_persona_knowledge" in names
-    assert "add_persona_knowledge" in names
+    items = response.json()
+    by_name = {item["name"]: item for item in items}
+    assert "search_persona_knowledge" in by_name
+    assert "add_persona_knowledge" in by_name
+    search = by_name["search_persona_knowledge"]
+    assert search["source"] == "builtin"
+    assert search["specialist"] == "knowledge_worker"
+    assert search["server"] == ""
+    assert search["description"]
+    assert search["mutates_data"] is False
+    assert search["requires_confirmation"] is False
+    mutation = by_name["add_persona_knowledge"]
+    assert mutation["mutates_data"] is True
+    assert mutation["requires_confirmation"] is True
+    assert mutation["source"] == "builtin"
 
 
 def _zip_bytes(entries):

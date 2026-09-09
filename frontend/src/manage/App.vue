@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { GitBranch, Save, Undo2 } from "lucide-vue-next";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { synthesizeVoicePreview } from "./api";
+import { getDocument, synthesizeVoicePreview } from "./api";
 import { buildRoleGraph } from "./graph/model";
 import { layoutRoleGraph } from "./graph/layout";
 import { projectRoleGraph } from "./graph/projection";
@@ -57,16 +57,42 @@ async function deleteKnowledgeDocument(id: string) {
   await workbench.removeDocument(id);
 }
 async function handleUpload(files: File[], text: string) { if (await workbench.addDocuments(files, text)) uploadCompleteToken.value += 1; }
-function openPreview(title: string, content: string | HTMLElement) {
-  const titleNode = document.querySelector("#preview-title");
-  const contentNode = document.querySelector("#preview-content");
-  if (!titleNode || !contentNode) return;
-  titleNode.textContent = title; contentNode.replaceChildren(typeof content === "string" ? document.createTextNode(content) : content);
-  document.querySelector("#preview-drawer")?.classList.add("is-open"); document.querySelector("#preview-backdrop")?.classList.add("is-open");
+function ensureDocumentPreviewDialog(): HTMLDialogElement | null {
+  return document.querySelector("#document-preview-dialog");
 }
-function closePreview() { document.querySelector("#preview-drawer")?.classList.remove("is-open"); document.querySelector("#preview-backdrop")?.classList.remove("is-open"); }
-function previewDocument(documentItem: Record<string, unknown>) {
-  openPreview(String(documentItem.original_filename || documentItem.original_name || "资料预览"), String(documentItem.markdown_preview || documentItem.error_message || "暂无预览内容"));
+function openPreview(title: string, content: string | HTMLElement) {
+  const dialog = ensureDocumentPreviewDialog();
+  const titleNode = document.querySelector("#document-preview-title") || document.querySelector("#preview-title");
+  const contentNode = document.querySelector("#document-preview-content") || document.querySelector("#preview-content");
+  if (titleNode) titleNode.textContent = title;
+  if (contentNode) contentNode.replaceChildren(typeof content === "string" ? document.createTextNode(content) : content);
+  if (dialog && typeof dialog.showModal === "function") {
+    if (!dialog.open) dialog.showModal();
+    return;
+  }
+  document.querySelector("#preview-drawer")?.classList.add("is-open");
+  document.querySelector("#preview-backdrop")?.classList.add("is-open");
+}
+function closePreview() {
+  const dialog = ensureDocumentPreviewDialog();
+  if (dialog?.open) dialog.close();
+  document.querySelector("#preview-drawer")?.classList.remove("is-open");
+  document.querySelector("#preview-backdrop")?.classList.remove("is-open");
+}
+async function previewDocument(documentItem: Record<string, unknown>) {
+  const title = String(documentItem.original_filename || documentItem.original_name || "查看资料");
+  openPreview(title, "正在打开…");
+  let text = String(documentItem.markdown_preview || "");
+  const id = String(documentItem.id || "");
+  if ((!text || text.length < 8) && id) {
+    try {
+      const data = await getDocument(id);
+      text = String(data.markdown_preview || "");
+    } catch {
+      text = "";
+    }
+  }
+  openPreview(title, text || "这份资料还没有可预览的正文");
 }
 async function previewLocalFile(file: File) {
   if (file.type.startsWith("image/")) {
@@ -104,7 +130,7 @@ onBeforeUnmount(() => { window.removeEventListener("beforeunload", beforeUnload)
         <div v-else-if="!workbench.personas.value.length" class="workbench-empty"><strong>还没有角色</strong><p>先在“创建角色”页面建立角色。</p></div>
         <RoleGraphCanvas v-else :graph="graph" :selected-node-id="workbench.selectedNodeId.value" @select="workbench.selectNode" @toggle="toggleCapability" @reset="layoutEpoch++"/>
       </main>
-      <NodeInspector v-if="workbench.draft.value" :node="selectedNode" :draft="workbench.draft.value" :disabled="busy" :upload-complete-token="uploadCompleteToken" @profile="workbench.updateProfile" @capability="workbench.setCapability" @server="workbench.setServer" @upload="handleUpload" @delete-document="deleteKnowledgeDocument" @retry-document="workbench.reindexDocument" :can-delete="!isBuiltinPersona" @delete-persona="deleteCurrentPersona" @preview-voice="previewVoice" @open-voice-studio="openVoiceStudio" @open-rag-eval="openRagEval" @preview-document="previewDocument" @preview-local-file="previewLocalFile" @refresh-live2d="workbench.refreshLive2dResources" @open-live2d-directory="workbench.openLive2dDirectory"/>
+      <NodeInspector v-if="workbench.draft.value" :node="selectedNode" :draft="workbench.draft.value" :disabled="busy" :upload-complete-token="uploadCompleteToken" @profile="workbench.updateProfile" @capability="workbench.setCapability" @server="workbench.setServer" @upload="handleUpload" @delete-document="deleteKnowledgeDocument" @retry-document="workbench.reindexDocument" :can-delete="!isBuiltinPersona" @delete-persona="deleteCurrentPersona" @preview-voice="previewVoice" @open-voice-studio="openVoiceStudio" @open-rag-eval="openRagEval" @preview-document="previewDocument" @preview-local-file="previewLocalFile" @retry-failed="workbench.reindexFailedDocuments" @refresh-live2d="workbench.refreshLive2dResources" @open-live2d-directory="workbench.openLive2dDirectory"/>
     </div>
     <VersionPanel v-if="versionPanelOpen && workbench.draft.value" :persona-id="workbench.draft.value.persona.id" :persona-name="workbench.draft.value.persona.name" :disabled="busy || workbench.isDirty.value" @close="closeVersionPanel" @changed="onVersionChanged"/>
   </div>

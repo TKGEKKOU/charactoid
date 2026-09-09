@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.attachments import create_attachment, delete_attachment, public_attachment, resolve_attachment, safe_name
+from app.attachments import apply_display_name, create_attachment, delete_attachment, public_attachment, resolve_attachment
 from app.database import get_session
 from app.models import ConversationAttachment
 from persona.service import LOCAL_WORKSPACE_ID
@@ -70,7 +70,11 @@ def download_attachment(conversation_id: str, file_id: str, request: Request, se
 @router.patch("/api/conversations/{conversation_id}/attachments/{file_id}")
 def rename_attachment(conversation_id: str, file_id: str, payload: RenamePayload, request: Request, x_charactoid_request: str = Header(default=""), session: Session = Depends(get_session)):
     guard(x_charactoid_request); item=get_item(session,request,conversation_id,file_id)
-    item.name=safe_name(payload.name); session.commit(); return public_attachment(item)
+    try:
+        apply_display_name(item, payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    session.commit(); return public_attachment(item)
 
 @router.delete("/api/conversations/{conversation_id}/attachments/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_attachment(conversation_id: str, file_id: str, request: Request, x_charactoid_request: str = Header(default=""), session: Session = Depends(get_session)):

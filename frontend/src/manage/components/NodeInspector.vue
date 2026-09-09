@@ -3,10 +3,11 @@ import { Check, ExternalLink, Eye, FolderOpen, Play, RefreshCw, RotateCcw, Trash
 import { computed, ref, watch } from "vue";
 import { plainClone } from "../api";
 import KnowledgeQualityPanel from "./KnowledgeQualityPanel.vue";
+import { documentCanRetry, documentStatusLabel, documentStatusTone } from "../knowledge-quality";
 import type { PersonaSummary, RetrievalConfig, RoleGraphNode, WorkbenchSnapshot } from "../types";
 
 const props = defineProps<{ node?: RoleGraphNode; draft: WorkbenchSnapshot; disabled?: boolean; uploadCompleteToken?: number; canDelete?: boolean }>();
-const emit = defineEmits<{ profile: [persona: PersonaSummary]; capability: [id: string, mode: "allow" | "deny" | "inherit"]; server: [name: string, allowed: boolean]; upload: [files: File[], text: string]; deleteDocument: [id: string]; retryDocument: [id: string]; deletePersona: []; previewVoice: []; openVoiceStudio: []; openRagEval: []; previewDocument: [document: Record<string, unknown>]; previewLocalFile: [file: File]; refreshLive2d: []; openLive2dDirectory: [] }>();
+const emit = defineEmits<{ profile: [persona: PersonaSummary]; capability: [id: string, mode: "allow" | "deny" | "inherit"]; server: [name: string, allowed: boolean]; upload: [files: File[], text: string]; deleteDocument: [id: string]; retryDocument: [id: string]; retryFailed: []; deletePersona: []; previewVoice: []; openVoiceStudio: []; openRagEval: []; previewDocument: [document: Record<string, unknown>]; previewLocalFile: [file: File]; refreshLive2d: []; openLive2dDirectory: [] }>();
 const selectedFiles = ref<File[]>([]);
 const directText = ref("");
 const fileInputKey = ref(0);
@@ -66,11 +67,26 @@ watch(() => props.uploadCompleteToken, () => { selectedFiles.value = []; directT
       <ul v-if="selectedFiles.length" class="pending-files"><li v-for="(file, index) in selectedFiles" :key="`${file.name}-${file.size}-${index}`"><span>{{ file.name }}</span><span><button type="button" title="上传前预览" @click="emit('previewLocalFile', file)"><Eye :size="14"/></button><button type="button" title="移除" @click="removeSelectedFile(index)"><Trash2 :size="14"/></button></span></li></ul>
       <label><span>补充文本</span><textarea v-model="directText" rows="3" placeholder="直接写入角色知识库"></textarea></label>
       <button type="button" class="inspect-action" :disabled="disabled || (!selectedFiles.length && !directText.trim())" @click="submitDocuments"><Upload :size="15"/>{{ disabled ? '处理中' : '写入知识库' }}</button>
-      <ul class="document-items"><li v-for="doc in draft.documents" :key="String(doc.id)"><div><b>{{ doc.original_filename || doc.original_name || doc.id }}</b><span>{{ doc.status }}</span></div><span class="document-actions"><button type="button" title="预览 Markdown" @click="emit('previewDocument', doc)"><Eye :size="14"/></button><button v-if="doc.status === 'index_failed'" type="button" title="重新索引" @click="emit('retryDocument', String(doc.id))"><RotateCcw :size="14"/></button><button type="button" title="删除资料" @click="emit('deleteDocument', String(doc.id))"><Trash2 :size="14"/></button></span></li></ul>
-      <KnowledgeQualityPanel :persona-id="draft.persona.id" :knowledge-space-id="draft.persona.knowledge_space_id" :documents="draft.documents" :disabled="disabled" />
+      <ul class="document-items">
+        <li v-for="doc in draft.documents" :key="String(doc.id)">
+          <div>
+            <b>{{ doc.original_filename || doc.original_name || doc.id }}</b>
+            <span :class="`document-state is-${documentStatusTone(String(doc.status || ''))}`">{{ documentStatusLabel(String(doc.status || '')) }}</span>
+          </div>
+          <span class="document-actions">
+            <button type="button" class="is-text" title="查看资料" @click="emit('previewDocument', doc)">查看</button>
+            <button v-if="documentCanRetry(String(doc.status || ''))" type="button" class="is-text" title="重新整理" @click="emit('retryDocument', String(doc.id))">重试</button>
+            <button type="button" class="is-text is-danger" title="删除资料" @click="emit('deleteDocument', String(doc.id))">删除</button>
+          </span>
+        </li>
+      </ul>
+      <KnowledgeQualityPanel :persona-id="draft.persona.id" :knowledge-space-id="draft.persona.knowledge_space_id" :documents="draft.documents" :disabled="disabled" @retry-failed="$emit('retryFailed')" />
       <button type="button" class="inspect-action" @click="emit('openRagEval')"><ExternalLink :size="15"/>前往 RAG 评测</button>
     </div>
-    <div v-else-if="kind === 'memory'" class="inspect-stack"><p>会话记忆按对话窗口隔离，长期记忆与角色绑定。</p><small>清理操作继续在对应对话或接入窗口执行，避免误清其他会话。</small></div>
+    <div v-else-if="kind === 'memory'" class="inspect-stack">
+      <p>对话窗口内的短期记忆只服务当前会话；长期记忆会写入这个角色，供之后的对话继续使用。</p>
+      <small>清空记忆请在对话页的会话设置里操作，避免误清其他窗口。</small>
+    </div>
     <div v-else-if="kind === 'extensions'" class="inspect-stack"><p>当前角色可配置 {{ draft.capabilities.packages.length }} 项扩展能力。</p><small>选择画布中的 Skill 或 Tool 查看依赖并设置角色策略；依赖只在选中时展开。</small></div>
     <div v-else-if="kind === 'voice'" class="inspect-fields">
       <label class="inline-check"><input type="checkbox" :checked="Boolean((draft.persona.profile?.tts as any)?.enabled)" @change="patchTts('enabled', ($event.target as HTMLInputElement).checked)"><span>生成语音</span></label>
@@ -111,6 +127,6 @@ watch(() => props.uploadCompleteToken, () => { selectedFiles.value = []; directT
       <p v-else>此 Tool 由上级能力包管理，不单独保存开关。</p>
       <div v-if="capability" class="dependency-list"><b>依赖</b><p v-for="item in capability.dependencies" :key="item.id || item.name"><span>{{ item.name }}</span><em>{{ item.server || item.source }}</em></p></div>
     </div>
-    <div v-else-if="kind === 'mcp' && server" class="inspect-fields"><label class="inline-check"><input type="checkbox" :checked="server.authorized" :disabled="server.global" @change="emit('server', server.name, ($event.target as HTMLInputElement).checked)"><span>{{ server.global ? '全局授权' : '允许当前角色使用' }}</span></label><p>{{ server.description || 'MCP 服务' }}</p><small>连接状态：{{ server.status?.status || 'unknown' }}</small></div>
+    <div v-else-if="kind === 'mcp' && server" class="inspect-fields"><label class="inline-check"><input type="checkbox" :checked="server.authorized" :disabled="server.global" @change="emit('server', server.name, ($event.target as HTMLInputElement).checked)"><span>{{ server.global ? '全局授权' : '允许当前角色使用' }}</span></label><p>{{ server.description || 'MCP 服务' }}</p><small>连接状态：{{ { connected: '已连接', disconnected: '未连接', connecting: '连接中', disabled: '已关闭', error: '异常', unknown: '未知' }[String(server.status?.status || 'unknown')] || '未知' }}</small></div>
   </aside>
 </template>

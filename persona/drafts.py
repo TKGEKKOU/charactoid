@@ -14,10 +14,15 @@ from rag.llm import get_llm
 
 ANALYSIS_PROMPT = PromptTemplate(
     template=(
-        "分析以下同一批资料，生成一个简洁名称和角色设定。倾向：{mode}。\n"
-        "character：优先采用资料中的明确人物；没有明确人物则生成领域专家。\n"
-        "expert：只生成资料领域专家，不扮演文中人物。\n"
-        "仅输出 JSON object：{{\"name\":\"不超过20字\",\"description\":\"不超过120字\"}}。\n\n"
+        "阅读以下资料，生成适合对话的角色。倾向：{mode}。只用中文。\n"
+        "character：仅当资料本身在介绍或设定可扮演人物时，才用该人物的名字和人设；"
+        "若资料是面试题、知识、说明书、记录或产品介绍，不要把文中出现的岗位、产品、模型、示例 Agent 当成人物，"
+        "改为生成能依据这些资料回答的助手，名称用资料主题。\n"
+        "expert：只生成资料领域助手，不扮演文中人物。\n"
+        "禁止输出未描述、英文报错、模型名。\n"
+        "仅输出 JSON object：{{\"name\":\"不超过20字\",\"description\":\"不超过120字\","
+        "\"candidates\":[{{\"name\":\"...\",\"description\":\"...\"}}]}}。\n"
+        "candidates 仅在资料明确给出多个可扮演人物且每人有可写设定时填写，否则必须是空数组。\n\n"
         "资料：\n{content}"
     ),
     input_variables=["mode", "content"],
@@ -137,21 +142,69 @@ def fallback_identity(mode: str, filename: str) -> tuple[str, dict]:
     return name[:20], {"description": description, "generation_mode": mode}
 
 
+def _clean_text(value: object, limit: int = 500) -> str:
+    text = str(value or "").strip()
+    for token in ("未描述", "Not specified", "not specified", "N/A", "n/a"):
+        text = text.replace(token, " ")
+    return " ".join(text.split())[:limit]
+
+
+def _is_noise_name(name: str) -> bool:
+    compact = name.strip()
+    if not compact:
+        return True
+    lowered = compact.casefold()
+    if any(token in lowered for token in ("gpt", "claude", "gemini", "opus", "clawbot", "chatgpt", "llm")):
+        return True
+    if any(ch.isdigit() for ch in compact) and "." in compact:
+        return True
+    return False
+
+
+def _candidate_from_item(item: dict, mode: str) -> dict | None:
+    name = _clean_text(item.get("name"), 20)
+    description = _clean_text(item.get("description") or item.get("identity"), 500)
+    if _is_noise_name(name) or len(description) < 8:
+        return None
+    if any(token in description for token in ("示例", "专职Agent", "专职 Agent")) and len(description) < 40:
+        return None
+    return {
+        "name": name,
+        "profile": {"description": description, "generation_mode": mode},
+    }
+
+
 def analyze_materials(mode: str, previews: list[str], fallback: tuple[str, dict]) -> tuple[str, dict]:
+    name, profile, _candidates = analyze_draft_pack(mode, previews, fallback)
+    return name, profile
+
+
+def analyze_draft_pack(mode: str, previews: list[str], fallback: tuple[str, dict]) -> tuple[str, dict, list[dict]]:
     content = "\n\n---\n\n".join(previews)[:16000]
     try:
         raw = (ANALYSIS_PROMPT | get_llm() | StrOutputParser()).invoke({"mode": mode, "content": content})
-        normalized = raw.strip()
-        if normalized.startswith("```") and normalized.endswith("```"):
-            normalized = "\n".join(normalized.splitlines()[1:-1]).strip()
-        payload = json.loads(normalized)
-        name = str(payload.get("name", "")).strip()[:20]
-        description = str(payload.get("description", "")).strip()[:500]
+        payload = _json_payload(raw)
+        if not isinstance(payload, dict):
+            return (*fallback, [])
+        name = _clean_text(payload.get("name"), 20) or fallback[0]
+        description = _clean_text(payload.get("description"), 500) or fallback[1].get("description", "")
+        profile = {"description": description, "generation_mode": mode}
+        candidates: list[dict] = []
+        if mode == "character":
+            for item in payload.get("candidates") or []:
+                if not isinstance(item, dict):
+                    continue
+                candidate = _candidate_from_item(item, mode)
+                if candidate:
+                    candidates.append(candidate)
+            candidates = merge_candidates([], candidates)
+            for index, candidate in enumerate(candidates, start=1):
+                candidate["id"] = f"candidate-{index}"
         if name and description:
-            return name, {"description": description, "generation_mode": mode}
+            return name, profile, candidates
     except Exception:
         pass
-    return fallback
+    return (*fallback, [])
 
 
 def create_draft(session: Session, mode: str) -> PersonaDraft:

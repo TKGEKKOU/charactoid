@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import concurrent.futures
 import contextlib
 import logging
@@ -34,6 +35,73 @@ logger = logging.getLogger(__name__)
 # MCP stdio 服务冷启动可能需要安装依赖；放宽握手时间，避免初始化被提前取消。
 CONNECT_TIMEOUT_SECONDS = 90
 MCP_TOOL_TIMEOUT_SECONDS = 60
+MCP_READ_TIMEOUT_SECONDS = 20
+
+
+def mcp_timeout_from_metadata(metadata: object) -> float:
+    """Map MCP annotations onto the same read/write budgets as classify_mcp_tool."""
+
+    data = metadata if isinstance(metadata, dict) else {}
+    read_only = bool(data.get("read_only_hint", data.get("readOnlyHint")))
+    return MCP_READ_TIMEOUT_SECONDS if read_only else MCP_TOOL_TIMEOUT_SECONDS
+
+
+def mcp_tool_timeout_seconds(tool: BaseTool) -> float:
+    """Grade MCP tool budgets: read-only stays short, mutating keeps the 60s cap."""
+
+    metadata = tool.metadata if isinstance(getattr(tool, "metadata", None), dict) else {}
+    return mcp_timeout_from_metadata(metadata)
+
+
+def _mcp_timeout_payload(timeout: float) -> str:
+    return json.dumps(
+        {
+            "status": "timeout",
+            "error": f"MCP tool timed out after {int(timeout)}s",
+        },
+        ensure_ascii=False,
+    )
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    name = type(exc).__name__.lower()
+    if name in {"timeouterror", "timeoutexception"}:
+        return True
+    if type(exc).__name__ == "MCPError":
+        message = str(exc).lower()
+        return "timeout" in message or "timed out" in message
+    return False
+
+
+async def _ainvoke_mcp_tool(original: BaseTool, args: dict, timeout: float):
+    """Invoke an MCP tool on the current task.
+
+    asyncio.wait_for would move the call onto a second task and can leave the
+    AnyIO MCP session hung. asyncio.timeout cancels this same task so the
+    session can reach quiescence, matching DeepSeek Harness tools/execute.
+    """
+
+    try:
+        async with asyncio.timeout(timeout):
+            return await original.ainvoke(args)
+    except Exception as exc:
+        if isinstance(exc, TimeoutError) or _is_timeout_error(exc):
+            logger.warning("MCP tool %s timed out after %.1fs", original.name, timeout)
+            return _mcp_timeout_payload(timeout)
+        raise
+
+
+async def _session_call_tool(session, name: str, arguments: dict, timeout: float):
+    """Pass the budget into the SDK so transport timeout is not a second task."""
+
+    return await session.call_tool(
+        name,
+        arguments,
+        read_timeout_seconds=timeout,
+    )
+
 
 
 def _mcp_tool_description(name: str, description: str, server: str = "") -> str:
@@ -145,12 +213,6 @@ def _make_sync_tool(
 
     from langchain_core.tools import tool as make_tool
 
-    async def _run(args: dict):
-        # 单次工具调用兜底超时：搜索/抓取可能很慢或子进程挂起，
-        # 超时后返回错误让模型给出说明，而不是让整轮对话无限等待。
-        return await asyncio.wait_for(
-            original.ainvoke(args), timeout=MCP_TOOL_TIMEOUT_SECONDS
-        )
 
     @make_tool(
         original.name,
@@ -159,9 +221,26 @@ def _make_sync_tool(
         ),
     )
     def sync_tool(**kwargs):
-        if runtime is not None:
-            return runtime.run(_run(kwargs), timeout=MCP_TOOL_TIMEOUT_SECONDS + 5)
-        return asyncio.run(_run(kwargs))
+        from agents.cancellation import current_turn_cancel
+
+        cancel = current_turn_cancel()
+        if cancel is not None:
+            cancel.check()
+        timeout = mcp_tool_timeout_seconds(original)
+        try:
+            if runtime is not None:
+                if not runtime.is_ready():
+                    raise RuntimeError("MCP 服务尚未就绪")
+                return runtime.run(
+                    _ainvoke_mcp_tool(original, kwargs, timeout),
+                    timeout=timeout + 1,
+                    cancel=cancel,
+                    require_ready=True,
+                )
+            return asyncio.run(_ainvoke_mcp_tool(original, kwargs, timeout))
+        except TimeoutError:
+            logger.warning("MCP tool %s timed out after %.1fs", original.name, timeout)
+            return _mcp_timeout_payload(timeout)
 
     sync_tool.args_schema = original.args_schema
     sync_tool.metadata = getattr(original, "metadata", None)
@@ -213,6 +292,18 @@ class MCPRuntime:
                 raise RuntimeError("MCP runtime is closed")
         if self._startup_error is not None:
             raise RuntimeError(_friendly_error(self._startup_error)) from self._startup_error
+
+    def is_ready(self) -> bool:
+        with self._lock:
+            loop = self._loop
+            return (
+                not self._closed
+                and self._ready.is_set()
+                and self._thread is not None
+                and self._thread.is_alive()
+                and loop is not None
+                and not loop.is_closed()
+            )
 
     def _thread_main(self) -> None:
         loop = asyncio.new_event_loop()
@@ -314,14 +405,21 @@ class MCPRuntime:
                 self._group = None
                 self._command_queue = None
 
-    def run(self, coroutine, *, timeout: float | None = None):
-        try:
-            self.start()
-        except BaseException:
-            close_coroutine = getattr(coroutine, "close", None)
-            if close_coroutine is not None:
-                close_coroutine()
-            raise
+    def run(self, coroutine, *, timeout: float | None = None, cancel=None, require_ready: bool = False):
+        if require_ready:
+            if not self.is_ready():
+                close_coroutine = getattr(coroutine, "close", None)
+                if close_coroutine is not None:
+                    close_coroutine()
+                raise RuntimeError("MCP runtime is not ready")
+        else:
+            try:
+                self.start()
+            except BaseException:
+                close_coroutine = getattr(coroutine, "close", None)
+                if close_coroutine is not None:
+                    close_coroutine()
+                raise
         with self._lock:
             loop = self._loop
             queue = self._command_queue
@@ -340,6 +438,8 @@ class MCPRuntime:
                     close_coroutine()
                 raise RuntimeError("MCP runtime is closed")
             self._futures.add(future)
+        if cancel is not None:
+            cancel.register_future(future)
 
         def submit() -> None:
             with self._lock:
@@ -365,6 +465,12 @@ class MCPRuntime:
         timeout_seconds = (timeout + 1) if timeout is not None else CONNECT_TIMEOUT_SECONDS + 5
         try:
             return future.result(timeout=timeout_seconds)
+        except concurrent.futures.CancelledError:
+            from agents.cancellation import TurnCancelled
+
+            if cancel is not None and cancel.is_set():
+                raise TurnCancelled("Turn cancelled") from None
+            raise
         except concurrent.futures.TimeoutError as exc:
             future.cancel()
             raise TimeoutError("MCP runtime operation timed out") from exc
@@ -444,12 +550,22 @@ class MCPRuntime:
         self._sessions.setdefault(config.name, {})[token] = session
         tools: list[BaseTool] = []
         for definition in listed.tools:
+            annotations = getattr(definition, "annotations", None)
+            metadata = annotations.model_dump() if annotations is not None else {}
+            tool_timeout = mcp_timeout_from_metadata(metadata)
+
             async def invoke_tool(
                 _definition=definition,
                 _session=session,
+                _timeout=tool_timeout,
                 **arguments,
             ):
-                result = await _session.call_tool(_definition.name, arguments)
+                result = await _session_call_tool(
+                    _session,
+                    _definition.name,
+                    arguments,
+                    _timeout,
+                )
                 is_error = getattr(
                     result, "is_error", getattr(result, "isError", False)
                 )
@@ -462,8 +578,6 @@ class MCPRuntime:
                 )
                 return structured if structured is not None else _mcp_result_text(result)
 
-            annotations = getattr(definition, "annotations", None)
-            metadata = annotations.model_dump() if annotations is not None else {}
             tools.append(
                 StructuredTool(
                     name=definition.name,

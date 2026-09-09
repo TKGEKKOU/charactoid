@@ -9,13 +9,12 @@ from app.schemas import PersonaDraftResponse, PersonaDraftUpdate, PersonaRespons
 from settings import Settings
 from ingestion.document_jobs import create_conversion_job, dispatch_document_index, prepare_index
 from persona.drafts import (
-    analyze_materials,
+    analyze_draft_pack,
     confirm_draft,
     create_draft,
     draft_documents,
     fallback_identity,
     get_draft,
-    identify_candidates,
 )
 
 
@@ -55,22 +54,22 @@ def analyze_draft_background(draft_id: str, session_factory) -> None:
         mode = draft.mode
         filename = documents[0].original_filename if documents else "资料"
         try:
-            if mode == "character":
-                candidates = identify_candidates(previews)
-                if candidates:
-                    for index, candidate in enumerate(candidates, start=1):
-                        candidate.setdefault("id", f"candidate-{index}")
-                    draft.persona_type = "character"
-                    draft.candidates_json = candidates
-                else:
-                    fallback = fallback_identity("expert", filename)
-                    draft.suggested_name, draft.profile_json = analyze_materials("expert", previews, fallback)
+            fallback = fallback_identity(mode, filename)
+            name, profile, candidates = analyze_draft_pack(mode, previews, fallback)
+            draft.suggested_name = name
+            draft.profile_json = profile
+            if mode == "character" and candidates:
+                draft.persona_type = "character"
+                draft.candidates_json = candidates
             else:
-                fallback = fallback_identity("expert", filename)
-                draft.suggested_name, draft.profile_json = analyze_materials("expert", previews, fallback)
+                draft.persona_type = "character" if mode == "character" else "knowledge_expert"
+                draft.candidates_json = []
+                draft.selected_candidate_id = None
         except Exception:
             fallback = fallback_identity(mode, filename)
             draft.suggested_name, draft.profile_json = fallback
+            draft.candidates_json = []
+            draft.selected_candidate_id = None
         draft.status = "draft"
         session.commit()
     finally:
@@ -159,8 +158,10 @@ def confirm_persona_draft(
     draft = get_draft(session, draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Persona draft not found")
-    if draft.persona_type == "character" and not draft.selected_candidate_id:
-        raise HTTPException(status_code=409, detail="Select a persona candidate before confirmation")
+    if not str(draft.suggested_name or "").strip():
+        raise HTTPException(status_code=409, detail="请先填写角色名称")
+    if draft.candidates_json and not draft.selected_candidate_id:
+        raise HTTPException(status_code=409, detail="请先选择一个角色候选")
     already_confirmed = bool(draft.persona_id)
     confirm_draft(session, draft)
     if not already_confirmed:

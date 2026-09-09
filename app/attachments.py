@@ -32,6 +32,19 @@ def safe_name(name: str) -> str:
     return (base or "attachment")[:255]
 
 
+def apply_display_name(item: ConversationAttachment, name: str) -> str:
+    """Rename the display name only. Storage path and file kind stay unchanged."""
+    cleaned = safe_name(name)
+    if not cleaned:
+        raise ValueError("文件名无效")
+    old_suffix = Path(item.name or "").suffix
+    if old_suffix:
+        stem = Path(cleaned).stem.strip() or Path(item.name).stem or "attachment"
+        cleaned = f"{stem}{old_suffix}"
+    item.name = cleaned[:255]
+    return item.name
+
+
 def kind_for(name: str, mime: str) -> str:
     ext = Path(name).suffix.lower()
     if mime.startswith("image/") or ext in _IMAGE_EXTENSIONS:

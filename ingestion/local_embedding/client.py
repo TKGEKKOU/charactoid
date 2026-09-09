@@ -155,9 +155,17 @@ class ManagedLocalEmbeddings(Embeddings):
             process.stdin.flush()
             line = process.stdout.readline()
             if not line:
-                # 读取失败说明子进程已经退出，先关掉旧句柄，下次调用会重新拉起。
+                # 读取失败说明子进程已经退出，先关掉旧句柄，再拉起一次后重试当前请求。
                 self._discard_process(process)
-                raise RuntimeError("本地 Embedding 工作进程意外退出")
+                if operation:
+                    process = self._start()
+                    assert process.stdin is not None and process.stdout is not None
+                    process.stdin.write(json.dumps({"operation": operation, "texts": texts}, ensure_ascii=False) + "\n")
+                    process.stdin.flush()
+                    line = process.stdout.readline()
+                if not line:
+                    self._discard_process(process)
+                    raise RuntimeError("本地向量服务暂时不可用，请稍后重试")
             result = json.loads(line)
             if not result.get("ok"):
                 raise RuntimeError(str(result.get("error") or "本地 Embedding 推理失败"))
@@ -165,7 +173,14 @@ class ManagedLocalEmbeddings(Embeddings):
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         # LangChain Embeddings 接口：批量嵌入待检索文档（入库时调用）。
-        return self._request("embed_documents", texts)
+        # CPU 上一次塞整篇文档会长时间无响应，按小批次写入。
+        if not texts:
+            return []
+        batch_size = 8
+        vectors: list[list[float]] = []
+        for index in range(0, len(texts), batch_size):
+            vectors.extend(self._request("embed_documents", texts[index : index + batch_size]))
+        return vectors
 
     def embed_query(self, text: str) -> list[float]:
         # LangChain Embeddings 接口：单条查询向量（检索时调用）。

@@ -274,7 +274,7 @@ async function switchView(view, tabTarget = null) {
   if (!root) return false;
   let node = VIEW_NODES[view];
   if (!node) {
-    const response = await fetch(`/static/views/${entry.view}.html`, { headers: { Accept: "text/html" } });
+    const response = await fetch(`/static/views/${entry.view}.html`, { cache: "no-store", headers: { Accept: "text/html" } });
     if (!response.ok) throw new Error(`加载页面失败（${response.status}）`);
     const template = document.createElement("template");
     template.innerHTML = await response.text();

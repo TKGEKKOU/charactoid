@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import UploadFile
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 
@@ -255,7 +256,11 @@ def index_document_job(
                     job.document_id,
                 )
             job.status = "index_failed"
-            job.error_message = str(exc)[:2000]
+            detail = str(exc)
+            if "Embedding" in detail or "向量" in detail:
+                job.error_message = "本地向量服务暂时不可用，请稍后重试"
+            else:
+                job.error_message = "资料整理未完成，请稍后重试"
         try:
             session.commit()
         except StaleDataError:
@@ -363,25 +368,44 @@ def run_index_document_job(
         )
 
 
-def sync_recovered_document_runs(
-    session_factory, recovered_runs: list[AgentRun]
-) -> None:
-    """把重启后收口的文档 Runtime 状态同步回 DocumentJob。"""
+def _document_job_id_from_run(run: AgentRun) -> str | None:
+    for payload in (run.result_json, run.resume_state):
+        if isinstance(payload, dict):
+            job_id = payload.get("document_job_id")
+            if job_id:
+                return str(job_id)
+    if run.action == "document_index" and run.thread_id:
+        return str(run.thread_id)
+    return None
 
-    if not recovered_runs:
-        return
+
+def sync_recovered_document_runs(
+    session_factory, recovered_runs: list[AgentRun] | None = None
+) -> None:
+    """把重启后收口的文档 Runtime 状态同步回 DocumentJob。
+
+    job_id 可能在 result_json、resume_state 或 thread_id。
+    即使没有 recovered run，仍把遗留的 indexing 任务标为失败，避免界面永远停在「正在入库」。
+    """
+
     error_message = public_error_message(RuntimeErrorCode.RUNTIME_RESTARTED)
+    recovered_runs = recovered_runs or []
     with session_factory() as session:
         for run in recovered_runs:
             if run.action != "document_index":
                 continue
-            job_id = (run.result_json or {}).get("document_job_id")
+            job_id = _document_job_id_from_run(run)
             if not job_id:
                 continue
             job = session.get(DocumentJob, job_id)
-            # 只收口确实由该 Runtime 运行中的索引任务，避免误改待确认/转码中的任务。
             if job is None or job.status != "indexing":
                 continue
+            job.status = "index_failed"
+            job.error_message = error_message
+        leftovers = session.scalars(
+            select(DocumentJob).where(DocumentJob.status == "indexing")
+        ).all()
+        for job in leftovers:
             job.status = "index_failed"
             job.error_message = error_message
         session.commit()

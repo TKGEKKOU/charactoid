@@ -20,16 +20,17 @@ LANGUAGE_ALIASES = {
     "zh": "Chinese",
     "ja": "Japanese",
     "en": "English",
-    "ko": "Korean",
-    "yue": "Cantonese",
+    "chinese": "Chinese",
+    "japanese": "Japanese",
+    "english": "English",
 }
 
 
 def _model_language(language: str | None) -> str | None:
     if language is None:
         return None
-    value = str(language).strip()
-    return LANGUAGE_ALIASES.get(value.lower(), value) or None
+    value = str(language).strip().lower()
+    return LANGUAGE_ALIASES.get(value)
 
 
 def _default_model_provider() -> Any:

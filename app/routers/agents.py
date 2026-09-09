@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -164,6 +166,31 @@ def _finalize_agent_turn(app, context, result) -> None:
         )
 
 
+
+async def _watch_request_disconnect(request: Request, execution_key: str) -> None:
+    """Abort the in-flight Agent worker as soon as the SSE client goes away."""
+
+    try:
+        while True:
+            if await request.is_disconnected():
+                await request.app.state.realtime_executions.cancel(execution_key)
+                return
+            await asyncio.sleep(0.2)
+    except asyncio.CancelledError:
+        return
+
+
+@contextlib.asynccontextmanager
+async def _stream_with_disconnect_abort(request: Request, execution_key: str):
+    watcher = asyncio.create_task(_watch_request_disconnect(request, execution_key))
+    try:
+        yield
+    finally:
+        watcher.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await watcher
+
+
 @router.post("/{persona_id}/agent/stream")
 async def stream_agent_query(
     persona_id: str,
@@ -186,27 +213,30 @@ async def stream_agent_query(
     agent_runner = agent_runner_for(request.app.state)
 
     async def generate():
-        async for event in request.app.state.realtime_executions.run_stream(
-            key,
-            lambda: agent_runner.stream_query(payload.question, context),
-        ):
-            if event.get("kind") == "clone_session":
-                if event.get("action") == "request_voice_material":
-                    yield _sse({"kind": "upload_request", "purpose": "voice_material"})
-                elif event.get("action") == "voice_session_created":
-                    yield _sse({
-                        "kind": "upload_request",
-                        "purpose": "voice_material",
-                        "session_id": event["session_id"],
-                    })
-                continue
-            if event.get("kind") == "result":
-                workflow_event = _workflow_event_for_result(event["result"])
-                if workflow_event is not None:
-                    yield _sse(workflow_event)
-                _finalize_agent_turn(request.app, context, event["result"])
-            yield _sse(event)
-        yield _sse({"kind": "done"})
+        async with _stream_with_disconnect_abort(request, key):
+            async for event in request.app.state.realtime_executions.run_stream(
+                key,
+                lambda: agent_runner.stream_query(payload.question, context),
+            ):
+                if await request.is_disconnected():
+                    break
+                if event.get("kind") == "clone_session":
+                    if event.get("action") == "request_voice_material":
+                        yield _sse({"kind": "upload_request", "purpose": "voice_material"})
+                    elif event.get("action") == "voice_session_created":
+                        yield _sse({
+                            "kind": "upload_request",
+                            "purpose": "voice_material",
+                            "session_id": event["session_id"],
+                        })
+                    continue
+                if event.get("kind") == "result":
+                    workflow_event = _workflow_event_for_result(event["result"])
+                    if workflow_event is not None:
+                        yield _sse(workflow_event)
+                    _finalize_agent_turn(request.app, context, event["result"])
+                yield _sse(event)
+            yield _sse({"kind": "done"})
 
     return StreamingResponse(
         generate(),
@@ -230,35 +260,38 @@ async def stream_agent_resume(
     agent_runner = agent_runner_for(request.app.state)
 
     async def generate():
-        async for event in request.app.state.realtime_executions.run_stream(
-            key,
-            lambda: agent_runner.stream_resume(
-                context,
-                payload.specialist,
-                payload.approved,
-                worker=payload.worker,
-                task_id=payload.task_id,
-                attachment_ids=tuple(payload.attachment_ids),
-                input_values=payload.input_values,
-            ),
-        ):
-            if event.get("kind") == "clone_session":
-                if event.get("action") == "request_voice_material":
-                    yield _sse({"kind": "upload_request", "purpose": "voice_material"})
-                elif event.get("action") == "voice_session_created":
-                    yield _sse({
-                        "kind": "upload_request",
-                        "purpose": "voice_material",
-                        "session_id": event["session_id"],
-                    })
-                continue
-            if event.get("kind") == "result":
-                workflow_event = _workflow_event_for_result(event["result"])
-                if workflow_event is not None:
-                    yield _sse(workflow_event)
-                _finalize_agent_turn(request.app, context, event["result"])
-            yield _sse(event)
-        yield _sse({"kind": "done"})
+        async with _stream_with_disconnect_abort(request, key):
+            async for event in request.app.state.realtime_executions.run_stream(
+                key,
+                lambda: agent_runner.stream_resume(
+                    context,
+                    payload.specialist,
+                    payload.approved,
+                    worker=payload.worker,
+                    task_id=payload.task_id,
+                    attachment_ids=tuple(payload.attachment_ids),
+                    input_values=payload.input_values,
+                ),
+            ):
+                if await request.is_disconnected():
+                    break
+                if event.get("kind") == "clone_session":
+                    if event.get("action") == "request_voice_material":
+                        yield _sse({"kind": "upload_request", "purpose": "voice_material"})
+                    elif event.get("action") == "voice_session_created":
+                        yield _sse({
+                            "kind": "upload_request",
+                            "purpose": "voice_material",
+                            "session_id": event["session_id"],
+                        })
+                    continue
+                if event.get("kind") == "result":
+                    workflow_event = _workflow_event_for_result(event["result"])
+                    if workflow_event is not None:
+                        yield _sse(workflow_event)
+                    _finalize_agent_turn(request.app, context, event["result"])
+                yield _sse(event)
+            yield _sse({"kind": "done"})
 
     return StreamingResponse(
         generate(),

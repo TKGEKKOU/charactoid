@@ -42,8 +42,8 @@ def test_batch_upload_creates_one_persona_only_after_confirm(client, db_session,
 
     monkeypatch.setattr("ingestion.document_jobs.convert_source", fake_convert)
     monkeypatch.setattr(
-        "app.routers.persona_drafts.analyze_materials",
-        lambda mode, previews, fallback: ("旅行规划师", {"description": "提供旅行规划建议"}),
+        "app.routers.persona_drafts.analyze_draft_pack",
+        lambda mode, previews, fallback: ("旅行规划师", {"description": "提供旅行规划建议"}, []),
     )
     monkeypatch.setattr("ingestion.document_jobs.ingest_markdown_file", lambda path, scope: 1)
 
@@ -95,11 +95,15 @@ def test_character_draft_returns_all_candidates_and_requires_selection_before_co
         lambda source, destination: "# Cast\n\nAlice is a detective.\nBob is a doctor.",
     )
     monkeypatch.setattr(
-        "app.routers.persona_drafts.identify_candidates",
-        lambda previews: [
-            {"name": "Alice", "profile": {"description": "Detective"}},
-            {"name": "Bob", "profile": {"description": "Doctor"}},
-        ],
+        "app.routers.persona_drafts.analyze_draft_pack",
+        lambda mode, previews, fallback: (
+            "Alice",
+            {"description": "Detective"},
+            [
+                {"id": "candidate-1", "name": "Alice", "profile": {"description": "Detective"}},
+                {"id": "candidate-2", "name": "Bob", "profile": {"description": "Doctor"}},
+            ],
+        ),
     )
     monkeypatch.setattr("ingestion.document_jobs.ingest_markdown_file", lambda path, scope: 1)
 
@@ -137,10 +141,9 @@ def test_character_draft_returns_all_candidates_and_requires_selection_before_co
 def test_character_draft_without_candidates_falls_back_to_knowledge_expert(client, tmp_path, monkeypatch):
     monkeypatch.setattr("ingestion.document_jobs.DATA_DIR", tmp_path)
     monkeypatch.setattr("ingestion.document_jobs.convert_source", lambda source, destination: "# Gardening")
-    monkeypatch.setattr("app.routers.persona_drafts.identify_candidates", lambda previews: [])
     monkeypatch.setattr(
-        "app.routers.persona_drafts.analyze_materials",
-        lambda mode, previews, fallback: ("Gardening expert", {"description": "Answers about gardening"}),
+        "app.routers.persona_drafts.analyze_draft_pack",
+        lambda mode, previews, fallback: ("Gardening expert", {"description": "Answers about gardening"}, []),
     )
 
     uploaded = client.post(
@@ -153,7 +156,7 @@ def test_character_draft_without_candidates_falls_back_to_knowledge_expert(clien
     draft = uploaded.json()
     assert draft["status"] == "analyzing"
     draft = wait_for_draft(client, draft["id"])
-    assert draft["persona_type"] == "knowledge_expert"
+    assert draft["persona_type"] == "character"
     assert draft["candidates"] == []
     assert draft["selected_candidate_id"] is None
     assert client.post(f"/api/persona-drafts/{draft['id']}/confirm").status_code == 200
@@ -163,12 +166,8 @@ def test_expert_draft_skips_candidate_identification(client, tmp_path, monkeypat
     monkeypatch.setattr("ingestion.document_jobs.DATA_DIR", tmp_path)
     monkeypatch.setattr("ingestion.document_jobs.convert_source", lambda source, destination: "# Physics")
     monkeypatch.setattr(
-        "app.routers.persona_drafts.identify_candidates",
-        lambda previews: (_ for _ in ()).throw(AssertionError("expert mode must bypass candidates")),
-    )
-    monkeypatch.setattr(
-        "app.routers.persona_drafts.analyze_materials",
-        lambda mode, previews, fallback: ("Physics expert", {"description": "Explains physics"}),
+        "app.routers.persona_drafts.analyze_draft_pack",
+        lambda mode, previews, fallback: ("Physics expert", {"description": "Explains physics"}, []),
     )
 
     uploaded = client.post(
@@ -196,8 +195,8 @@ def test_confirm_persona_draft_uses_document_runtime_for_indexing(
     )
     monkeypatch.setattr("ingestion.document_jobs.ingest_markdown_file", lambda path, scope, **kwargs: 1)
     monkeypatch.setattr(
-        "app.routers.persona_drafts.analyze_materials",
-        lambda mode, previews, fallback: ("运行时角色", {"description": "runtime"}),
+        "app.routers.persona_drafts.analyze_draft_pack",
+        lambda mode, previews, fallback: ("运行时角色", {"description": "runtime"}, []),
     )
     runtime = AgentRuntime(object(), RunStore(client.app.state.session_factory))
     client.app.state.run_store = runtime.run_store

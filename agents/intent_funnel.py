@@ -8,6 +8,8 @@ from typing import Iterable
 
 from langchain.messages import HumanMessage
 
+from agents.multimodal import message_text
+
 
 _SIGNALS = {
     "config_worker": (
@@ -189,8 +191,18 @@ def analyze_intents(text: str, previous: IntentAnalysis | None = None) -> Intent
         "变声", "变成", "转换音色", "音色转换", "生成变声",
         "人声分离", "分离人声", "纯人声", "伴奏", "音频文件", "视频文件",
         "mp3", "wav", "m4a", "flac", "ogg", "输入音频", "参考音频",
+        "处理", "转换",
     ))
-    explicit_rvc_signal = rvc_named and rvc_action
+    rvc_task_request = any(phrase in normalized for phrase in (
+        "帮我rvc", "帮我做rvc", "进行rvc", "rvc任务", "开始rvc",
+        "请帮我rvc", "给我rvc", "做rvc", "跑rvc", "rvc一下", "要rvc",
+    ))
+    rvc_knowledge = any(phrase in normalized for phrase in (
+        "是什么", "什么是", "了解", "介绍一下", "怎么用", "如何用", "什么意思",
+    ))
+    explicit_rvc_signal = rvc_named and (rvc_action or rvc_task_request)
+    if rvc_knowledge and not rvc_action:
+        explicit_rvc_signal = False
     if "rvc_worker" not in negated and explicit_rvc_signal:
         found.add("rvc_worker")
     if (explicit_web or fresh_external or requested_external) and "web" not in negated:
@@ -226,8 +238,7 @@ def analyze_intents(text: str, previous: IntentAnalysis | None = None) -> Intent
 
 
 def _message_text(message) -> str:
-    content = getattr(message, "content", "")
-    return content if isinstance(content, str) else ""
+    return message_text(getattr(message, "content", ""))
 
 
 def analyze_message_history(messages: Iterable) -> IntentAnalysis:

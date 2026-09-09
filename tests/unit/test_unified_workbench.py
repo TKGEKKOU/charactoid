@@ -32,7 +32,7 @@ def test_workbench_uses_real_storage_summary_and_no_voice_asset_placeholder():
     assert 'fetch("/api/status"' in storage_script
     assert 'data-workbench-tab="voice-rvc"' in voice
     assert 'data-workbench-panel="voice-asset"><div class="section-card workbench-placeholder"' not in voice
-    assert '不会从这里删除用户模型' in storage_script
+    assert '不会从这里删除模型、附件或知识资料。' in storage_script
 
 
 def test_workbench_public_api_does_not_shadow_internal_tab_applier():
@@ -110,13 +110,15 @@ def test_voice_training_library_is_kept_inside_gpt_sovits_workbench():
 
 def test_capability_manager_exposes_stable_user_facing_tabs():
     app = (ROOT / "frontend/src/extensions/App.vue").read_text(encoding="utf-8")
+    model = (ROOT / "frontend/src/extensions/model.ts").read_text(encoding="utf-8")
     assert ':data-capability-tab="tab.id"' in app
-    assert 'id: "skills"' in app
-    assert 'id: "mcp"' in app
-    assert 'id: "tools"' in app
-    assert 'id: "catalog"' in app
-    assert '工具与权限' in app
-    assert '扩展管理' in app
+    assert 'id: "assign"' in model
+    assert 'id: "skills"' in model
+    assert 'id: "mcp"' in model
+    assert 'id: "tools"' in model
+    assert 'id: "catalog"' in model
+    assert "角色分配" in app
+    assert "CAPABILITY_TABS" in app
 
 
 def test_knowledge_dashboard_owns_document_upload_and_lifecycle_actions():

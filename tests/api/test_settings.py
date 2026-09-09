@@ -40,8 +40,9 @@ def test_settings_are_saved_outside_env_and_keys_are_explicit(client, tmp_path, 
 
     assert saved.status_code == 200
     assert saved.json()["openai_api_key_configured"] is True
-    assert saved.json()["openai_api_key"] == "new-key"
-    assert saved.json()["embedding_api_key"] == "embedding-key"
+    assert saved.json()["openai_api_key"] == ""
+    assert saved.json()["embedding_api_key"] == ""
+    assert saved.json()["embedding_api_key_configured"] is True
     assert saved.json()["embedding_dimensions"] == 1024
     assert saved.json()["embedding_provider"] == "custom"
     assert saved.json()["embedding_model_source"] == "huggingface"
@@ -90,7 +91,7 @@ def test_web_search_provider_uses_generic_key_field_and_returns_it(client, tmp_p
     assert saved.status_code == 200
     assert saved.json()["web_search_provider"] == "bocha"
     assert saved.json()["web_search_api_key_configured"] is True
-    assert saved.json()["web_search_api_key"] == "provider-key"
+    assert saved.json()["web_search_api_key"] == ""
     stored = json.loads(settings_path.read_text(encoding="utf-8"))
     assert stored["web_search_provider"] == "bocha"
     assert stored["web_search_api_key"] == "provider-key"
@@ -115,7 +116,7 @@ def test_custom_web_search_provider_keeps_base_url_and_returns_key(client, tmp_p
     assert saved.json()["web_search_provider"] == "custom"
     assert saved.json()["web_search_base_url"] == "https://search.example/v1/web-search"
     assert saved.json()["web_search_api_key_configured"] is True
-    assert saved.json()["web_search_api_key"] == "provider-key"
+    assert saved.json()["web_search_api_key"] == ""
 
 
 def test_reset_deletes_only_frontend_provider_settings(client, tmp_path, monkeypatch):
@@ -157,9 +158,12 @@ def test_saved_api_key_can_only_be_revealed_by_protected_whitelisted_endpoint(cl
         json={"field": "unknown_field"},
     )
 
-    assert current.json()["openai_api_key"] == "openai-secret"
-    assert current.json()["embedding_api_key"] == "embedding-secret"
-    assert current.json()["web_search_api_key"] == "search-secret"
+    assert current.json()["openai_api_key"] == ""
+    assert current.json()["embedding_api_key"] == ""
+    assert current.json()["web_search_api_key"] == ""
+    assert current.json()["openai_api_key_configured"] is True
+    assert current.json()["embedding_api_key_configured"] is True
+    assert current.json()["web_search_api_key_configured"] is True
     assert denied.status_code == 403
     assert revealed.status_code == 200
     assert revealed.json() == {"value": "embedding-secret"}

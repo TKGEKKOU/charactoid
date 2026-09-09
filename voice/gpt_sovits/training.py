@@ -150,7 +150,7 @@ class TrainingService:
         if not list_path.is_file():
             raise FileNotFoundError("请先准备数据集")
         normalized_language = normalize_language(language)
-        lang_map = {"zh": "ZH", "ja": "JA", "en": "EN", "ko": "KO", "yue": "Cantonese"}
+        lang_map = {"zh": "ZH", "ja": "JA", "en": "EN"}
         labeled = []
         for line in list_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -187,7 +187,7 @@ class TrainingService:
         list_path = self.dataset_dir(asset_id) / f"{asset_id}.list"
         if not list_path.is_file():
             return ["训练清单不存在"]
-        aliases = {"cantonese": "yue"}
+        aliases = {"cantonese": "zh", "yue": "zh", "ko": "zh"}
         rows: list[TrainingRow] = []
         for number, line in enumerate(list_path.read_text(encoding="utf-8").splitlines(), start=1):
             if not line.strip():

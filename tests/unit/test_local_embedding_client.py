@@ -186,7 +186,13 @@ def test_worker_crash_can_restart_without_reopening_closed_instance(tmp_path, mo
     processes = iter(
         [
             FakeProcess(['{"ok": true}\n', ""]),
-            FakeProcess(['{"ok": true}\n', '{"ok": true, "vectors": [[1.0]]}\n']),
+            FakeProcess(
+                [
+                    '{"ok": true}\n',
+                    '{"ok": true, "vectors": [[1.0]]}\n',
+                    '{"ok": true, "vectors": [[2.0]]}\n',
+                ]
+            ),
         ]
     )
     monkeypatch.setattr(
@@ -194,10 +200,8 @@ def test_worker_crash_can_restart_without_reopening_closed_instance(tmp_path, mo
         lambda *args, **kwargs: next(processes),
     )
 
-    with pytest.raises(RuntimeError, match="意外退出"):
-        embeddings.embed_query("first")
-
-    assert embeddings.embed_query("second") == [1.0]
+    assert embeddings.embed_query("first") == [1.0]
+    assert embeddings.embed_query("second") == [2.0]
     embeddings.close()
 
 

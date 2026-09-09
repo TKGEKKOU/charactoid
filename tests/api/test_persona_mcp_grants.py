@@ -39,29 +39,29 @@ def test_persona_grants_get_put(client, mcp_client):
         "/api/mcp/servers",
         json={"name": "fs", "transport": "stdio", "command": "python"},
     )
+    persona = client.post("/api/personas", json={"name": "Alpha"}).json()
+    persona_id = persona["id"]
 
-    got = client.get("/api/personas/p1/mcp-grants")
+    missing = client.get("/api/personas/missing/mcp-grants")
+    assert missing.status_code == 404
+
+    got = client.get(f"/api/personas/{persona_id}/mcp-grants")
     assert got.status_code == 200
     servers = got.json()["servers"]
     fs = next(item for item in servers if item["name"] == "fs")
     assert fs["authorized"] is False
 
-    put = client.put("/api/personas/p1/mcp-grants", json={"server_names": ["fs"]})
+    put = client.put(f"/api/personas/{persona_id}/mcp-grants", json={"server_names": ["fs"]})
     assert put.status_code == 200
     assert put.json()["server_names"] == ["fs"]
 
-    after = client.get("/api/personas/p1/mcp-grants").json()
+    after = client.get(f"/api/personas/{persona_id}/mcp-grants").json()
     assert next(item for item in after["servers"] if item["name"] == "fs")[
         "authorized"
     ] is True
 
-    # 撤销授权
-    client.put("/api/personas/p1/mcp-grants", json={"server_names": []})
-    after_revoke = client.get("/api/personas/p1/mcp-grants").json()
-    assert next(item for item in after_revoke["servers"] if item["name"] == "fs")[
-        "authorized"
-    ] is False
-    # 空授权列表保持空服务器状态
+    client.put(f"/api/personas/{persona_id}/mcp-grants", json={"server_names": []})
+    after_revoke = client.get(f"/api/personas/{persona_id}/mcp-grants").json()
     assert next(item for item in after_revoke["servers"] if item["name"] == "fs")[
         "authorized"
     ] is False

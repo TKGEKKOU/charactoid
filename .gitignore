@@ -73,3 +73,12 @@ docs/plans/
 docs/archive/RESUME_*.md
 tmp4*/
 tmpxgc*/
+
+# Local probe/dump/patch scratch
+_dump*
+_probe*
+_fix_*
+_patch_*
+_p.py
+_q.py
+_scan.py

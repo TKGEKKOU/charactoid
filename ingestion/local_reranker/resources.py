@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from ingestion.local_embedding.resources import download_env, resolve_local_model_id, validate_model_id
+from ingestion.local_embedding.resources import download_env, reject_unsafe_model_id, resolve_local_model_id, validate_model_id
 from ingestion.model_snapshot import SnapshotCancelled, kill_process, run_model_snapshot, runtime_lock
 from settings import DEFAULT_LOCAL_RERANKER_MODEL, Settings
 from voice.resource_directory import open_resource_directory
@@ -114,6 +114,7 @@ class LocalRerankerResourceManager:
         return self.status()
 
     def start_install(self, model_id: str, source: str, device: str) -> bool:
+        reject_unsafe_model_id(model_id)
         model_id = resolve_local_model_id(model_id, DEFAULT_LOCAL_RERANKER_MODEL)
         validate_model_id(model_id)
         if source not in {"modelscope", "huggingface"} or device not in {"auto", "cuda", "cpu"}:

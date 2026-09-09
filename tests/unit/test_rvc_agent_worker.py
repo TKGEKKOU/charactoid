@@ -144,6 +144,10 @@ def test_normal_voice_requests_do_not_route_to_rvc_worker():
 def test_rvc_requires_an_existing_audio_conversion_request():
     assert analyze_intents("用 RVC 处理这个 mp3 文件").primary == "rvc_worker"
     assert analyze_intents("我想了解 RVC 是什么").primary != "rvc_worker"
+    assert analyze_intents("帮我rvc").primary == "rvc_worker"
+    assert analyze_intents("进行rvc任务").primary == "rvc_worker"
+    assert analyze_intents("怎么用rvc").primary != "rvc_worker"
+    assert analyze_intents("RVC任务是什么").primary != "rvc_worker"
 
 
 def test_completed_rvc_output_can_be_registered_as_conversation_attachment(tmp_path, db_session):

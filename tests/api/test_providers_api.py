@@ -25,9 +25,10 @@ def test_provider_list_returns_explicit_api_key(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
-    assert "secret-key" in response.text
+    assert "secret-key" not in response.text
     provider = next(item for item in response.json()["providers"] if item["id"] == "openai")
-    assert provider["current_api_key"] == "secret-key"
+    assert provider["current_api_key"] == ""
+    assert provider["current_api_key_configured"] is True
     assert provider["is_configured"] is True
     assert provider["runtime_supported"] is True
     provider_ids = {item["id"] for item in response.json()["providers"]}
@@ -238,7 +239,8 @@ def test_provider_list_falls_back_to_legacy_local_settings(tmp_path, monkeypatch
 
     assert response.status_code == 200
     provider = next(item for item in response.json()["providers"] if item["id"] == "zhipu")
-    assert provider["current_api_key"] == "legacy-key"
+    assert provider["current_api_key"] == ""
+    assert provider["current_api_key_configured"] is True
     assert provider["current_base_url"] == "https://legacy.example/v1"
     assert provider["current_model"] == "legacy-model"
     assert provider["is_configured"] is True
@@ -265,7 +267,8 @@ def test_invalid_provider_key_does_not_override_legacy_real_key(tmp_path, monkey
         response = client.get("/api/providers/list", headers={"X-CHARACTOID-Request": "web"})
 
     provider = next(item for item in response.json()["providers"] if item["id"] == "zhipu")
-    assert provider["current_api_key"] == "legacy-key"
+    assert provider["current_api_key"] == ""
+    assert provider["current_api_key_configured"] is True
     assert provider["current_model"] == "new-model"
     assert provider["is_configured"] is True
 

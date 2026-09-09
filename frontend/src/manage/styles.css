@@ -842,6 +842,19 @@
   background: transparent;
   cursor: pointer;
 }
+.document-actions button.is-text {
+  width: auto;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--wb-ink);
+}
+.document-actions button.is-text:hover { background: var(--wb-panel); }
+.document-actions button.is-danger { color: #b42318; }
+.document-state.is-ok { color: #2f6f4e; }
+.document-state.is-failed { color: #b42318; }
+.document-state.is-pending { color: #8a6a2a; }
 
 .pending-files button:hover,
 .document-actions button:hover {

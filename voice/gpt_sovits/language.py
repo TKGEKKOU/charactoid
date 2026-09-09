@@ -2,10 +2,22 @@ import re
 from dataclasses import dataclass
 
 
-SUPPORTED_LANGUAGES = {"zh", "ja", "en", "ko", "yue"}
+SUPPORTED_LANGUAGES = {"zh", "ja", "en"}
+LANGUAGE_ALIASES = {
+    "yue": "zh",
+    "cantonese": "zh",
+    "zh-cn": "zh",
+    "zh-hans": "zh",
+    "chinese": "zh",
+    "ko": "zh",
+    "korean": "zh",
+    "ja-jp": "ja",
+    "japanese": "ja",
+    "en-us": "en",
+    "english": "en",
+}
 MOJIBAKE_MARKERS = ("銇", "銈", "銉", "仭", "伄")
 _KANA_RE = re.compile(r"[\u3040-\u30ff]")
-_HANGUL_RE = re.compile(r"[\uac00-\ud7af]")
 _LATIN_RE = re.compile(r"[A-Za-z]")
 _HAN_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _SENTENCE_RE = re.compile(r"[^。！？!?\n]+[。！？!?]?|\n+")
@@ -30,7 +42,7 @@ class TextSegment:
 
 
 def normalize_language(value: str) -> str:
-    language = value.strip().lower()
+    language = LANGUAGE_ALIASES.get(value.strip().lower(), value.strip().lower())
     if language not in SUPPORTED_LANGUAGES:
         raise ValueError(f"不支持的语言：{value}")
     return language
@@ -39,8 +51,6 @@ def normalize_language(value: str) -> str:
 def detect_script_language(text: str) -> str | None:
     if _KANA_RE.search(text):
         return "ja"
-    if _HANGUL_RE.search(text):
-        return "ko"
     if _LATIN_RE.search(text) and not _HAN_RE.search(text):
         return "en"
     return None
@@ -105,6 +115,6 @@ def validate_training_rows(rows: list[TrainingRow], expected_language: str) -> l
             errors.append(f"{row.path}: 疑似乱码")
         if expected == "ja" and text and not _KANA_RE.search(text) and _HAN_RE.search(text):
             errors.append(f"{row.path}: 日语转写缺少假名，请确认标注")
-        if expected in {"zh", "yue"} and _KANA_RE.search(text):
+        if expected == "zh" and _KANA_RE.search(text):
             errors.append(f"{row.path}: 中文素材包含日文假名")
     return errors

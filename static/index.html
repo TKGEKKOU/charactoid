@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CHARACTOID</title>
   <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-  <link rel="stylesheet" href="/static/styles.css?v=20260904-workbench-tabs-6">
+  <link rel="stylesheet" href="/static/styles.css?v=20260909-create-ui-3">
   <script src="/static/js/theme.js"></script>
   <script src="/static/vendor/lucide.min.js" defer></script>
   <script src="/static/js/voice-stream.js" defer></script>
-  <script src="/static/js/chat.js?v=20260904-resource-download-retry-1" defer></script>
-  <script src="/static/js/personas.js" defer></script>
+  <script src="/static/js/chat.js?v=20260909-live2d-10" defer></script>
+  <script src="/static/js/personas.js?v=20260909-create-ui-3" defer></script>
   <script src="/static/js/voice-studio.js" defer></script>
   <script src="/static/js/rvc-studio.js" defer></script>
   <script src="/static/js/settings.js" defer></script>
@@ -18,19 +18,20 @@
   <script src="/static/js/providers.js" defer></script>
   <script src="/static/js/integrations.js" defer></script>
   <script src="/static/js/napcat.js" defer></script>
-  <script src="/static/js/manage-bridge.js" defer></script>
+  <script src="/static/js/manage-bridge.js?v=20260909-manage-1" defer></script>
   <script src="/static/js/vue-pages-bridge.js" defer></script>
   <script src="/static/live2d/angle-z-motion.js" defer></script>
   <script src="/static/live2d/vts.js" defer></script>
-  <script src="/static/live2d/live2d-panel.js" defer></script>
-  <script src="/static/js/common.js" defer></script>
+  <script src="/static/live2d/live2d-panel.js?v=20260909-live2d-10" defer></script>
+  <script src="/static/js/common.js?v=20260909-create-ui-3" defer></script>
   <script src="/static/js/knowledge-workbench.js" defer></script>
-<script src="/static/js/app.js?v=20260904-workbench-tabs-6" defer></script>
+<script src="/static/js/app.js?v=20260909-create-ui-3" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#view-root">跳到主要内容</a>
   <div class="app-shell">
-  <aside class="site-sidebar">
+  <aside class="site-sidebar" aria-label="主导航">
+    <div class="sidebar-sheet" aria-hidden="true"></div>
     <div class="sidebar-inner">
       <nav class="primary-nav" aria-label="主导航">
         <button id="nav-chat" class="nav-item" type="button" data-view="chat" title="与当前角色对话"><i data-lucide="message-circle"></i><span class="nav-label">对话</span></button>
@@ -43,7 +44,7 @@
       </nav>
       <div class="sidebar-footer">
         <button id="theme-toggle" class="sidebar-toggle" type="button" aria-pressed="false" title="切换主题" aria-label="切换主题"><i class="theme-icon-sun" data-lucide="sun"></i><i class="theme-icon-moon" data-lucide="moon"></i></button>
-        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="固定展开侧边栏" aria-pressed="false" title="固定展开侧边栏"><i class="sidebar-collapse-icon" data-lucide="panel-left-close"></i><i class="sidebar-expand-icon" data-lucide="panel-left-open"></i></button>
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="固定侧边栏" aria-pressed="false" title="固定侧边栏"><i class="sidebar-collapse-icon" data-lucide="panel-left-close"></i><i class="sidebar-expand-icon" data-lucide="panel-left-open"></i></button>
       </div>
     </div>
   </aside>
@@ -61,6 +62,7 @@
   </div>
 
   <div id="preview-backdrop" class="backdrop"></div><aside id="preview-drawer" class="preview-drawer" aria-hidden="true"><header class="drawer-header"><strong id="preview-title">资料预览</strong><button id="close-preview" class="close-button" type="button"><i data-lucide="x"></i></button></header><pre id="preview-content" class="selectable"></pre></aside>
+  <dialog id="document-preview-dialog" class="settings-confirm-dialog document-preview-dialog" aria-labelledby="document-preview-title"><form method="dialog"><h2 id="document-preview-title">查看资料</h2><pre id="document-preview-content" class="document-preview-content selectable"></pre><div class="settings-confirm-actions"><button class="button button-primary" type="submit">关闭</button></div></form></dialog>
   <dialog id="settings-confirm-dialog" class="settings-confirm-dialog" aria-labelledby="settings-confirm-title"><form method="dialog"><h2 id="settings-confirm-title">保存前确认</h2><p id="settings-confirm-detail" class="settings-confirm-detail"></p><div class="settings-confirm-actions"><button id="settings-confirm-cancel" class="button button-secondary" type="button">取消</button><button id="settings-confirm-submit" class="button button-primary" type="button">确认保存</button></div></form></dialog>
   <dialog id="delete-persona-dialog" class="settings-confirm-dialog" aria-labelledby="delete-persona-title"><form method="dialog"><h2 id="delete-persona-title">永久删除角色</h2><p id="delete-persona-detail" class="settings-confirm-detail">角色及其所有数据将永久删除，无法恢复。</p><p id="delete-persona-error" class="inline-error" role="alert"></p><div class="settings-confirm-actions"><button id="delete-persona-cancel" class="button button-secondary" type="button">取消</button><button id="delete-persona-confirm" class="button button-danger" type="button">永久删除</button></div></form></dialog>
   <dialog id="save-all-dialog" class="settings-confirm-dialog" aria-labelledby="save-all-title"><h2 id="save-all-title">保存全部修改</h2><p id="save-all-detail" class="settings-confirm-detail"></p><p id="save-all-error" class="inline-error" role="alert"></p><div class="settings-confirm-actions"><button id="save-all-cancel" class="button button-secondary" type="button">取消</button><button id="save-all-confirm" class="button button-primary" type="button">确认保存</button></div></dialog>

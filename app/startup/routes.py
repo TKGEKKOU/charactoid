@@ -18,6 +18,7 @@ from app.routers.eval import router as eval_router
 from app.routers.eval_dataset import router as eval_dataset_router
 from app.routers.integrations import router as integrations_router
 from app.routers.live2d import router as live2d_router
+from app.routers.capability_assignments import router as capability_assignments_router
 from app.routers.mcp import router as mcp_router
 from app.routers.persona_drafts import router as persona_drafts_router
 from app.routers.persona_versions import router as persona_versions_router
@@ -45,7 +46,7 @@ from integrations.onebot11.ws_server import router as onebot_ws_router
 
 _ALL_ROUTERS = [
     agents_router, attachments_router, asr_router, stt_router, onebot_ws_router,
-    integrations_router, live2d_router, messages_router, mcp_router,
+    integrations_router, live2d_router, messages_router, mcp_router, capability_assignments_router,
     personas_router, persona_versions_router, documents_router, extensions_router,
     embedding_router, eval_router, eval_dataset_router, persona_drafts_router,
     skills_router, rag_router, reranker_router, realtime_router, runs_router,

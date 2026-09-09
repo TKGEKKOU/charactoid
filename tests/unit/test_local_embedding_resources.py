@@ -110,3 +110,9 @@ def test_start_install_does_not_call_configure(tmp_path, monkeypatch):
     assert manager.start_install("text-embedding-v3", "modelscope", "cpu") is True
     assert manager._install_model_id == "Qwen/Qwen3-Embedding-0.6B"
     assert called == []
+
+
+def test_start_install_rejects_path_escape(tmp_path: Path):
+    manager = LocalEmbeddingResourceManager(tmp_path)
+    with pytest.raises(ValueError):
+        manager.start_install("../outside", "modelscope", "cpu")

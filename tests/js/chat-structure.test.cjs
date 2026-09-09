@@ -11,7 +11,7 @@ assert.match(html, /<aside id="chat-files-sidebar"[\s\S]*?<main class="chat-pane
 assert.match(html, /<main class="chat-panel"[\s\S]*?<aside id="chat-context-sidebar"/);
 assert.match(html, /id="chat-files-backdrop"/);
 assert.match(html, /id="chat-context-backdrop"/);
-assert.match(html, /class="chat-toolbar-actions"[\s\S]*id="chat-files-toggle"[\s\S]*id="chat-context-peek"[\s\S]*id="chat-settings-toggle"/);
+assert.match(html, /chat-toolbar-leading[\s\S]*id="chat-files-toggle"[\s\S]*chat-toolbar-actions[\s\S]*id="chat-context-peek"[\s\S]*id="chat-settings-toggle"/);
 assert.strictEqual((html.match(/id="chat-context-peek"/g) || []).length, 1);
 assert.match(html, /id="chat-settings-sidebar"[\s\S]*?id="chat-settings-close"/);
 assert.match(html, /id="chat-settings-backdrop"/);
@@ -41,7 +41,7 @@ const contextBody = js.match(/function setChatContextOpen\(open\) \{([\s\S]*?)\n
 assert.doesNotMatch(settingsBody, /state\.chatContextOpen|state\.chatAttachmentsOpen/);
 assert.doesNotMatch(contextBody, /open && state\.chatAttachmentsOpen/);
 assert.match(css, /#chat-layout \.chat-toolbar-inner[\s\S]*?display:\s*flex/);
-assert.match(css, /#chat-layout:has\(\.chat-context-sidebar[^}]*\) \.chat-settings-sidebar \{ right:\s*366px/);
+assert.match(css, /#chat-layout:has\(\.chat-context-sidebar[^}]*\) \.chat-settings-sidebar \{ right:\s*14px/);
 assert.match(css, /\.chat-settings-scroll, \.chat-context-scroll[\s\S]*?overflow:\s*hidden/);
 assert.match(css, /chat-setting-row input\[type=\"checkbox\"\][\s\S]*?width:\s*42px[\s\S]*?height:\s*22px[\s\S]*?min-width:\s*42px[\s\S]*?min-height:\s*22px[\s\S]*?padding:\s*0/);
 assert.match(css, /#chat-layout \.composer[\s\S]*?box-shadow:\s*none/);

@@ -113,8 +113,13 @@ export async function deleteDocument(documentId: string): Promise<void> {
   if (!response.ok) throw new Error((await response.json().catch(() => null))?.detail || `删除失败 (${response.status})`);
 }
 
-export async function retryDocument(documentId: string): Promise<void> {
-  await fetchJson(`/api/documents/${encodeURIComponent(documentId)}/retry-index`, { method: "POST" });
+export async function getDocument(documentId: string): Promise<Record<string, unknown>> {
+  return fetchJson(`/api/documents/${encodeURIComponent(documentId)}`, { cache: "no-store" });
+}
+
+export async function retryDocument(documentId: string, status?: string): Promise<void> {
+  const path = status === "preview_ready" ? "confirm" : "retry-index";
+  await fetchJson(`/api/documents/${encodeURIComponent(documentId)}/${path}`, { method: "POST" });
 }
 
 export async function synthesizeVoicePreview(assetId: string, language: string): Promise<Blob> {

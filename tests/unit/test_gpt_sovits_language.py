@@ -36,3 +36,11 @@ def test_rejects_mojibake_japanese_training_text():
 def test_rejects_wrong_language_tag_for_japanese():
     rows = [TrainingRow("001.wav", "asset", "ZH", "何の用かしら")]
     assert "语言标签" in validate_training_rows(rows, "ja")[0]
+
+
+def test_normalizes_legacy_cantonese_and_korean():
+    from voice.gpt_sovits.language import normalize_language
+
+    assert normalize_language("yue") == "zh"
+    assert normalize_language("ko") == "zh"
+    assert normalize_language("en") == "en"

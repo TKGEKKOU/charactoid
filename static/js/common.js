@@ -326,8 +326,46 @@ function renderServiceStatus(service, label, value, state = value) {
 }
 function details(label, data) { const node = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = `${label} (${data.length})`; const pre = document.createElement("pre"); pre.textContent = JSON.stringify(data, null, 2); node.append(summary, pre); return node; }
 function empty(text) { const node = document.createElement("p"); node.className = "empty-state"; node.textContent = text; return node; }
-function openPreview(item) { $("preview-title").textContent = item.original_filename; $("preview-content").textContent = item.markdown_preview || item.error_message || "暂无内容"; $("preview-drawer").classList.add("is-open"); $("preview-backdrop").classList.add("is-open"); }
-function closePreview() { $("preview-drawer").classList.remove("is-open"); $("preview-backdrop").classList.remove("is-open"); }
+function ensureDocumentPreviewDialog() {
+  let dialog = $("document-preview-dialog");
+  if (dialog) return dialog;
+  dialog = document.createElement("dialog");
+  dialog.id = "document-preview-dialog";
+  dialog.className = "settings-confirm-dialog document-preview-dialog";
+  dialog.innerHTML = [
+    "<form method=\"dialog\">",
+    "<h2 id=\"document-preview-title\">查看资料</h2>",
+    "<pre id=\"document-preview-content\" class=\"document-preview-content selectable\"></pre>",
+    "<div class=\"settings-confirm-actions\"><button id=\"document-preview-close\" class=\"button button-primary\" type=\"submit\">关闭</button></div>",
+    "</form>",
+  ].join("");
+  document.body.append(dialog);
+  return dialog;
+}
+async function openPreview(item) {
+  const dialog = ensureDocumentPreviewDialog();
+  const title = $("document-preview-title");
+  const content = $("document-preview-content");
+  if (title) title.textContent = item.original_filename || "查看资料";
+  if (content) content.textContent = "正在打开…";
+  if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
+  let text = item.markdown_preview || "";
+  if ((!text || text.length < 20) && item.id) {
+    try {
+      const data = await api(fetch(`/api/documents/${item.id}`));
+      text = data.markdown_preview || "";
+    } catch (error) {
+      text = "";
+    }
+  }
+  if (content) content.textContent = text || "这份资料还没有可预览的正文";
+}
+function closePreview() {
+  const dialog = $("document-preview-dialog");
+  if (dialog && dialog.open) dialog.close();
+  $("preview-drawer")?.classList.remove("is-open");
+  $("preview-backdrop")?.classList.remove("is-open");
+}
 
 window.PL = window.PL || {};
 window.PL.state = state;

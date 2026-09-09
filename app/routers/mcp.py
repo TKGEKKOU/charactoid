@@ -215,8 +215,15 @@ def update_grants_api(request: Request, name: str, payload: MCPServerGrantsPaylo
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     from agents.mcp_grants import refresh_grants
+    from agents.assignment import sync_mcp_wildcard_policy
+    from agents.policy import CapabilityPolicyStore
 
     refresh_grants()
+    sync_mcp_wildcard_policy(
+        CapabilityPolicyStore(request.app.state.session_factory),
+        config.name,
+        config.allowed_persona_ids,
+    )
     return _to_dict(config)
 
 

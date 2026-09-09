@@ -10,7 +10,7 @@ import type {
 const MODULES: Array<{ id: NodeKind; label: string; summary: (data: WorkbenchSnapshot) => string }> = [
   { id: "profile", label: "设定", summary: () => "编辑角色设定" },
   { id: "memory", label: "记忆", summary: () => "会话与长期记忆" },
-  { id: "rag", label: "知识库", summary: (data) => `${data.documents.length} 份资料` },
+  { id: "rag", label: "知识库", summary: (data) => { const failed = data.documents.filter((item) => String(item.status).includes("failed")).length; return failed ? `${data.documents.length} 份资料，${failed} 份待整理` : `${data.documents.length} 份资料`; } },
   { id: "voice", label: "声音", summary: (data) => (data.persona.profile?.tts as any)?.voice_asset_id ? "已绑定角色音色" : "未绑定角色音色" },
   { id: "live2d", label: "Live2D", summary: (data) => (data.persona.profile?.live2d as any)?.model ? "已绑定模型" : "未绑定模型" },
   { id: "extensions", label: "扩展能力", summary: (data) => `${data.capabilities.packages.length} 项 Skill 与 Tool` },

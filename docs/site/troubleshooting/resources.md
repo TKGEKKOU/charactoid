@@ -1,53 +1,90 @@
-# 资源、模型与设备排查
+# 资源安装与模型
 
-**处理“模型未安装、服务未启动、CUDA 不可用、FFmpeg 不存在、Embedding/Reranker 无法加载”等依赖问题。**
+**资源页不是装饰。** `config_worker` 只查询、安装、更新、取消和清理受管资源，不代替 knowledge / voice / rvc 去执行业务。资源没就绪时，对话仍可能进行，只是对应链路缺段。
 
-## 前置条件
+> **事实依据**：`app/routers/resources.py`（`/api/resources` 与兼容 `/api/providers/resources`）、`agents/registry.py` 对 `config_worker` 的描述、`app/routers/system.py`、`app/routers/settings.py`、GPT-SoVITS 状态机在 resources 内的 `_gpt_sovits_status`。
 
-- 服务已运行在 `http://127.0.0.1:18000`；
-- 已准备 `.env`，但不要把真实 Key、Token 或 Cookie 粘贴到问题报告；
-- 需要时准备本地模型目录和 GPU 驱动信息。
+## 双前缀
 
-## 操作步骤
+写代码或抓包时两套前缀指向同一套处理：
 
-### 1. 查看资源总表
+- 规范：`/api/resources`
+- 兼容：`/api/providers/resources`
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:18000/api/resources
-Invoke-RestMethod http://127.0.0.1:18000/api/providers/resources
-Invoke-RestMethod http://127.0.0.1:18000/api/embedding/status
-Invoke-RestMethod http://127.0.0.1:18000/api/reranker/status
-Invoke-RestMethod http://127.0.0.1:18000/api/asr/status
-Invoke-RestMethod http://127.0.0.1:18000/api/voice/rvc/status
-```
+都要 `require_local`。浏览器扩展或远程 Origin 会 403。
 
-### 2. 检查命令行依赖
+## 目录与状态
 
-```powershell
-ffmpeg -version
-python --version
-nvidia-smi
-```
+| 方法 | 路径 | 作用 |
+| --- | --- | --- |
+| GET | `/api/resources` | 资源目录 |
+| GET | `/{provider_id}/status` | 单项状态 |
+| POST | `/{provider_id}/install` | 开始安装，HTTP 202 |
+| DELETE | `/{provider_id}/install/cancel` | 取消进行中的安装，202 |
+| DELETE | `/{provider_id}/install` | 移除已安装资源 |
+| GET | `/tasks` | 安装/下载任务，默认 limit=30 |
+| GET | `/tasks/{task_id}` | 任务详情 |
+| DELETE | `/tasks/{task_id}` | 取消任务，202 |
+| POST | `/tasks/{task_id}/retry` | 重试，202 |
+| DELETE | `/tasks?finished=` | 清理已结束任务 |
 
-`nvidia-smi` 失败不一定代表 CPU 不能运行；它只说明 NVIDIA 驱动或命令不可用。RVC 的设备选择由 `CHARACTOID_RVC_DEVICE` 和运行环境共同决定。
+`provider_id` 会经 `_canonical_provider_id` 正规化。不要在客户端自己发明 id。
 
-### 3. 检查向量模型更换
+## 读懂 status，不要只看红绿
 
-如果 Embedding 维度发生变化，应修改 `COLLECTION_NAME`，重新摄取文档并确认索引；不要让新旧维度写入同一个集合。
+GPT-SoVITS 这组字段最容易误判：
 
-## 你应该看到什么
+| 观察 | 含义 | `next_action` |
+| --- | --- | --- |
+| 正在装 | 目录写入中 | `wait` |
+| 未安装 | 受管目录不存在 | `install` |
+| 已安装但没写入配置 | 目录在，服务适配器还不能选 | `check` |
+| 缺文件 / installation_ready 为假 | 装了一半 | `check` |
+| 装好但服务没起 | 模型在，进程没起 | `start_service` |
+| 都好 | 可选、可推理 | `none` |
 
-资源接口返回明确的 `installed`、`ready`、`running`、`error` 或任务状态。未安装不应被展示为已就绪。
+`config_worker` 的职责就是把这些状态收成可回复摘要，**不把密钥或本地绝对路径塞进对话**。
 
-## 常见错误
+## 和 Worker 的关系
 
-- **模型目录存在但状态仍未就绪**：检查目录层级、模型文件名和配置路径；
-- **CUDA 不可用**：先改用 CPU 验证流程，再单独处理驱动、CUDA 和 PyTorch 版本；
-- **Embedding 加载失败**：确认模型维度、缓存目录和集合名一致；
-- **Reranker 未安装**：检索可暂时处于降级状态，但结果质量和置信度要按实际状态理解；
-- **FFmpeg 未找到**：把可执行文件加入 PATH，重启服务后再检查；
-- **GPT-SoVITS/RVC 服务启动失败**：查看服务状态和启动错误，不要只重复点击启动。
+| 你在资源页装的 | 对话里谁用 | 超时 |
+| --- | --- | ---: |
+| 向量 / 重排 | knowledge_worker | 45s |
+| 文档转换依赖 | document_worker | 120s |
+| ASR / TTS / GPT-SoVITS | voice_worker | 300s |
+| RVC 模型 | rvc_worker | 1800s |
+| Live2D 模型目录 | live2d_worker | 45s |
+| 安装动作本身 | config_worker | 45s |
+
+装好 ≠ 角色已授权。角色能力在 `GET/PUT /api/personas/{id}/capabilities`。没授权时 run 会 `capability_denied`，不是资源 404。
+
+## 系统诊断
+
+只读诊断：`GET /api/system/diagnostics`（同样 `require_local`），内部 `get_system_status()`。
+
+打开目录不是任意路径：
+
+`POST /api/system/open-directory/{location}`
+
+允许的 location 只有：`project` / `data` / `runtime` / `models` / `sqlite` / `milvus`。其它 404 `未知的诊断目录`。
+
+Docker：
+
+- `GET/PUT /api/system/docker-settings`，`on_exit` ∈ `keep | pause | remove`，落在 `data/docker_settings.json`
+- `POST /api/system/docker/pause` → `docker compose stop`
+- `POST /api/system/docker/remove` → `docker compose down`
+- 超时 120s，失败 `ok: false`
+
+关机 `POST /api/system/shutdown` 也是本机接口。
+
+## 常见误判
+
+1. **目录在、服务没起** —— 去 start_service，不要重新下载。
+2. **换 embedding 后知识全空** —— collection 维度变了，要重建索引，不是资源没装上。
+3. **RVC 很久没结束** —— 默认 1800s，看 `/api/voice/rvc` 任务，不要当 TTS 失败。
+4. **远程电脑打开工作台改不了资源** —— `require_local`，这是功能。
+5. **对话里问“缺什么”得到摘要而不是路径** —— config_worker 故意不回绝对路径。
 
 ## 下一步
 
-回到[本地资源准备](/guide/resources)，或继续看[任务、文件与连接排查](/troubleshooting/tasks-connections)。
+资源好了仍不能检索或不能开口，转到 [常见问题](/troubleshooting/qa) 和 [语音 API](/reference/api-voice)。

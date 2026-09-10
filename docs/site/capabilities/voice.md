@@ -1,36 +1,59 @@
 # 语音链路
 
-## 功能定位
+**语音在 CHARACTOID 里是可选但完整的一条产品链：听、说、训练、变声、实时流。** 它绑定在角色上，而不是绑定在“系统默认喇叭”上。没装模型时，文本对话必须仍能用；装上之后，同一条任务才能开口或变声。
 
-CHARACTOID 的声音能力不是单一 TTS 按钮，而是一条从原始素材到角色对话输出的生产链路。
+> **事实依据**：`app/routers/voice.py`、`voice_stream.py`、`tts.py`、`asr.py`、`voice_studio.py`、`voice_assets.py`、`voice_rvc.py`、`agents/tools/voice.py`、`agents/tools/rvc.py`、`agents/registry.py`（`voice_worker` 300s，`rvc_worker` 1800s）。
 
-```text
-音频 / 视频
-→ 提取音频
-→ 格式、采样率、声道统一
-→ 音量归一化
-→ 静音检测与语音切片
-→ 人声 / 伴奏分离
-→ 片段筛选与参考音频构建
-→ GPT-SoVITS 音色训练或加载
-→ 角色绑定声音
-→ TTS / RVC 推理
-→ 返回音频资产
-→ Live2D 口型和动作
-```
+## 产品上要分开的三件事
 
-## 组件分工
+1. **对话开口**：用角色已绑定的 GPT-SoVITS / TTS 音色，把即将说出的文本合成音频。走 `voice_worker` + `/api/tts/...`。
+2. **听写**：麦克风或附件变成字，再进入同一条对话。走 `/api/voice/transcriptions` 或实时 `/api/voice/stream/ws`。
+3. **RVC 变声**：对已有音视频做音色转换的长任务。走 `rvc_worker` + `/api/voice/rvc`。不要和“角色说话”混成一个按钮。
 
-- **ASR / STT**：将输入语音转成文本。
-- **FFmpeg**：提取、转码和标准化音频。
-- **Separator**：按需进行人声与伴奏分离。
-- **Voice Studio**：管理素材、片段和参考音频。
-- **GPT-SoVITS**：提供角色可绑定的语音生成能力。
-- **RVC**：将输入音频转换到目标音色。
-- **TTS / Voice Stream**：向对话或实时通道输出语音。
+落地页工作台把“对话 / 人设 / 知识”绑在视频上，是为了展示角色对象；声音资源则在资源拼贴里。源码上也是：人设页绑定音色，对话页使用绑定，RVC 是独立管道。
 
-## 依赖和限制
+## 听
 
-语音模型、GPU、FFmpeg、GPT-SoVITS 独立服务和用户自己的音色权重不随仓库默认分发。安装基础资源后，还需要在设置页完成配置和探针检查。
+同步听写：`POST /api/voice/transcriptions`。multipart 字段 `file`，10MB 上限，需要本机 + `X-CHARACTOID-Request: web`。失败时：
 
-详见 [声音与 Live2D 设计](/concepts/voice-live2d)。
+- 没配置 ASR → 503
+- 上游错误 → 502
+- 空识别 → 422
+
+实时听写：浏览器推 `pcm_s16le` @ 16kHz 到 `WS /api/voice/stream/ws`。服务端用 VAD 切句，partial 大约每 1.2 秒，单句最多 30 秒，整段缓冲最多 90 秒。非本机连接直接 close 1008。
+
+`GET /api/asr/status`（兼容 `/api/stt/status`）用来在资源页显示“听”是否就绪。安装/卸载/打开目录也在同一组路由。
+
+## 说
+
+`GET /api/tts/status` 看引擎。真正合成挂在角色和会话上：
+
+- `POST /api/tts/personas/{persona_id}/conversations/{conversation_id}/synthesize`
+- `POST .../synthesize/stream`
+
+这意味着：没有角色、没有会话、没有绑定音色，就不该有“系统配音”。对话消息里的音频用 `/api/voice-messages/{message_id}/audio` 取回，转写用 `POST /api/voice-messages/{message_id}/transcribe`。
+
+## 训练
+
+Voice Studio 把视频/音频变成可训练片段：建 session → 上传 → 人声分离 → 选段 → 参考音频 → complete。资产再进入 `/api/voice-assets`：导入、合成、训练、`train-from-studio`。
+
+GPT-SoVITS 是外部引擎，状态在 `/api/gpt-sovits/status`。detect / install / start / stop / model-directory 都是资源动作，应由 `config_worker` 或资源页触发，而不是让监督者在对话里直接改全局服务。
+
+## 变声
+
+RVC 是“会话准备材料 + 任务跑管道”：
+
+1. 建 session，挂 source 或 attachment；
+2. extract / separate / trim；
+3. convert 产生 `task_id`；
+4. 轮询 task，必要时 mix，最后取 output。
+
+FFmpeg 是硬依赖。没有它，extract 不会成功。资源接口提供 ffmpeg 的 status/detect/install。
+
+`rvc_worker` 超时 1800 秒。UI 必须按 `task_id` 恢复，刷新页面不能把任务当成丢失。
+
+## 和 Live2D 的衔接
+
+口型跟的是**正在播放的那路音频**，不是另造一条时间轴。Live2D 模型发现是 `GET /api/live2d/models`；VTS 连接是 `GET /api/live2d/vts`。形象 Worker 只负责接好模型和目录，不负责训练音色。
+
+设计讨论见 [声音与 Live2D 设计](/concepts/voice-live2d)，接口清单见 [语音、RVC 与 Live2D API](/reference/api-voice)。

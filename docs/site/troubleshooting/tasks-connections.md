@@ -1,49 +1,89 @@
 # 任务、文件与连接排查
 
-**处理任务停在等待、文件结果找不到、附件上传失败、WebSocket 断线以及 B站/OneBot/MCP 外部连接问题。**
+**一次用户句子会变成一条 Run；文件是附件或 DocumentJob；QQ / 直播是同一条角色任务的入口。** 三者状态机不同，不要互相重试。
 
-## 前置条件
+> **事实依据**：`app/routers/runs.py`、`app/routers/agents.py`、`app/routers/documents.py`、`app/routers/attachments.py`、`app/routers/integrations.py`、`agents/runtime/approvals.py`、`agents/runtime/errors.py`。
 
-- 保留失败任务的 `run_id`、`job_id`、`task_id`、`asset_id` 或 `attachment_id`；
-- 明确这是普通请求、异步任务还是实时连接；
-- 外部平台凭据仅在本地配置，不放进 Markdown、截图或 Git。
+## Run
 
-## 操作步骤
+| 方法 | 路径 | 成功 | 典型失败 |
+| --- | --- | --- | --- |
+| GET | `/api/runs/{run_id}` | `{ run }` | 404 `run_not_found` |
+| GET | `/api/runs/{run_id}/events?after_sequence=` | 增量事件 | 404 |
+| POST | `/api/runs/{run_id}/cancel` | 取消后的 run | 404 / 409 非法转换 |
+| POST | `/api/runs/{run_id}/approval` | `{ run, approved }` | 404 / 409 `invalid_approval` |
 
-### 1. 查询运行和事件
+`_status_for_error`：找不到 404，其它转换问题 409。响应形状是 `{"error":{"code","message"}}`。
 
-```powershell
-$runId = "run-id"
-Invoke-RestMethod "http://127.0.0.1:18000/api/runs/$runId"
-Invoke-RestMethod "http://127.0.0.1:18000/api/runs/$runId/events"
-```
+前端应用 `after_sequence` 做轮询或 SSE 之后的补洞。不要全量重拉再自己去重，sequence 就是游标。
 
-### 2. 区分等待、失败、取消
+## 对话入口怎么接到 Run
 
-- `waiting_approval` / `waiting_input`：补充输入或调用 approval/resume，不要重复创建任务；
-- `running`：继续轮询事件；
-- `failed`：查看公开错误合同和依赖状态，修复后再 retry；
-- `cancelled`：确认取消结果，再决定是否重新发起；
-- 已完成但无文件：用 `asset_id` 查询资产或输出，不要依赖本地绝对路径。
+`POST /api/personas/{persona_id}/agent/stream`：
 
-### 3. 检查实时连接
+1. `context_for` 从 session 建 `PersonaAgentContext`，角色不在本地工作区 → 404
+2. `try_persist_text_message` 先落用户句
+3. 执行键 `persona_id:conversation_id`
+4. `realtime_executions.run_stream` 产出事件
+5. 浏览器断开 → `_watch_request_disconnect` 中止
+6. `clone_session` 类事件改写成 `upload_request`（要声音材料时）
+7. `result` 后再 `done`
 
-角色对话实时 WebSocket 使用 `/ws/personas/{persona_id}/conversations/{conversation_id}`；语音流使用 `/api/voice/stream/ws`；B站事件使用 `/api/integrations/bilibili/events/ws`。断线后先查询状态，再重连并补齐事件。
+同步：`/agent/query`。确认后：`/agent/stream-resume`、`/agent/resume`。Resume 不会重新 persist 那句用户话。
 
-## 你应该看到什么
+## 文档任务
 
-前端只更新当前 `run_id` 对应的任务区域；连接断开、任务失败和任务完成应是三种不同状态。文件结果通过稳定 ID 引用，并能再次下载或播放。
+和 Run 不是一张表。
 
-## 常见错误
+1. `POST /api/knowledge-spaces/{space_id}/documents/upload` 接受多个文件，空间不存在则失败
+2. 每个文件 `create_conversion_job`
+3. 看 job：`GET /api/documents/{job_id}`
+4. **确认索引** `POST /api/documents/{job_id}/confirm`
+5. 失败重试 `POST /api/documents/{job_id}/retry-index`
+6. 删除 `DELETE /api/documents/{job_id}`（204）
+7. 空间汇总 `GET /api/knowledge-spaces/{space_id}/documents/report`
 
-- **上传 `413` 或大小校验失败**：检查 `MAX_UPLOAD_MB` 和表单字段；
-- **`409`**：任务状态不允许当前操作，先 GET 状态；
-- **`422`**：检查 multipart 字段、JSON 字段和 ID 格式；
-- **WebSocket 404**：确认使用 `ws://`、路径和代理转发配置；
-- **WebSocket 连接后无事件**：确认对应任务确实产生事件，并通过 REST 状态接口校准；
-- **B站/OneBot 无法发送**：检查凭据、目标列表、连接状态和平台限流；
-- **MCP 工具不可见**：检查服务是否启用、工具发现是否成功以及角色授权范围。
+没 confirm 的文档不会稳定出现在 knowledge_worker 的证据里。这是最常见的“我传了但角色说没有”。
+
+## 附件
+
+对话 payload 带 `attachment_ids`。Agent 上下文会把这些 id 传进监督者。结果里的附件 id 由 `_result_attachment_ids` 从 Worker artifacts 抽出。前端应展示 artifacts，而不是假设文件已经进了知识库——那是 document_worker + confirm 的事。
+
+## QQ / OneBot 与 B站
+
+`/api/integrations` 全部 `require_local`。
+
+B站：
+
+- `GET /api/integrations/bilibili`
+- `PUT /bilibili/config`
+- `POST /bilibili/connect|disconnect|pause|resume`
+- 清队列 / 清 session
+- `WS /bilibili/events/ws`
+
+OneBot：
+
+- `GET/PUT /onebot11`
+- observation、targets、test、disconnect
+- 清 conversation / recent
+- 删 token
+- `POST /napcat/send`
+
+这些入口把消息送进**同一条角色任务**，不是旁路聊天机器人。排查时用角色 `conversation_id` 和 integrations 状态对照，不要只看直播软件。
+
+直播 WebSocket 断了只影响弹幕入口，不影响本机 `/agent/stream`。OneBot 未连接时，工作台对话仍可用。
+
+## 决策表
+
+| 你看到 | 先做 | 不要做 |
+| --- | --- | --- |
+| 等待确认 | approval true/false | 再发同一句开新 run |
+| 用户断开 SSE | 用 events 补；必要时 resume | 当成 Worker 崩溃 |
+| 文档 converting | 等 job，再 confirm | 立刻知识问答 |
+| RVC 长时间 running | 看 rvc 任务，等 1800s 量级 | 当 TTS 重试 |
+| 直播连不上 | integrations + require_local | 重装 embedding |
+| 403 | 确认 127.0.0.1 | 关 CORS |
 
 ## 下一步
 
-阅读[事件与状态](/reference/events)、[任务生命周期](/development/lifecycle)和[扩展与外部集成 API](/reference/api-integrations)。
+[常见问题](/troubleshooting/qa) · [资源](/troubleshooting/resources) · [事件](/reference/events) · [Runs API](/reference/api-agents-runs)

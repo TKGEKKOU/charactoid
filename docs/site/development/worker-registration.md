@@ -1,44 +1,156 @@
 # 注册 Worker 与工具
 
-## Worker 声明
+**本页按当前 `agents/registry.py`、`agents/contracts.py`、`agents/graph/build.py` 说明如何新增 Worker 或工具。示例必须能对上源码字段；旧文档里的 `ToolSpec(worker=...)` 已经过时。**
 
-新增 Worker 时至少明确：
+CHARACTOID 的 Worker 不是“再写一个聊天机器人”。它是领域执行器：拿到 Supervisor 的结构化交接，调用已注册工具，返回 `SpecialistResult`。可见回复仍然由 Supervisor 组织。
 
-- 稳定名称；
-- 负责的领域；
-- 输入合同；
-- 输出合同；
-- 允许调用的工具；
-- 是否修改数据；
-- 是否需要确认；
-- 是否支持恢复；
-- finalize 校验方式。
+## 先读这三份合同
 
-示意代码：
+### 1. ToolSpec
+
+```python
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    specialist: str
+    tool: BaseTool
+    requires_confirmation: bool = False
+    mutates_data: bool = False
+    server: str = ""
+```
+
+- `name`：模型可见的工具名，要稳定。
+- `specialist`：canonical Worker 名，例如 `knowledge_worker`。
+- `tool`：LangChain `BaseTool` 实现。
+- `requires_confirmation`：执行前是否进入 HITL。
+- `mutates_data`：是否写数据，用于只读/变更分组。
+- `server`：MCP 来源名；内置工具留空。
+
+兼容别名在 `_WORKER_COMPAT_ALIASES`。新代码请直接写 `knowledge_worker`，不要再写 `knowledge`。
+
+### 2. WorkerManifest
+
+`WorkerManifest` 是描述性合同，不执行工具。它声明输入/输出 schema、capabilities、mutating_operations、超时和 `WorkerRetryPolicy`。`read_only` 由“有没有 mutating_operations”推导。
+
+当前默认超时与重试：
+
+| Worker | 超时 | 重试 |
+| --- | --- | --- |
+| knowledge_worker | 45s | 最多 2 次，backoff 0.5s |
+| memory_worker | 30s | 1 次 |
+| document_worker | 120s | 最多 2 次，backoff 1s |
+| profile_worker | 30s | 1 次 |
+| voice_worker | 300s | 1 次 |
+| rvc_worker | 1800s | 1 次 |
+| live2d_worker | 45s | 1 次 |
+| config_worker | 45s | 1 次 |
+
+媒体任务几乎不重试，避免把训练或变声跑两遍。知识检索可以短重试，因为失败常常是瞬时的嵌入服务抖动。
+
+### 3. SpecialistResult
+
+Worker 与 Supervisor 之间不要靠自然语言模板解析。`SpecialistResult` 的状态是闭合集合：
+
+`accepted` / `insufficient` / `confirmation_required` / `completed` / `failed`
+
+字段包括 answer、evidence、citations、uncertainties、trace、confidence、pending_action、artifacts、error。`error` 必须先经 `resolve_error_fields()`，不能塞原始异常。
+
+## 新增一把内置工具
+
+最小步骤：
+
+1. 在 `agents/tools/<domain>.py` 实现工具，输入用明确 schema，输出用结构化 dict 或 JSON 字符串。
+2. 在 `agents/registry.py` 登记 `ToolSpec`，指定 `specialist`。
+3. 若会写数据或不可逆，打开 `mutates_data` / `requires_confirmation`。
+4. 给正常、缺参、未授权、重复调用写测试。
+5. 更新 Worker 清单文档和 API 参考。
+
+示意（字段以源码为准）：
 
 ```python
 from agents.registry import ToolSpec
 
 spec = ToolSpec(
     name="example_status",
-    description="读取示例资源状态",
-    worker="config",
+    specialist="config_worker",
+    tool=example_status_tool,
     requires_confirmation=False,
     mutates_data=False,
 )
 ```
 
-> 具体构造参数以 `agents/registry.py` 当前定义为准；示例展示的是需要表达的安全元数据。
+不要在工具里：
 
-## 工具设计检查表
+- 拼接用户给的绝对路径去读盘；
+- 执行任意 Shell；
+- 直接 `print` 密钥；
+- 自己把确认状态改成 completed。
 
-1. 输入使用 Pydantic 或明确 JSON schema；
-2. 返回结构化结果，不返回模糊成功文本；
-3. 不把任意本地路径、Shell 或凭据交给模型；
-4. 副作用和确认要求可被注册表读取；
-5. 错误消息能定位资源、阶段和恢复方式；
-6. 为正常、缺参、权限不足、失败和重复调用编写测试。
+## 新增一个 Worker
 
-## 接入父图
+只登记工具是不够的。领域 Worker 要进入父图，需要完整接缝：
 
-新增领域 Worker 后，需要完成 Worker 构建、handoff 工具、父图节点、`finalize_*`、清单接口和文档同步。不要让 Worker 绕过 Supervisor 直达父图 END。
+```text
+1. 起一个 canonical 名，加入 _WORKER_ORDER
+2. 写 description、timeout、retry
+3. 声明 input_schema / output_schema
+4. 在 graph/state.py 加入交接字段（如需）
+5. 在 graph/build.py 挂节点和 finalize_*
+6. 提供 handoff 工具给 Supervisor
+7. 实现 Worker 节点：调工具、填 SpecialistResult
+8. finalize 校验：状态合法、禁止字段、公开错误
+9. 暴露到 worker manifests API
+10. 同步文档、事件、排查页
+```
+
+父图约束：
+
+- 用户可见出口只有 Supervisor。
+- Worker 结束必须回到 `finalize_*`，不能直达 END。
+- RVC 等敏感任务不允许意图层绕过 Supervisor。
+- handoff 禁止 `path` / `command` / `python` / `shell` 字段名。
+
+## 输入输出 schema
+
+当前默认输入很窄：
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "request": {
+      "type": "string",
+      "description": "Supervisor 委派的任务说明"
+    }
+  },
+  "required": ["request"],
+  "additionalProperties": false
+}
+```
+
+真正的文件引用应放在 Run 状态的 `StructuredHandoff.input_refs`，而不是让模型在 request 字符串里塞路径。输出 schema 在 registry 里列出了 Supervisor 需要的稳定字段；Worker 自己加的内部调试信息不要泄漏到公开事件。
+
+## 确认、取消、恢复
+
+- 确认：工具或 Worker 返回 `confirmation_required` 和 `pending_action`，Run 进入 `waiting_approval`。
+- 取消：走 Runtime 取消，而不是杀进程。领域取消钩子在 `agents/cancellation.py`。
+- 恢复：从 `resume_state` 继续，不重放整段聊天。长任务 Worker 必须能把“已经规范化的附件 ID”写进恢复状态。
+
+## 测试清单
+
+至少覆盖：
+
+1. 工具 schema 校验失败时的公开错误；
+2. 未授权角色看不到该工具；
+3. 变更工具在未确认前不写数据；
+4. finalize 拒绝非法 handoff 字段；
+5. 超时是否按 Manifest 生效；
+6. 重试是否只发生在声明过的错误上。
+
+## 相关页面
+
+- [Agent 与 Worker](/development/agent-worker)
+- [任务生命周期](/development/lifecycle)
+- [Worker 清单](/reference/workers)
+- [事件与状态](/reference/events)
+- [扩展：Skill、Tool、MCP](/capabilities/extensions)

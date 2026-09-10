@@ -151,3 +151,21 @@ agents/observability.py        RunRecorder 与安全事件
 app/run_store.py               应用层运行记录
 app/routers/runs.py            Run 查询、取消和 approval API
 ```
+
+## 状态机与存储的真实边界
+
+上面的 mermaid 是产品语义。落地时有三层，不要当成同一个对象：
+
+1. **`RunStatus`**（`agents/runtime/models.py`）驱动 `RunStore.update_status`。终态到自身是幂等；终态到其它状态非法。
+2. **`TaskStatus`** 注释写明：Phase 1 **只定义合同，不驱动状态转换**。不要假设改 task 行就能推动 Agent。
+3. **`StepStatus`** 比 run 多一个 `skipped`，给编排器跳过的步骤，不是给用户点的取消。
+
+`create_run_with_task` 是新托管任务的原子入口：同一 session 里写入 run、primary task、initial step、可选首事件。`task.run_id`、`step.task_id`、`event.run_id` 对不上会 `INVALID_REQUEST`，避免 UI 先看到 running run、child 记录还不存在。
+
+进程重启时 `recover_incomplete_runs()` 只收口 `queued` 和 `running` 为 `failed`（`runtime_restarted`）。`waiting_approval` / `paused` 会留下，因为它们等的是用户，不是已死掉的本进程执行者。
+
+公开事件的 `details` 在 `RunEvent` 校验期就走白名单；`resume_state` 写入 `update_status` 时也会再洗一遍。Prompt、密钥、绝对路径、工具原始载荷不会出现在 `/api/runs/{id}/events`。
+
+进度字段 `progress` / `total` 不能为负。事件 `sequence` 从 1 起算，增量拉取用 `sequence > after_sequence`。
+
+前端刷新后要靠同一个 `run_id` 把时间线补齐：`GET /api/runs/{id}` + `GET /api/runs/{id}/events?after_sequence=`。不要把“页面还在转圈”当成状态。

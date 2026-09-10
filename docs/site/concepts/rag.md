@@ -143,3 +143,23 @@ ingestion/embeddings/       Embedding 管理
 - 未配置 Embedding/Reranker 时不能宣称完整质量链已启用；代码会按可用能力降级并降低可信度。
 - Milvus Lite 适合本地单进程；多进程共享同一个 Lite 文件不是默认目标，生产化部署应使用 Standalone。
 - 召回率、延迟和准确率必须用固定题集实测，不能从代码结构推导成宣传数字。
+
+## 检索器合同（源码）
+
+`rag/retriever.py` 的 `build_retriever(context, k=4)` 默认把 **4** 条片段交给评分/生成。调大 `k` 会提高召回上限，同时增加后续 token。`ranker_params.k` 是 RRF 的排名平滑常数，**不是**返回条数。
+
+`score_threshold` 只作用于 Dense 初筛，用来丢掉明显无关的向量命中。RRF 融合之后仍然按 `k` 截断。BM25 一路吃的是 `text` 字段：VARCHAR + jieba（`cnalphanumonly`），由 Milvus 内置 `FunctionType.BM25` 生成稀疏向量。
+
+作用域表达式由 `build_scope_expression` 生成，并作为 Milvus `expr` 下推：
+
+```text
+workspace_id == "<workspace>"
+and knowledge_space_id in ["...", "..."]
+and category == "content"
+```
+
+这是强制数据边界，不是相似度加权。角色不能靠“向量更像”跨到别人的知识空间。
+
+`_cached_store` 按连接标识缓存已 `connect()` 的 `MilvusRagStore`（`lru_cache(maxsize=4)`）。缓存键覆盖 URI、集合名、维度等会影响连接的配置；测试替身类与生产类互不污染。`connect()` 里的集合维度校验在缓存后只发生一次。设置变更后应走 `clear_retriever_cache()`，不要假设旧连接还指向新集合。
+
+Embedding 默认来自 `data/local_settings.json`：`managed_local` 默认维度 1024，其它默认 512。维度或模型变了，不要复用旧 Collection 名称。

@@ -97,3 +97,34 @@ CHARACTOID 并不存在一条对所有模块都完全相同的全局覆盖链。
 - 临时音视频文件：由具体任务管理器创建和清理，不应作为永久引用返回给前端；
 - 永久结果：应登记为资产并通过 `asset_id` 或任务文件 ID 使用。
 
+## `settings.py` 快照里还有这些
+
+`Settings` 是 frozen dataclass。进程启动时拍一次快照；改文件后要重新加载才生效。
+
+### 不是 `.env` 的项
+
+| 项 | 实际来源 | 当前默认 | 说明 |
+| --- | --- | --- | --- |
+| `workspace_id` | 代码写死 | `local-default` | 改 `.env` 不会换工作区 |
+| `chunk_size` | `local_settings.json` | `1000` | 文档切分 |
+| `chunk_overlap` | `local_settings.json` | `150` | 切分重叠 |
+| `embedding_provider` | `local_settings.json` | 空则按 Base URL 推断：DashScope→`qwen`，有 URL→`custom`，否则 `managed_local` | 只接受 `qwen / managed_local / custom` |
+| `embedding_dimensions` | `local_settings.json` | `managed_local` 为 1024，否则 512 | 与集合维度必须一致 |
+| `embedding_send_dimensions` | `local_settings.json` | `true` | 是否把维度发给上游 |
+| `embedding_model_source` | `local_settings.json` | `modelscope` | 只接受 `modelscope / huggingface` |
+| `embedding_device` | `local_settings.json` | `auto` | 只接受 `auto / cuda / cpu` |
+| LLM / STT / TTS / Reranker 凭据 | `local_settings.json` | 空 | `is_real_api_key()` 会把 `your-api-key`、`sk-...`、`<api-key>` 等占位值当成未配置 |
+
+`local_settings.json` 读失败（缺文件、不是 JSON、IO 错误）时回退 `{}`，设置页仍可启动。
+
+### 仍由 `.env` 读取的项
+
+| 变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `MCP_ALLOW_ARBITRARY_STDIO` | `false` | 为真才允许任意 stdio MCP；`1/true/yes/on` 才算真 |
+| `MILVUS_USER` / `MILVUS_PASSWORD` | 空 | 远程 Milvus 才用；Lite 文件模式通常为空 |
+| `RAG_PIPELINE` | `default` | 读入后会 `lower()` |
+
+布尔解析走 `setting_bool`：字符串 `"false"` 不会被当成 True。API Key 走 `configured_api_key`，模板值在快照里就是空字符串。
+
+冻结的桌面包（`sys.frozen`）把 `project_root` 指到可执行文件所在目录，而不是源码树。路径类配置都相对这个根。

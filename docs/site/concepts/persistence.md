@@ -82,7 +82,7 @@ flowchart LR
 
 | 来源 | 内容 |
 | --- | --- |
-| `.env` / `.env.example` | 主机、端口、SQLite 路径、Milvus URI、工作区 |
+| `.env` / `.env.example` | 主机、端口、SQLite 路径、Milvus URI |
 | `data/local_settings.json` | 工作台里保存的 LLM、Embedding、搜索等 |
 | 角色记录 | 人设、能力策略、绑定的音色和知识空间 |
 
@@ -123,3 +123,37 @@ ingestion/milvus_store.py       向量写入与过滤
 rag/retriever.py                检索
 app/attachments.py              附件引用
 ```
+
+## 控制面之外的硬合同
+
+`settings.py` 里的 `workspace_id` **不是** `.env` 项。当前快照把它写死为 `local-default`。备份、过滤表达式和 Worker 作用域都按这个值走；不要假设改 `.env` 能换工作区。
+
+`Settings.load()` 是不可变 dataclass。`.env` 只合并主机、端口、SQLite、Milvus 和 RAG 控制参数。`data/local_settings.json` 损坏或不是合法 JSON 时，`load()` 把它当成空对象，让设置页仍能打开并改回去，而不是让整个进程起不来。
+
+### 附件文件面
+
+`app/attachments.py`：
+
+- 根目录：`{project_root}/data/attachments/{sha256(conversation_id)[:32]}/`
+- 显示名可以改（`apply_display_name`），**存储路径和 kind 不跟着改**
+- 读取前必须 `Path.resolve()` 后仍落在该会话的 `attachment_root` 下，否则当 `FileNotFoundError`
+- 单文件上限 `MAX_ATTACHMENT_BYTES = 512 * 1024 * 1024`（512MB）。这和 `.env` 的 `MAX_UPLOAD_MB`（默认 50，主要用于文档摄取）不是同一道门
+- 扩展名白名单同时覆盖文档、图片、音频、视频；未知后缀不会按 MIME 猜测放行
+
+公开附件对象只返回 `file_id / name / mime_type / kind / size / duration`，不返回磁盘路径。
+
+### 检索面过滤不是加分项
+
+`ingestion/milvus_store.py` 与 `rag/retriever.py` 的过滤表达式在服务端先截断候选，再算相似度：
+
+| 函数 | 表达式 |
+| --- | --- |
+| `document_filter` | `workspace_id` + `knowledge_space_id` + `document_id` |
+| `knowledge_space_filter` | `workspace_id` + `knowledge_space_id` |
+| `build_scope_expression` | `workspace_id` + `knowledge_space_id in [...]` + `category == "content"` |
+
+字符串值用 `json.dumps` 做 `quote_filter_value`，避免手工拼接把引号写进 expr。`category == "content"` 用来排除非正文行。
+
+Milvus Lite 的 `.db` 在同一进程内复用 `MilvusClient`；`close_milvus_connections` 在退出时统一释放。多个进程不要抢同一个 Lite 文件，那种部署应改 Standalone。本地 URI 必须落在项目目录内，`normalize_milvus_uri` 会拒绝项目外路径。
+
+写入后 `add_documents` 会显式 `flush`，随后检索才能立刻看见新块。

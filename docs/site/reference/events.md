@@ -103,3 +103,67 @@ Worker 的 `trace`、`uncertainties`、`citations` 是给监督者的结构化�
 前端在收到批准事件后仍应 `stream-resume` / `resume`。只把 Run 标成 running 不会自动续跑图。
 
 HTTP `POST /api/runs/{id}/approval` 的 body 是 `RunApprovalPayload.approved: bool`。非法转换统一 409，错误信封 `{"error":{"code","message"}}`。
+
+## RunStore 合同
+
+`app/run_store.py` 是公开运行态的 SQLite 持久化层，不是 LangGraph checkpointer。`RunRecorder` 仍是请求内遥测，两者不要混用。
+
+### `AgentRun` 落库字段
+
+来源 `agents/runtime/models.py`。一次 run 至少带：
+
+| 字段 | 含义 |
+| --- | --- |
+| `run_id` | UUID，主键 |
+| `action` | 默认 `chat` |
+| `status` | `RunStatus` |
+| `workspace_id` / `persona_id` / `conversation_id` / `thread_id` | 域定位 |
+| `active_worker` / `specialist` | 当前交接对象 |
+| `pending_action` | 等待用户决策的动作摘要 |
+| `current_step` / `current_question` / `progress` / `total` / `status_text` | 可恢复进度 |
+| `resume_state` | 恢复所需状态；写入前走 `sanitize_event_details` |
+| `answer` / `worker_results` / `evidence` / `citations` / `uncertainties` / `trace` | 监督者可展示材料 |
+| `requires_approval` | 是否卡在确认 |
+| `error_code` / `error_message` / `result_json` | 失败与结果信封 |
+| `created_at` / `started_at` / `finished_at` / `updated_at` | UTC |
+
+`progress`、`total` 的下限是 0。`RunEvent.sequence` 的下限是 1。`details` 在模型校验时就会白名单清洗，不是写入后再补洗。
+
+### `update_status`
+
+- 非法 `status` 字符串 → `INVALID_REQUEST`。
+- 未知字段 → `INVALID_REQUEST`（`unknown run fields`）。允许写入的键是白名单：`action`、域 ID、`active_worker`、`specialist`、`pending_action`、`answer`、`worker_results`、`evidence`、`citations`、`uncertainties`、`trace`、进度字段、`resume_state`、`requires_approval`、错误字段、`result_json`。
+- 找不到 run → `RUN_NOT_FOUND`。
+- 终态（`completed` / `failed` / `cancelled`）写回同一终态：幂等，直接返回现记录。
+- 其它非法迁移 → `INVALID_TRANSITION`。合法边在 `allowed_transition()`：
+
+```text
+queued            → running, failed, cancelled
+running           → waiting_approval, paused, completed, failed, cancelled
+waiting_approval  → running, paused, failed, cancelled
+paused            → running, failed, cancelled
+completed/failed/cancelled → 无出边（仅允许写回自身）
+```
+
+### 事件增量
+
+`list_events(run_id, after_sequence=0)` 的过滤是 `sequence > max(0, int(after_sequence))`，按 sequence 升序。已经渲染到 12 时下次传 `12`，不会重复拿到 12。
+
+`append_event` 与 `create_in_session` 走同一 session 边界。需要原子地露出“正在跑的 run + 第一个 task/step + 可选首事件”时，用 `create_run_with_task(run, task, step, event=None)`：
+
+- `task.run_id` 必须等于 `run.run_id`
+- `step.task_id` 必须等于 `task.task_id`
+- 若带 event，`event.run_id` 必须等于 `run.run_id`
+- 任一不符 → `INVALID_REQUEST`
+
+这是新托管任务的窄创建口。旧的单记录 `create` / `create_task` / `create_step` 仍可用，但不要先把 running run 暴露给 UI 再补 child。
+
+### 进程重启
+
+`recover_incomplete_runs()` **只**把 `queued` / `running` 收口为 `failed`，错误码 `runtime_restarted`，`requires_approval=false`，并把 `error` 写进 `result_json`。
+
+`waiting_approval` 和 `paused` **必须保留**：它们代表用户还可以继续处理的持久化状态，不是当前进程独占的执行态。重启后不要把确认卡或暂停任务当成崩溃。
+
+`latest(action=, workspace_id=, persona_id=, statuses=)` 按 `created_at desc, run_id desc` 取一条，可选收窄域和状态集合。
+
+下一步仍是：[Worker 清单](/reference/workers)、[任务生命周期](/concepts/lifecycle)、[问题排查：任务、文件与连接](/troubleshooting/tasks-connections)。

@@ -88,3 +88,14 @@ Docker：
 ## 下一步
 
 资源好了仍不能检索或不能开口，转到 [常见问题](/troubleshooting/qa) 和 [语音 API](/reference/api-voice)。
+
+## 再补几条边界
+
+GPT-SoVITS 的 `next_action` 不是安装按钮文案。`wait` / `install` / `check` / `start_service` 要按 status 字段走，不要在目录存在时再点一次 install。
+
+其它容易混的边界：
+
+- 资源双前缀 `/api/resources` 与 `/api/providers/resources` 是同一套处理，都 `require_local`；
+- `config_worker` 超时 45s，只处理受管资源，不会替 `voice_worker` 合成；
+- 换 embedding 后知识为空，是 collection 维度变化，要重建索引，不是资源没装上；
+- 打开目录的 location 白名单只有 `project` / `data` / `runtime` / `models` / `sqlite` / `milvus`，其它 404 `未知的诊断目录`。

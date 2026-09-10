@@ -83,3 +83,23 @@ Worker 的 `trace`、`uncertainties`、`citations` 是给监督者的结构化�
 | 刷新后进度消失 | 没持久化 | 前端没保存 run_id，或打错了 ID |
 
 下一步：[Worker 清单](/reference/workers)、[任务生命周期](/concepts/lifecycle)、[问题排查：任务、文件与连接](/troubleshooting/tasks-connections)。
+
+
+## ApprovalService
+
+`agents/runtime/approvals.py`：`ApprovalService` 只负责审批状态，真正的 LangGraph resume 仍走对话入口。
+
+`decide(run_id, approved)`：
+
+1. `run_store.get(run_id)` 为空 → `RUN_NOT_FOUND`（HTTP 404）；
+2. `run.status is not WAITING_APPROVAL` → `INVALID_APPROVAL`（HTTP 409）；
+3. `approved=false` → **`runtime.cancel(run_id)`**。没有独立的 reject 状态；
+4. `approved=true` → `update_status(RUNNING)`，`append_event`：
+   - `category="approval"`
+   - `name="approval_granted"`
+   - `label="已批准，等待继续处理"`
+   - `status="completed"`
+
+前端在收到批准事件后仍应 `stream-resume` / `resume`。只把 Run 标成 running 不会自动续跑图。
+
+HTTP `POST /api/runs/{id}/approval` 的 body 是 `RunApprovalPayload.approved: bool`。非法转换统一 409，错误信封 `{"error":{"code","message"}}`。

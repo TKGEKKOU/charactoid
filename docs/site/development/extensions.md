@@ -117,3 +117,16 @@ Skill 只声明工具名。工具本身仍要在 `ToolSpec` 里存在（内置�
 - [扩展体系设计](/concepts/extensions)
 - [注册 Worker 与工具](/development/worker-registration)
 - [扩展与外部集成 API](/reference/api-integrations)
+
+
+## 平台级全局 MCP 不参与按角色授权
+
+角色侧 `PUT /api/personas/{persona_id}/mcp-grants` 会遍历 `manager.list_configs()`。若 `GLOBAL_ALL in server.allowed_persona_ids`，**直接 `continue`**：
+
+- 这些服务器对所有角色可见；
+- 不能通过某个角色的 grants PUT 把它们从全局集合里拿掉；
+- `GET .../mcp-grants` 里 `global: true`，`authorized` 也为 true。
+
+MCP 管理器未就绪时，角色 MCP 接口返回 **503** `MCP 管理器尚未就绪`。先查 lifespan 有没有 `connect_all`，再查 grants。
+
+把某个服务配成全局，等于放弃“按角色授权”的边界。只应留给真正的平台级工具，而不是某个角色的私有 MCP。

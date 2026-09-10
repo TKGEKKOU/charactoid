@@ -87,3 +87,20 @@ OneBot：
 ## 下一步
 
 [常见问题](/troubleshooting/qa) · [资源](/troubleshooting/resources) · [事件](/reference/events) · [Runs API](/reference/api-agents-runs)
+
+
+## SSE 断开与 abort
+
+`app/routers/agents.py`：
+
+- `_watch_request_disconnect(request, execution_key)` 轮询 `request.is_disconnected`，客户端一走就停；
+- `_stream_with_disconnect_abort` 把“当前 Job”abort 掉，执行键是 `persona_id:conversation_id`；
+- 这**不会**自动把 Run 写成用户已读的 `completed`。刷新后用 `GET /api/runs/{id}` 和 `GET /api/runs/{id}/events?after_sequence=` 补洞，必要时 `stream-resume`。
+
+不要把“浏览器关了标签”理解成 Worker 崩溃，也不要立刻再 POST 同一句开一条新 Run——那会并发行、重复副作用。
+
+## 事件流形状
+
+stream 的公开事件是 `stage` / `token` / `result` / `done`。`result` 必须是对象：`_public_stream_event` 会改写内部 `AgentTurnResult`。如果你在代理层用 `json.dumps(default=str)` 把 dataclass 变成字符串，UI 会丢答案和附件。
+
+响应头必须保留 `Cache-Control: no-cache` 和 `X-Accel-Buffering: no`，否则 nginx 类反向代理会把 SSE 攒成一块。

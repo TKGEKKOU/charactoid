@@ -59,3 +59,49 @@ Worker 输出合同要求 `evidence`、`citations`、`uncertainties`。监督者
 对话走 `/api/personas/{id}/agent/stream|query`，监督者内部可能调用 knowledge_worker。评测和调试可以走 `/rag/query`，不经过角色口吻。不要把两个入口的返回形状当成同一个。
 
 更多设计见 [RAG 设计](/concepts/rag)，接口见 [文档、知识与评测 API](/reference/api-knowledge)。
+
+
+## 上传不是检索
+
+文档入口在 `app/routers/documents.py`，不要和对话附件混用。
+
+`POST /api/knowledge-spaces/{space_id}/documents/upload`：
+
+| 条件 | HTTP | `detail` |
+| --- | ---: | --- |
+| 没有文件 | 422 | `At least one file is required` |
+| 空间不存在 | 404 | `Knowledge space not found` |
+| 类型不支持 | 415 | `Unsupported file type` |
+| 文件过大 | 413 | `File too large` |
+| 其它转换失败 | 422 | `Document conversion failed` 或同类转换错误 |
+
+源码里**没有** `EMPTY_FILE`。不要写“空文件 422”——那是语音路由对空音频的规则，不是文档上传。
+
+上传成功只产生 conversion job。检索可用之前还要：
+
+1. `GET /api/documents/{job_id}` 看状态；
+2. `POST /api/documents/{job_id}/confirm` 确认索引；
+3. 失败才 `POST /api/documents/{job_id}/retry-index`。
+
+`confirm` 与 `retry-index` 在非法状态时 **409** `Invalid document state`。没 confirm 的文档不会稳定出现在 `knowledge_worker` 的证据里。这是最常见的“我传了但角色说没有”。
+
+## 删除文档会清向量
+
+`DELETE /api/documents/{job_id}` 返回 **204**。若 job 处于 `indexing` / `indexed` / `index_failed`，会先 `MilvusRagStore().delete_document`：
+
+- 向量删除失败 → **502** `Failed to remove document vectors: ...`；
+- 成功后再 `delete_structured_document`、清 staging、`session.delete(job)`。
+
+`indexing` 也可能已有部分向量（后台任务与删除并发），所以这一步会一并清理，避免孤儿向量。删角色 API **不会**自动走这条路径。
+
+## Worker 超时（对照 registry）
+
+`agents/registry.py` 的 `_WORKER_EXECUTION_DEFAULTS`：
+
+| Worker | 超时 | attempts | backoff |
+| --- | ---: | ---: | ---: |
+| knowledge | 45s | 2 | 0.5 |
+| memory | 30s | 1 | — |
+| document | 120s | 2 | 1.0 |
+
+联网补全走 `decide_web_fallback`：用户明确否定 web 则拒绝；本地知识不够则确认，而不是默默上网。

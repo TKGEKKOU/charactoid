@@ -57,3 +57,41 @@ FFmpeg 是硬依赖。没有它，extract 不会成功。资源接口提供 ffmp
 口型跟的是**正在播放的那路音频**，不是另造一条时间轴。Live2D 模型发现是 `GET /api/live2d/models`；VTS 连接是 `GET /api/live2d/vts`。形象 Worker 只负责接好模型和目录，不负责训练音色。
 
 设计讨论见 [声音与 Live2D 设计](/concepts/voice-live2d)，接口清单见 [语音、RVC 与 Live2D API](/reference/api-voice)。
+
+
+## `/api/voice` 同步听写边界
+
+`app/routers/voice.py`：`MAX_AUDIO_BYTES = 10 * 1024 * 1024`（10MB）。
+
+| 条件 | HTTP | `detail` |
+| --- | ---: | --- |
+| 空请求 | 422 | `Audio request is empty` |
+| 空文件 | 422 | `Audio file is empty` |
+| 超过 10MB | 413 | （过大） |
+| 类型不支持 | 415 | |
+| ASR 未配置 | 503 | |
+| 无语音 | 422 | `No speech was recognized` |
+| 上游失败 | 502 | |
+
+空文件 422 只属于语音，不属于文档上传。
+
+## 实时 WS
+
+`WS /api/voice/stream/ws`：
+
+- 非 `LOCAL_HOSTS`（`127.0.0.1` / `::1` / `localhost` / `testclient`）**先 close 1008 再 return**，不会 accept；
+- ready 帧：`type: session.ready`，`sample_rate: 16000`，`format: pcm_s16le`，带 `vad`；
+- `MAX_STREAM_SECONDS=90`，`MAX_UTTERANCE_SECONDS=30`；
+- `PARTIAL_EVERY_SECONDS=1.2`，`MIN_PARTIAL_SECONDS=0.7`；
+- 命令：`ping`/`pong`、`start`、`cancel`、`finish`；
+- 错误码：`invalid_command` / `asr_unavailable` / `not_speaking` / `unknown_command`。
+
+## RVC 路径
+
+`app/routers/voice_rvc.py` 是会话管道，不是一次性 POST：
+
+```text
+sessions → source / attachment → extract → separate → convert → mix / output
+```
+
+另有 trim、waveform、models、tasks。FFmpeg 是 extract 的硬依赖。`rvc_worker` 超时 1800 秒；`voice_worker` 超时 300 秒。刷新页面要用 `task_id` 恢复，不要把长任务当成 TTS 失败。

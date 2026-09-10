@@ -111,8 +111,51 @@ Run 的对外合同在 `app/routers/runs.py`：
 
 进程内 Job 和 run store 不跨进程。服务起来后未完成 run 被安全结束，对外 `RUNTIME_RESTARTED`，公开文案要求重新发起。这和 `CHECKPOINT_UNAVAILABLE` 不同：后者是图状态读失败。
 
-`agents/checkpoint.py` 把 LangGraph `SqliteSaver` 建在 `settings.sqlite_path`。删除角色时 `delete_persona_checkpoints` 按 `thread_id LIKE "{persona_id}%"` 清 `writes` 和 `checkpoints`。不要在产品文案里说“删角色会立刻清掉 Milvus 里所有切片”——那是另一条删除路径。
+`agents/checkpoint.py` 把 LangGraph `SqliteSaver` 建在 `settings.sqlite_path`。删除角色时 `delete_persona_checkpoints` 按 `thread_id LIKE` 与 `prefix = f"{persona_id}:%"`（**带冒号**）清 `writes` 和 `checkpoints`。写成 `"{persona_id}%"` 会误伤其它以同一 id 字符串开头、但不是该角色会话线程的记录。不要在产品文案里说“删角色会立刻清掉 Milvus 里所有切片”——那是另一条删除路径。
 
 ## 确认决策从哪来
 
 Run 进入 `waiting_approval` 之前，监督者已经用纯函数做了决定：`decide_capability` / `decide_web_fallback`。前端不能自己把按钮画成“已批准”。批准之后走 resume，而不是再 persist 一句用户话。
+
+
+## ApprovalService 实际做什么
+
+`agents/runtime/approvals.py` 的 `ApprovalService.decide(run_id, approved)` 只处理审批态，不负责把 LangGraph 接着跑完。resume 仍走对话入口 `stream-resume` / `resume`。
+
+规则：
+
+| 条件 | 结果 |
+| --- | --- |
+| run 不存在 | `RuntimeOperationError(RUN_NOT_FOUND)`，HTTP 404 |
+| 当前状态不是 `WAITING_APPROVAL` | `INVALID_APPROVAL`，HTTP 409 |
+| `approved=false` | **调用 `runtime.cancel(run_id)`**，没有单独的 reject 状态 |
+| `approved=true` | 状态改为 `RUNNING`，追加事件 `approval_granted`，label 为 `已批准，等待继续处理` |
+
+不要在文档或 UI 里发明 `rejected` / `denied` 作为 RunStatus。拒绝批准就是取消。
+
+## checkpoint 前缀
+
+`agents/checkpoint.py`：
+
+- LangGraph `SqliteSaver` 建在 `settings.sqlite_path`；
+- `delete_persona_checkpoints(settings, persona_id)` 连接同一 SQLite，对表 `writes` 和 `checkpoints` 执行 `DELETE ... WHERE thread_id LIKE ?`，绑定值是 `f"{persona_id}:%"`。
+
+执行键和线程 id 的形状是 `persona_id:conversation_id`。冒号是分隔符，删除角色时必须带上，否则前缀匹配会过宽。
+
+## 确认决策从哪来（纯函数）
+
+`agents/confirmation_policy.py` 不读数据库：
+
+`decide_capability`：
+
+- 不允许 → `reject` / `capability_not_allowed`
+- 允许但要确认 → `confirm` / `capability_requires_confirmation`
+- 允许且直接执行 → `direct` / `capability_allowed`
+
+`decide_web_fallback`：
+
+- `web` 在 `intent.negated` → `reject` / `web_explicitly_denied`
+- `web_authorized` → `direct`（原因 `explicit_web_request` 或 `fresh_external_fact`）
+- 否则 → `confirm` / `local_knowledge_insufficient`
+
+Run 进入 `waiting_approval` 之前，监督者已经用这些函数做了决定。前端不能自己把按钮画成“已批准”。批准之后走 resume，而不是再 persist 一句用户话。

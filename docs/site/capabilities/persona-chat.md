@@ -73,3 +73,57 @@ HITL：Worker `requires_approval` 为真时，UI 出确认卡，`POST /api/runs/
 内置 Tool 按 Worker 切片；Skill 与 MCP 要额外授权。没授权的 MCP 工具不会因为“模型想用”就出现。这是 `tools_for_specialist` 和 mcp-grants 的合页。
 
 继续阅读：[创建第一个角色](/guide/character)、[对话与附件](/guide/conversation)、[Agent 与 Worker](/development/agent-worker)。
+
+
+## PATCH 是浅合并
+
+`PATCH /api/personas/{persona_id}` 更新 `profile` 时不是整份替换：
+
+```python
+merged = {**(persona.profile_json or {}), **payload.profile}
+```
+
+只覆盖本次提交的键。没出现的键保持原值。如果合并结果里有 `rag`，会走 `validate_retrieval_config`；失败返回 **422**，`detail` 为 `Invalid RAG configuration: ...`。
+
+列表 `GET /api/personas` 只返回 `workspace_id == LOCAL_WORKSPACE_ID` 的角色。`local_persona_or_404` 在记录不存在**或**不属于本地工作区时，一律 **404** `Persona not found`。不要根据这条 404 判断“id 写错了”还是“工作区不对”——对外是同一句话。
+
+## 删除与内置角色
+
+`DELETE /api/personas/{persona_id}` 走 `persona_delete_service`：
+
+- 内置角色 → **403** `内置角色不能删除`；
+- 成功后删除 `data/tts/voices/{persona_id}.wav`（`unlink(missing_ok=True)`），再返回 **204**。
+
+删角色不会在这一步清掉 Milvus 里所有切片。文档向量删除是文档任务自己的 `DELETE /api/documents/{job_id}` 路径。checkpoint 清理见 [任务生命周期](/development/lifecycle)，前缀是 `persona_id:%`。
+
+## 能力与 MCP 授权
+
+`PUT /api/personas/{persona_id}/capabilities`：未知能力 id 返回 **422** `Unknown capabilities: ...`。以 `/*` 结尾的通配（`endswith("/*")`）不算未知。
+
+MCP 授权：
+
+- 管理器未挂到 `app.state.mcp_manager` → **503** `MCP 管理器尚未就绪`；
+- `GET .../mcp-grants` 里 `global` / `authorized` 看 `GLOBAL_ALL in server.allowed_persona_ids`；
+- `PUT .../mcp-grants` **跳过** 已带 `GLOBAL_ALL` 的服务器：平台级全局授权不参与按角色授权，保持对所有角色可见。
+
+不要用 PUT grants 去“关掉”全局服务器。那不是角色授权的职责。
+
+## SSE 合同
+
+`app/routers/agents.py` 与 personas 同挂 `/api/personas`。流式接口：
+
+| 路径 | 用途 |
+| --- | --- |
+| `POST /{id}/agent/stream` | 流式执行 |
+| `POST /{id}/agent/stream-resume` | 从中断处继续流 |
+| `POST /{id}/agent/query` | 非流式 |
+| `POST /{id}/agent/resume` | 非流式恢复 |
+
+SSE 事件名是 `stage` / `token` / `result` / `done`。`StreamingResponse` 的 `media_type=text/event-stream`，响应头：
+
+- `Cache-Control: no-cache`
+- `X-Accel-Buffering: no`
+
+执行键是 `persona_id:conversation_id`。`_watch_request_disconnect` / `_stream_with_disconnect_abort`：浏览器断开就 abort **当前 Job**，不会把 Run 标成用户已读的成功。
+
+`_public_stream_event` 会把内部 `AgentTurnResult` 收成可 JSON 序列化的对象。不能依赖 `json.dumps(..., default=str)` 把 dataclass 丢给浏览器，否则前端收到的是字符串，答案、附件和 workflow 都会丢。

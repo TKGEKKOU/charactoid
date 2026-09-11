@@ -31,7 +31,7 @@
 | `GET` | `/api/resources/tasks/{task_id}` | 单任务 |
 | `DELETE` | `/api/resources/tasks/{task_id}` | 取消/删除任务 |
 | `POST` | `/api/resources/tasks/{task_id}/retry` | 重试失败任务 |
-| `DELETE` | `/api/resources/tasks` | 清理任务集合（以实现为准） |
+| `DELETE` | `/api/resources/tasks?finished=true` | 清理已结束任务记录；缺少 `finished=true` 则 400 |
 
 安装是异步的。客户端应：
 
@@ -116,3 +116,32 @@ CHARACTOID_RVC_DEVICE=auto
 - [准备本地资源](/guide/resources)
 - [资源、模型与设备排查](/troubleshooting/resources)
 - [Worker 清单](/reference/workers) 中的 `config_worker`
+
+## 受管目录（源码合同）
+
+`GET /api/resources` 只枚举这 7 项：`rvc`、`separator`、`asr`、`gpt_sovits`、`ffmpeg`、`embedding`、`reranker`。
+
+别名：`stt`/`local_stt` → `asr`；`local_embedding` → `embedding`；`local_rerank` → `reranker`；`tts`/`gsv_tts_local` → `gpt_sovits`。
+
+每条资源请求都要：
+
+1. `require_local`
+2. 头 `X-Charactoid-Request: web`
+
+否则 403。兼容前缀 `/api/providers/resources` 复用同一组 handler。
+
+`DELETE /api/resources/tasks` 的查询参数 `finished` 默认是 `false`。源码：
+
+```python
+if not finished:
+    raise HTTPException(status_code=400, detail="只允许清理已结束的任务")
+```
+
+终态集合：`succeeded` / `success` / `ready` / `failed` / `cancelled` / `interrupted`。返回 `{ "deleted": N }`，不卸载模型文件。
+
+正在安装时卸载 → 409 `资源正在安装，请先停止安装`。资源没有 `cancel_install` → 405。未知 provider → 404。
+
+GPT-SoVITS 的权威字段在 `_gpt_sovits_status`：`ready = installation_ready and service_running`。`next_action` ∈ `wait | install | check | start_service | none`。
+
+进行中任务状态：`queued` `preparing` `downloading` `verifying` `installing` `running`。列表 `limit` 默认 30、夹在 1–100。
+

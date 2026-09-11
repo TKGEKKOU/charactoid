@@ -1,101 +1,168 @@
 # 资源安装与模型
 
-**资源页不是装饰。** `config_worker` 只查询、安装、更新、取消和清理受管资源，不代替 knowledge / voice / rvc 去执行业务。资源没就绪时，对话仍可能进行，只是对应链路缺段。
+**资源页不是装饰。** `config_worker` 只查询、安装、更新、取消和清理受管资源，不代替 knowledge / voice / rvc 去执行业务。资源没就绪时，文字对话仍可能进行，只是对应链路缺段。
 
-> **事实依据**：`app/routers/resources.py`（`/api/resources` 与兼容 `/api/providers/resources`）、`agents/registry.py` 对 `config_worker` 的描述、`app/routers/system.py`、`app/routers/settings.py`、GPT-SoVITS 状态机在 resources 内的 `_gpt_sovits_status`。
+> 事实依据：`app/routers/resources.py`（`/api/resources` 与兼容 `/api/providers/resources`）、`app/routers/settings.py` 的 `require_local`、`app/routers/system.py`、GPT-SoVITS `_gpt_sovits_status`、`agents/registry.py` 对 `config_worker` 的描述。
+
+## 先核对这两道门
+
+每一条资源 HTTP 都会走 `_guard`：
+
+1. `require_local(request)`
+   - 客户端 host 必须是本机（`127.0.0.1` / `::1` / `localhost` / `testclient`）
+   - `Host` 主机名必须是本机
+   - 若带了 `Origin`，协议、主机、端口必须与当前请求一致
+   - 失败：403 `Local settings are available on localhost only`
+2. 请求头 `X-Charactoid-Request` 必须等于 `web`
+   - 失败：403 `Missing same-origin request header`
+   - 浏览器扩展、curl 漏头、远程 Origin 都会卡在这里
+
+CORS 配的是 `allow_origins=["*"]`，**不能**据此认为设置和资源可以跨源写。健康检查能通、装模型 403，优先查这两道门。
 
 ## 双前缀
-
-写代码或抓包时两套前缀指向同一套处理：
 
 - 规范：`/api/resources`
 - 兼容：`/api/providers/resources`
 
-都要 `require_local`。浏览器扩展或远程 Origin 会 403。
+兼容前缀把 install / tasks / retry 指到同一组函数，不要复制第二套任务表。`/api/providers` 的 `configure` / `test` 是 Provider 密钥和端点，不是下载本地包。
 
-## 目录与状态
+## 目录只有 7 项
 
-| 方法 | 路径 | 作用 |
+`GET /api/resources` 的 `definitions`：
+
+| provider_id | 标题 | 可 install / cancel / clean |
 | --- | --- | --- |
-| GET | `/api/resources` | 资源目录 |
-| GET | `/{provider_id}/status` | 单项状态 |
-| POST | `/{provider_id}/install` | 开始安装，HTTP 202 |
-| DELETE | `/{provider_id}/install/cancel` | 取消进行中的安装，202 |
-| DELETE | `/{provider_id}/install` | 移除已安装资源 |
-| GET | `/tasks` | 安装/下载任务，默认 limit=30 |
-| GET | `/tasks/{task_id}` | 任务详情 |
-| DELETE | `/tasks/{task_id}` | 取消任务，202 |
-| POST | `/tasks/{task_id}/retry` | 重试，202 |
-| DELETE | `/tasks?finished=` | 清理已结束任务 |
+| `rvc` | RVC 运行环境 | 由对应 manager 是否暴露 `start_install`/`cancel_install`/`remove*` 决定 |
+| `separator` | 人声分离模型 | 同上 |
+| `asr` | 语音识别资源 | 同上 |
+| `gpt_sovits` | GPT-SoVITS 运行环境 | 安装与服务启停是两件事 |
+| `ffmpeg` | FFmpeg 音视频处理 | 同上 |
+| `embedding` | Embedding 本地模型 | 知识索引依赖 |
+| `reranker` | Reranker 本地模型 | 精排依赖 |
 
-`provider_id` 会经 `_canonical_provider_id` 正规化。不要在客户端自己发明 id。
+每项返回：
 
-## 读懂 status，不要只看红绿
+```json
+{
+  "provider_id": "embedding",
+  "resource_kind": "embedding",
+  "title": "Embedding 本地模型",
+  "status": {},
+  "capabilities": { "status": true, "install": true, "cancel": true, "clean": true }
+}
+```
 
-GPT-SoVITS 这组字段最容易误判：
+manager 缺失时该项直接跳过，不会把整个目录打成 500。
 
-| 观察 | 含义 | `next_action` |
-| --- | --- | --- |
-| 正在装 | 目录写入中 | `wait` |
-| 未安装 | 受管目录不存在 | `install` |
-| 已安装但没写入配置 | 目录在，服务适配器还不能选 | `check` |
-| 缺文件 / installation_ready 为假 | 装了一半 | `check` |
-| 装好但服务没起 | 模型在，进程没起 | `start_service` |
-| 都好 | 可选、可推理 | `none` |
+### 别名
 
-`config_worker` 的职责就是把这些状态收成可回复摘要，**不把密钥或本地绝对路径塞进对话**。
+| 传入 | 正规化 |
+| --- | --- |
+| `stt` / `local_stt` | `asr` |
+| `local_embedding` | `embedding` |
+| `local_rerank` | `reranker` |
+| `tts` / `gsv_tts_local` | `gpt_sovits` |
+
+客户端应显示正规化后的 id。自己发明 `local_tts` 之类会 404。
+
+## 接口合同
+
+| 方法 | 路径 | 码 | 失败时 |
+| --- | --- | ---: | --- |
+| GET | `/api/resources` | 200 | 403 门禁 |
+| GET | `/{id}/status` | 200 | 404 未知资源 |
+| POST | `/{id}/install` | 202 | 无安装器 500；安装异常写任务 `failed` 再 500 |
+| DELETE | `/{id}/install/cancel` | 202 | 未在安装则原样返回 status；无 cancel 方法 405 `该资源不支持停止安装` |
+| DELETE | `/{id}/install` | 200 | 正在安装 409 `资源正在安装，请先停止安装`；无卸载方法 405 |
+| GET | `/tasks?limit=` | 200 | limit 夹在 1–100，默认 30 |
+| GET | `/tasks/{task_id}` | 200 | 404 `任务不存在` |
+| DELETE | `/tasks/{task_id}` | 202 | 404；仅当状态 ∈ 进行中才真正 cancel |
+| POST | `/tasks/{task_id}/retry` | 202 | 404；参数里 `retry_count` +1 后重新 `_install` |
+| DELETE | `/tasks?finished=true` | 200 | **缺少 finished=true → 400 `只允许清理已结束的任务`** |
+
+进行中：`queued` `preparing` `downloading` `verifying` `installing` `running`。
+
+可被清理的终态：`succeeded` `success` `ready` `failed` `cancelled` `interrupted`。
+
+`DELETE /tasks?finished=true` 返回 `{ "deleted": N }`，只删 SQLite 里的 `ProviderDownloadTask` 行，**不删模型文件**。
+
+## GPT-SoVITS：不要只看红绿
+
+安装目录和服务进程分属不同组件。
+
+| 字段 | 含义 |
+| --- | --- |
+| `installed` | 发行包存在 |
+| `installation_ready` | 受管安装完整 |
+| `service_running` | API 活着 |
+| `ready` | **`installation_ready and service_running`** |
+| `configured` | 适配器已选中一套安装（外部目录优先） |
+| `missing` | 缺什么 |
+| `next_action` | 下一步，不是按钮文案 |
+| `install_dir` | 外部配置路径优先，否则受管目录 |
+
+| 观察 | next_action |
+| --- | --- |
+| `installing` | `wait` |
+| 未安装 | `install` |
+| 已安装但适配器未 configured | `check`（missing 含「安装配置」） |
+| missing 非空或 installation_ready 为假 | `check` |
+| 没起服务 | `start_service` |
+| 都好 | `none` |
+
+目录在时再点一次 install 通常是错的。`wait` / `check` / `start_service` 不要渲染成同一个「未安装」红灯。
+
+`config_worker` 可以把这些收成可回复摘要，但**不会**把密钥或绝对路径塞进对话。
 
 ## 和 Worker 的关系
 
-| 你在资源页装的 | 对话里谁用 | 超时 |
+| 资源页装的 | 业务 Worker | 超时 |
 | --- | --- | ---: |
-| 向量 / 重排 | knowledge_worker | 45s |
+| embedding / reranker | knowledge_worker | 45s |
 | 文档转换依赖 | document_worker | 120s |
-| ASR / TTS / GPT-SoVITS | voice_worker | 300s |
-| RVC 模型 | rvc_worker | 1800s |
+| asr / gpt_sovits | voice_worker | 300s |
+| rvc | rvc_worker | 1800s |
 | Live2D 模型目录 | live2d_worker | 45s |
 | 安装动作本身 | config_worker | 45s |
+| 改欢迎词等人设 | profile_worker | 30s |
 
-装好 ≠ 角色已授权。角色能力在 `GET/PUT /api/personas/{id}/capabilities`。没授权时 run 会 `capability_denied`，不是资源 404。
+装好 ≠ 角色已授权。没授权时 run 是 `capability_denied`，不是资源 404。
 
-## 系统诊断
+对话 TTS 不走 RVC。RVC 走 `/api/voice/rvc`。
 
-只读诊断：`GET /api/system/diagnostics`（同样 `require_local`），内部 `get_system_status()`。
+## 系统诊断（经常被当成「资源坏了」）
 
-打开目录不是任意路径：
+`GET /api/system/diagnostics` 同样 `require_local`，内部 `get_system_status()`，只读。
+
+打开目录：
 
 `POST /api/system/open-directory/{location}`
 
-允许的 location 只有：`project` / `data` / `runtime` / `models` / `sqlite` / `milvus`。其它 404 `未知的诊断目录`。
+允许：`project` / `data` / `runtime` / `models` / `sqlite` / `milvus`。其它 **404** `未知的诊断目录`（不是 400）。
 
 Docker：
 
-- `GET/PUT /api/system/docker-settings`，`on_exit` ∈ `keep | pause | remove`，落在 `data/docker_settings.json`
-- `POST /api/system/docker/pause` → `docker compose stop`
+- 设置落在 `data/docker_settings.json`，`on_exit` ∈ `keep | pause | remove`，非法值回退 `pause`
+- `POST /api/system/docker/pause` → `docker compose stop`，超时 120s
 - `POST /api/system/docker/remove` → `docker compose down`
-- 超时 120s，失败 `ok: false`
+- 失败体是 `{ "ok": false, "error": "..." }`，不一定抛 500
 
-关机 `POST /api/system/shutdown` 也是本机接口。
+`POST /api/system/shutdown` 也是本机接口。桌面模式走 `shutdown_callback`（窗口回启动页）；否则 0.5s 后 `os._exit(0)`。`stop_docker=true` 时先 `docker compose stop`（桌面外路径超时 90s）。
 
 ## 常见误判
 
-1. **目录在、服务没起** —— 去 start_service，不要重新下载。
-2. **换 embedding 后知识全空** —— collection 维度变了，要重建索引，不是资源没装上。
-3. **RVC 很久没结束** —— 默认 1800s，看 `/api/voice/rvc` 任务，不要当 TTS 失败。
-4. **远程电脑打开工作台改不了资源** —— `require_local`，这是功能。
-5. **对话里问“缺什么”得到摘要而不是路径** —— config_worker 故意不回绝对路径。
+1. **目录在、服务没起** — `next_action=start_service`，不要重新下载。
+2. **换 embedding 后知识全空** — collection 维度变了，要重建索引。
+3. **RVC 很久没结束** — 默认 1800s，看 `/api/voice/rvc`，不要当 TTS 失败。
+4. **远程电脑改不了资源** — `require_local`，这是功能。
+5. **对话问「缺什么」只给摘要** — `config_worker` 故意不回绝对路径。
+6. **清理任务 400** — 必须 `DELETE /api/resources/tasks?finished=true`。
+7. **漏 `X-Charactoid-Request: web`** — 403，不是资源没装上。
+8. **正在安装时卸载 409** — 先 cancel。
+9. **LLM 测试 502** — 对端模型服务不可达，设置页问题，不要重装 embedding。
+10. **把 `/api/providers/test` 当成安装接口** — 那是探测密钥，不会下载模型。
 
 ## 下一步
 
-资源好了仍不能检索或不能开口，转到 [常见问题](/troubleshooting/qa) 和 [语音 API](/reference/api-voice)。
+资源好了仍不能检索或不能开口，转到 [常见问题](/troubleshooting/qa)、[准备本地资源](/guide/resources)、[语音 API](/reference/api-voice)。
 
-## 再补几条边界
-
-GPT-SoVITS 的 `next_action` 不是安装按钮文案。`wait` / `install` / `check` / `start_service` 要按 status 字段走，不要在目录存在时再点一次 install。
-
-其它容易混的边界：
-
-- 资源双前缀 `/api/resources` 与 `/api/providers/resources` 是同一套处理，都 `require_local`；
-- `config_worker` 超时 45s，只处理受管资源，不会替 `voice_worker` 合成；
-- 换 embedding 后知识为空，是 collection 维度变化，要重建索引，不是资源没装上；
-- 打开目录的 location 白名单只有 `project` / `data` / `runtime` / `models` / `sqlite` / `milvus`，其它 404 `未知的诊断目录`。

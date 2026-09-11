@@ -163,3 +163,39 @@ and category == "content"
 `_cached_store` 按连接标识缓存已 `connect()` 的 `MilvusRagStore`（`lru_cache(maxsize=4)`）。缓存键覆盖 URI、集合名、维度等会影响连接的配置；测试替身类与生产类互不污染。`connect()` 里的集合维度校验在缓存后只发生一次。设置变更后应走 `clear_retriever_cache()`，不要假设旧连接还指向新集合。
 
 Embedding 默认来自 `data/local_settings.json`：`managed_local` 默认维度 1024，其它默认 512。维度或模型变了，不要复用旧 Collection 名称。
+
+## 文档进入检索之前
+
+知识文档不是「上传完就能搜」。`ingestion/document_jobs.py` 的状态机：
+
+```text
+converting → preview_ready → indexing → indexed
+                              ↘ index_failed
+```
+
+| 动作 | 合法前置状态 | 非法时 |
+| --- | --- | --- |
+| 上传并转换 | 新 job，先 `converting` | 扩展名不在白名单、超过 `MAX_UPLOAD_MB` |
+| 用户确认索引 `confirm` | 仅 `preview_ready` 且已有 `markdown_path` | `INVALID_DOCUMENT_STATE` |
+| 重试索引 `retry-index` | 仅 `index_failed` 且已有 `markdown_path` | `INVALID_DOCUMENT_STATE` |
+
+允许扩展名包括办公文档、html/csv/json/xml/txt/md、epub 和常见图片。`.csv` / `.xlsx` 走结构化导入，写入 schema card，不把表格行直接当成散文切片。
+
+体积边界不要和附件、语音混用：
+
+- 知识文档：`MAX_UPLOAD_MB` 默认 **50**
+- 对话附件：`MAX_ATTACHMENT_BYTES` = **512MB**（错误含 `512` → 413）
+- 听写空文件才是 422；文档上传没有 `EMPTY_FILE` 码
+
+检索作用域由 `build_scope_expression` 下推到 Milvus `expr`：
+
+```text
+workspace_id == "<workspace>"
+and knowledge_space_id in ["...", "..."]
+and category == "content"
+```
+
+角色不能靠「向量更像」跨到别人的知识空间。未 `indexed` 的 job 不应出现在 `knowledge_worker` 的证据里。
+
+对话附件要入库时走 `send-to-rag`，仍然使用 `file_id`，不传本机路径。
+

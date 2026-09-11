@@ -54,7 +54,7 @@ Invoke-RestMethod http://127.0.0.1:18000/api/health
 
 `GET /api/system/diagnostics` 聚合当前 MCP 管理器、资源目录和系统状态，不修改用户数据。排障时应先打这一条，再决定要不要打开目录或动 Docker。
 
-`POST /api/system/open-directory/{location}` 只接受白名单 `location`。未知值返回 400。打开的是本机目录，不是把路径回传给浏览器。
+`POST /api/system/open-directory/{location}` 只接受白名单 `location`。未知值返回 **404** `未知的诊断目录`。打开的是本机目录，不是把路径回传给浏览器。
 
 ### Docker 退出策略
 
@@ -81,6 +81,10 @@ Invoke-RestMethod http://127.0.0.1:18000/api/health
 
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
+| `GET` | `/api/settings` | 读 `data/local_settings.json` |
+| `PATCH` | `/api/settings` | 保存本机设置；部分项 `restart_required` |
+| `DELETE` | `/api/settings` | 删除本机设置文件 |
+| `POST` | `/api/settings/llm/test` | 按当前配置探测语言模型；缺 `X-Charactoid-Request: web` → 403；上游失败常见 502 |
 | `POST` | `/api/settings/llm/test` | 按当前配置探测语言模型 |
 | `POST` | `/api/settings/reveal-key` | 本机显示已保存密钥 |
 | `POST` | `/api/settings/clear-key` | 清除已保存密钥 |
@@ -93,7 +97,8 @@ Invoke-RestMethod http://127.0.0.1:18000/api/health
 | --- | --- |
 | `200` | 查询或更新成功 |
 | `202` | 后台安装/启动任务已接受（资源接口更常见） |
-| `400` | 参数或 location 不合法 |
+| `400` | 参数不合法（资源清理缺 `finished=true` 等） |
+| `404` | 资源不存在，或 `open-directory` 的 location 不在白名单 |
 | `403` / 本机拒绝 | 非本机请求打到了 `require_local` |
 | `404` | 资源不存在 |
 | `409` | 当前状态不允许该操作 |
@@ -115,3 +120,18 @@ Invoke-RestMethod http://127.0.0.1:18000/api/health
 - [资源与模型 API](/reference/api-resources)
 - [配置项](/reference/config)
 - [问题排查总表](/troubleshooting)
+
+## `require_local` 与请求头
+
+`require_local` 同时检查客户端 host、`Host` 头、以及可选 `Origin` 的协议/主机/端口。失败一律 403 `Local settings are available on localhost only`。
+
+下列写接口还要求 `X-Charactoid-Request: web`：
+
+- `POST /api/settings/llm/test`（缺头：403 `缺少同源请求标识`）
+- `POST /api/settings/reveal-key` / `clear-key`（缺头：403 `Missing same-origin request header`）
+- 全部 `/api/resources*` 与兼容 `/api/providers/resources*`
+
+`POST /api/system/open-directory/{location}` 白名单只有 `project` / `data` / `runtime` / `models` / `sqlite` / `milvus`。Docker `on_exit` 非法值回退 `pause`。compose 超时 120s，失败 `{ "ok": false, "error": "..." }`。
+
+关机 `POST /api/system/shutdown`：有 `shutdown_callback` 时桌面回到启动页；否则 0.5s 后结束进程。`stop_docker=true` 时先 `docker compose stop`。
+

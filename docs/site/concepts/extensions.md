@@ -163,3 +163,26 @@ integrations/mcp/client.py      MCP 连接、工具发现和运行时
 app/routers/skills.py           Skill API
 app/routers/mcp.py              MCP API
 ```
+
+## 源码合同（中档补全）
+
+扩展不是「装上就对所有角色生效」。授权落在两处，而且必须一致：
+
+1. MCP 服务器 `allowed_persona_ids`（可含 `*`）
+2. CapabilityPolicy 的 `mcp/{server}/*` override
+
+角色页 `PUT /api/personas/{persona_id}/mcp-grants` 只改该角色是否出现在名单里；服务器若已经是 `*`，这个 PUT **不会**把全局授权改成私有授权。全局 MCP 只应留给平台级工具。
+
+能力页 `PATCH /api/capabilities/assignments` 通过 `next_allowed_persona_ids` 计算下一份名单，再 `sync_mcp_wildcard_policy`。不要在文档里教「先 `*` 再给某个角色单独关」——实现会把 `*` 展开成其余角色，而不是保留全局减员。
+
+排查顺序不变：enabled → 工具是否出现在 `tool_specs()` → 角色 grants → Run 事件里的确认/超时 → 最后才看 MCP 进程日志。`requires_confirmation` 为真时 Run 进 `waiting_approval`，用户会觉得「没反应」，其实是停在审批。
+
+
+Skill 与 MCP 都先注册、再按角色授权。全局 `*` 表示「当前这台机器上的平台级工具」，不是「以后创建的角色也永久开放」——取消某个角色上的 `*` 时，实现会展开成其余已知角色，新角色默认关。
+
+演示 Token 只能当占位。写操作、外部发信、改数据的 MCP 工具必须确认。不要在 UI 或日志里展开环境变量里的密钥。断开渠道时清会话，不要留半截 Run 以为渠道自己会收尾。
+
+
+`GET /api/skills/tools` 列出可供勾选的 ToolSpec，不含尚未连接成功的 MCP 工具。先看清单，再看角色 grants，避免「插件页显示已安装但对话里选不到」。
+
+stdio 传输会拉起外部进程；停用服务器后应确认进程已退出，不要只改 enabled 标志。

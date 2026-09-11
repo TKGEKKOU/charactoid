@@ -154,3 +154,31 @@ spec = ToolSpec(
 - [Worker 清单](/reference/workers)
 - [事件与状态](/reference/events)
 - [扩展：Skill、Tool、MCP](/capabilities/extensions)
+
+## 源码合同（中档补全）
+
+### Manifest 超时就是运行时超时
+
+`agents/registry.py` 规范顺序固定：
+
+`knowledge_worker → memory_worker → document_worker → profile_worker → voice_worker → rvc_worker → live2d_worker → config_worker`
+
+| Worker | 超时秒 | 重试 |
+| --- | --- | --- |
+| knowledge_worker | 45 | 最多 2 次，backoff 0.5s |
+| memory_worker | 30 | 1 |
+| document_worker | 120 | 最多 2 次，backoff 1s |
+| profile_worker | 30 | 1 |
+| voice_worker | 300 | 1 |
+| rvc_worker | 1800 | 1 |
+| live2d_worker | 45 | 1 |
+| config_worker | 45 | 1 |
+
+HTTP：`GET /api/workers/manifests`、`GET /api/workers/manifests/{worker}`。兼容别名 `_WORKER_COMPAT_ALIASES` 仍认识 `knowledge` / `voice_clone` 等，新代码用 `*_worker` 全名。
+
+Worker 不直接对用户说话。即使用户可见的 `answer` 来自某个 specialist，也要经 Supervisor 组织。handoff 禁止 `path` / `command` / `python` / `shell` 字段出站。
+
+
+注册新 Worker 时同步三处：registry 顺序、Manifest 超时、HTTP `/api/workers/manifests/{worker}`。只改其中一处会让 Supervisor 选得到但跑到一半被超时，或清单显示的秒数与 abort 不一致。
+
+用户可见语言只来自 Supervisor。Worker 应返回 `SpecialistResult` / 结构化 handoff，由 `finalize_*` 收口，不要自己 END 掉整张图（RVC 长链路尤其如此）。测试清单：schema 失败、未授权角色、未确认就写数据、finalize 拒绝非法字段、超时是否按 Manifest。

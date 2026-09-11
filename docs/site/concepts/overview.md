@@ -106,3 +106,28 @@ flowchart TB
 | 资源 | Worker 依赖可管理资源，而不是凭空推理 |
 
 更细的源码地图见 [源码地图](/concepts/source-map)，模块关系见 [系统架构](/concepts/architecture)，任务状态机见 [任务生命周期](/concepts/lifecycle)。
+
+## 源码合同（中档补全）
+
+CHARACTOID 不是多页面 SaaS：默认拒绝非本机写资源。也不是通用操作系统 Agent：没有任意 shell、没有任意文件系统。RVC、Embedding、GPT-SoVITS、Live2D 都是可选资源，`GET /api/status` 未就绪时必须允许「缺了也能对话」。
+
+Worker 超时（秒）是产品边界，不是建议值：profile 30、document 120、knowledge/live2d/config 45、memory 30、voice 300、rvc 1800。超时后 Run 失败或进入可恢复错误，前端应按事件展示，不要当卡住。
+
+HTTP 面工厂：`app/main.py:create_app()` → middleware → `register_routes` → 静态挂载。数据面默认 SQLite + Milvus Lite；Lite 的 `.db` 只能被同一进程里的 `MilvusClient` 使用，退出时 `close_milvus_connections`。
+
+
+默认入口不是聊天 SaaS 首页，而是本机工作台。`GET /` 只重定向到 `/static/index.html`。对话页可以触发资源安装、文档索引、RVC、TTS，但这些仍然是 Worker 任务，有 Run、事件、确认和失败态。
+
+不要把 CHARACTOID 理解成：
+
+- 云端多租户（`workspace_id` 写死 `local-default`）
+- 通用电脑接管（无任意 shell）
+- 「装完就能说话」的语音产品（GPT-SoVITS / RVC / ASR 均可缺）
+- Worker 直接对用户播报的多机器人聊天室（用户只面对 Supervisor）
+
+可选资源未装时，`/api/status` 与资源页必须能表示未就绪，而不是让对话入口消失。
+
+
+创建角色、绑定知识/声音/形象、在对话里提出目标、Supervisor 选 Worker、Worker 执行可观察任务——这条主线在源码里是同一套 Run，而不是五个微应用。文档分层（guide / capabilities / concepts / development / reference / troubleshooting）只是阅读切面。
+
+要查「某个按钮打哪条路由」，先看 API 地图，再看对应 reference 页，不要在本页复制 schema。

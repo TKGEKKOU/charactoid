@@ -157,3 +157,7 @@ app/attachments.py              附件引用
 Milvus Lite 的 `.db` 在同一进程内复用 `MilvusClient`；`close_milvus_connections` 在退出时统一释放。多个进程不要抢同一个 Lite 文件，那种部署应改 Standalone。本地 URI 必须落在项目目录内，`normalize_milvus_uri` 会拒绝项目外路径。
 
 写入后 `add_documents` 会显式 `flush`，随后检索才能立刻看见新块。
+
+## 源码合同（中档补全）
+
+LLM 凭据在 `data/local_settings.json`，启动脚本生成的 `.env` 不管 Key。`workspace_id` 固定 `local-default`。Milvus Lite 的 URI 必须落在项目目录内（`normalize_milvus_uri`），远程才允许 `http://` / `https://` / `tcp://` / `unix://`。同一 Lite `.db` 不要跨进程打开。文档向量在 `add_documents` 后应 `flush`，否则刚索引的内容可能查不到。

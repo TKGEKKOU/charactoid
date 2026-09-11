@@ -145,3 +145,12 @@ GPT-SoVITS 的权威字段在 `_gpt_sovits_status`：`ready = installation_ready
 
 进行中任务状态：`queued` `preparing` `downloading` `verifying` `installing` `running`。列表 `limit` 默认 30、夹在 1–100。
 
+## 源码合同（中档补全）
+
+七个规范资源：`rvc`、`separator`、`asr`、`gpt_sovits`、`ffmpeg`、`embedding`、`reranker`。别名：`stt`/`local_stt`→`asr`，`local_embedding`→`embedding`，`local_rerank`→`reranker`，`tts`/`gsv_tts_local`→`gpt_sovits`。
+
+GPT-SoVITS 状态字段：`installation_ready`、`service_running`、`ready = installation_ready && service_running`、`next_action ∈ {wait, install, check, start_service, none}`。
+
+`DELETE /api/resources/tasks?finished=true` 才允许清理已结束记录；缺少 `finished=true` → 400 `只允许清理已结束任务`。终态集合：`succeeded` / `success` / `ready` / `failed` / `cancelled` / `interrupted`。这只删任务行，不卸已装文件。单条 `DELETE /api/resources/tasks/{task_id}` 是取消，202。
+
+资源写接口走 `_guard`：本机 + `X-CHARACTOID-Request: web`。新前缀 `/api/resources`，旧前缀 `/api/providers/resources` 仍注册。

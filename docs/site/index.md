@@ -101,3 +101,32 @@ flowchart LR
 3. 浏览器不接收本地绝对路径，只接收 `attachment_id` / `asset_id` / `run_id` / `task_id`。
 
 这些约束来自 `app/routers/settings.py:require_local` 以及各资源路由，不是文档层的额外规定。
+
+## 源码合同（中档补全）
+
+### 三条启动路径（以当前仓库为准）
+
+推荐从源码仓库启动，不要把展示站 `E:\\landing` 当成应用入口。
+
+| 路径 | 命令 | 结果 |
+| --- | --- | --- |
+| 推荐 | `git clone git@github.com:TKGEKKOU/charactoid.git` 后 `.\\scripts\\start.ps1` | 创建/复用 `.venv`，必要时安装依赖，复制 `.env.example` → `.env`，启动 `main.py` |
+| 手动 | `py -3.11 -m venv .venv` → `pip install -e . -r requirements.txt` → `python -B main.py` | 与脚本第 2、4 步等价，跳过健康探测与自动开浏览器 |
+| npm | `npx charactoid-web` 或 `npx charactoid-web update` | `bin/charactoid.mjs`：默认不覆盖用户数据；`update` 只在确认后更新运行时 |
+
+访问地址：`http://127.0.0.1:18000/static/index.html`。`GET /` 在 `app/startup/routes.py:register_routes` 里 302 到该路径。
+
+### `scripts/start.ps1` 实际做了什么
+
+参数：默认 Web；`-Server` 兼容旧调用；`-Desktop` 走 `desktop_main.py` 并加装 `requirements-desktop.txt`；`-NoInstall` 跳过 pip；`-NoBrowser` 不打开浏览器。
+
+1. **Python 3.11**：先 `py -3.11`，失败再 `python`，版本必须是 3.11，否则 exit 1。
+2. **`.venv`**：指纹是 `requirements.txt` + `pyproject.toml` 的 SHA256，写入 `.venv/.charactoid-requirements.sha256`。指纹变了或 `pip check` 失败才执行 `pip install -e . -r requirements.txt`。
+3. **`.env`**：不存在则从 `.env.example` 复制。LLM Key / Base URL / 模型在 `data/local_settings.json`，不在 `.env`。
+4. **启动**：用 `httpx.get("http://127.0.0.1:18000/api/health")` **探测写死的 18000 端口**。已成功则打开浏览器并 `exit 0`，不会起第二个 `main.py`。未占用时默认 milvus-lite，不需要 Docker，然后 `python -B main.py`。
+
+`main.py` 只做 `create_app()` + `Settings.load()` + `uvicorn.run(host=app_host, port=app_port)`。`workspace_id` 在 `settings.py` 写死为 `local-default`。健康检查返回 `{"status":"ok","workspace_id":"local-default"}`。
+
+npm 启动器要求目录里有 `main.py`、`requirements.txt`、`settings.py` 以及 `app/`、`static/`。可用 `CHARACTOID_HOME` 指定根目录。默认启动不会覆盖 `.env`、`.venv`、`data/` 等受保护名字。
+
+更细的逐步说明见 [快速开始](/guide/quickstart)。

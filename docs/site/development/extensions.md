@@ -130,3 +130,30 @@ Skill 只声明工具名。工具本身仍要在 `ToolSpec` 里存在（内置�
 MCP 管理器未就绪时，角色 MCP 接口返回 **503** `MCP 管理器尚未就绪`。先查 lifespan 有没有 `connect_all`，再查 grants。
 
 把某个服务配成全局，等于放弃“按角色授权”的边界。只应留给真正的平台级工具，而不是某个角色的私有 MCP。
+
+## 源码合同（中档补全）
+
+### ToolSpec 仍以 registry 为准
+
+`ToolSpec` 的稳定字段是 `name`、`specialist`、`tool`、`requires_confirmation`、`mutates_data`、`server`。页面或旧笔记里多出来的字段不要写进新 Worker。`specialist` 必须是 canonical Worker 名，例如 `knowledge_worker`，不要写别名 `knowledge`。
+
+默认 args schema 很窄：只有 `request: string`，`additionalProperties: false`。文件、路径、命令应走 `StructuredHandoff.input_refs` 和 Run 状态，禁止把宿主机 path / command / python / shell 放进 handoff。
+
+### MCP `*` 不能与具体角色共存
+
+`integrations/mcp/config.py`：`GLOBAL_ALL = "*"`。
+
+`agents/assignment.py:next_allowed_persona_ids`：
+
+- 对 `persona_id == "*"` 勾选 → 列表变成 `["*"]`；取消 → `[]`
+- 当前已是 `*` 时再给某个角色勾选，仍保持 `["*"]`
+- 当前已是 `*` 时取消某一个角色：展开为「除该角色外的现有角色」，**未来新角色默认关**，除非再次显式 `*`
+
+`sync_mcp_wildcard_policy` 写明：Star 与具体 persona override **不得共存**。全局授权后会清掉各角色残留 True/False，避免撤销后工具仍开、或全局授权后某角色被 False 挡住。
+
+`PUT /api/personas/{id}/mcp-grants`：若服务器已含 `GLOBAL_ALL`，直接 `continue`，不能用某个角色的 PUT 拆掉全员授权。`GET` 此时 `global: true` 且 `authorized: true`。管理器未启动 → 503 `MCP 管理器尚未就绪`。
+
+
+Skill zip：压缩包或解压后超过 25MB 都是 400。解压文件数大约 500 封顶。上传成功后默认不执行脚本；instructions 只进 system prompt，会占 Token。
+
+MCP stdio 就是起子进程。断开或停用时应杀掉会话相关进程，不要把 MCP 返回的本机路径写进 `StructuredHandoff`。工具清单以 `tool_specs()` 为准，前端「插件已启用」不等于 Supervisor 能选到它。

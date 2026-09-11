@@ -169,3 +169,11 @@ app/routers/runs.py            Run 查询、取消和 approval API
 进度字段 `progress` / `total` 不能为负。事件 `sequence` 从 1 起算，增量拉取用 `sequence > after_sequence`。
 
 前端刷新后要靠同一个 `run_id` 把时间线补齐：`GET /api/runs/{id}` + `GET /api/runs/{id}/events?after_sequence=`。不要把“页面还在转圈”当成状态。
+
+## 源码合同（中档补全）
+
+任务状态由 Runtime 持有，不由前端页面持有。用户可见的停顿经常是 `waiting_approval`，不是失败。
+
+超时边界（秒）：profile 30、memory 30、knowledge 45、live2d 45、config 45、document 120、voice 300、rvc 1800。knowledge / document 另有有限重试；voice / rvc 不靠短超时重试，因为转换本身就长。
+
+取消走 `POST /api/runs/{id}/cancel` 或 SSE 断线时的 `realtime_executions.cancel(persona_id:conversation_id)`。拒绝审批等于 cancel，没有第四种「rejected」终态。恢复用 resume 接口，不要重放用户原句。

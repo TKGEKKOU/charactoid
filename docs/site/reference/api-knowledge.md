@@ -116,3 +116,36 @@ POST /api/personas/{persona_id}/agent/stream
 - [RAG 设计](/concepts/rag)
 - [持久化](/concepts/persistence)
 - [角色、对话与运行 API](/reference/api-agents-runs)
+
+## 源码合同（中档补全）
+
+### 文档 job 状态机
+
+`ingestion/document_jobs.py`：
+
+```text
+converting → preview_ready → indexing → indexed
+                              ↘ index_failed
+```
+
+- `POST /api/documents/{job_id}/confirm` 调用 `prepare_index`：仅 `status == preview_ready` 且已有 `markdown_path`，否则 409 `Invalid document state`
+- `POST /api/documents/{job_id}/retry-index`（或仓库中的 retry 入口）调用 `prepare_retry`：仅 `index_failed` 且已有 markdown，否则同样 409
+- 进行中统计把 `converting` 与 `indexing` 算 in_progress，`preview_ready` 单独计数
+
+删除处于 `indexing` / `indexed` / `index_failed` 的文档时会尝试 `MilvusRagStore.delete_document`，失败 502，避免孤儿向量。
+
+### 体积上限不是同一套
+
+- 知识库文档：`Settings.max_upload_mb`，默认环境变量 `MAX_UPLOAD_MB=50`，换算 `MAX_UPLOAD_BYTES = max_upload_mb * 1024 * 1024`
+- 对话附件：`app/attachments.py` `MAX_ATTACHMENT_BYTES = 512 * 1024 * 1024`，超限 `ValueError("文件超过 512 MB 限制")`，路由映射为 413
+- Voice Studio 表单分片同样 512MB（`MAX_FORM_PART_BYTES`）
+- **空文件 422 属于语音/音频**（`Audio file is empty` / `Audio request is empty`），不是文档 job。文档上传空列表是 422 `At least one file is required`
+
+知识空间 404 文案：`Knowledge space not found`。客户端不要对模型拼 SQL 或绝对路径。
+
+
+### 转换失败与范围
+
+`create_conversion_job` 对不支持的类型抛 `ValueError`，路由按文案映射 4xx，不要把任意解析异常当成 500。索引范围是 `DocumentScope(workspace_id, knowledge_space_id, document_id)`，Milvus 删除必须带同一 scope，防止删错集合。
+
+暂存目录在 `data/staging`。删除文档时若 `source_path` 落在 staging 下会一并清理；不要手动往 staging 丢文件指望它变成知识。结构化摘录走 `delete_structured_document`，与向量删除是两步。

@@ -234,3 +234,33 @@ WebSocket 实时对话是另一条入口：`/ws/personas/{persona_id}/conversati
 - [完成一次对话任务](./conversation)：发送普通问题，并理解等待确认与任务结果；
 - [本地资源准备](./resources)：按功能安装可选资源；
 - [问题排查](/troubleshooting)：启动后遇到问题时按现象定位。
+
+## 源码合同（中档补全）
+
+### 仓库入口与 npm 入口
+
+`scripts/start.ps1` 假设你已经在 CHARACTOID 源码根目录，而不是文档站或展示站目录。
+
+```powershell
+git clone git@github.com:TKGEKKOU/charactoid.git
+cd charactoid
+.\scripts\start.ps1
+```
+
+浏览器打开 `http://127.0.0.1:18000/static/index.html`。若 18000 上 `GET /api/health` 已经成功，脚本会直接打开浏览器并退出，避免双开 `uvicorn`。
+
+没有 Git、只想拉运行时的机器可以使用 npm 包（实现是 `bin/charactoid.mjs`，本页只描述行为，不修改该文件）：
+
+```powershell
+npx charactoid-web
+npx charactoid-web update
+```
+
+| 入口 | 适用 | 不会做的事 |
+| --- | --- | --- |
+| `scripts/start.ps1` | 克隆后的源码仓库 | 不会安装 Docker；不会把 LLM Key 写进 `.env` |
+| 手动 `python -B main.py` | 虚拟环境已就绪 | 不会做健康探测、不会自动开浏览器 |
+| `npx charactoid-web` | 用 npm 准备 Web 运行时 | 默认不覆盖 `.env` / `.venv` / `data/`；必需文件是 `main.py` `requirements.txt` `settings.py`，必需目录是 `app` `static` |
+| `npx charactoid-web update` | 已有项目要更新运行时 | 只在确认后更新；用户资源仍保留 |
+
+`CHARACTOID_HOME` 可覆盖项目根。端口与主机来自 `Settings.load()`，默认 `APP_PORT=18000`。

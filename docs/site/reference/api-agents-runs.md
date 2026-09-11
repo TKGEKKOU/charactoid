@@ -114,3 +114,26 @@
 - [完成一次对话任务](/guide/first-task)
 - [事件与状态](/reference/events)
 - [任务生命周期](/development/lifecycle)
+
+## 源码合同（中档补全）
+
+### 执行键与 Resume
+
+`app/routers/agents.py` 用 `key = f"{persona_id}:{conversation_id}"` 交给 `realtime_executions`。同一对话同时只能有一条 in-flight 执行。SSE 断开时 `_watch_request_disconnect` 会 `cancel(execution_key)`。
+
+`/agent/stream` 与 `/agent/query` 会 persist 用户句；`/agent/stream-resume` 与 `/agent/resume` **不会**再 persist 用户句。Resume 仍可能 persist assistant 完成句（`result.status == "completed" and result.answer`）。
+
+### 审批没有独立 reject
+
+`POST /api/runs/{id}/approval` → `ApprovalService.decide(run_id, approved)`（`agents/runtime/approvals.py`）：
+
+- Run 不存在：`RUN_NOT_FOUND`
+- 状态不是 `waiting_approval`：`INVALID_APPROVAL`
+- `approved=false`：`runtime.cancel(run_id)`，没有单独的 rejected 状态
+- `approved=true`：标为 running，并追加 `approval_granted` 事件
+
+取消另有 `POST /api/runs/{id}/cancel`。
+
+### PATCH 人设是浅合并
+
+`PATCH /api/personas/{persona_id}`：`merged = {**(persona.profile_json or {}), **payload.profile}`。只覆盖提交的键。若合并结果含 `rag`，会走 `validate_retrieval_config`。不要以为省略的字段会被清空。

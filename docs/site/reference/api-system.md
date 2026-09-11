@@ -135,3 +135,21 @@ Invoke-RestMethod http://127.0.0.1:18000/api/health
 
 关机 `POST /api/system/shutdown`：有 `shutdown_callback` 时桌面回到启动页；否则 0.5s 后结束进程。`stop_docker=true` 时先 `docker compose stop`。
 
+## 源码合同（中档补全）
+
+系统路由前缀 `/api/system`（`app/routers/system.py`），写操作 `require_local`。
+
+`POST /api/system/open-directory/{location}` 只接受白名单：
+
+| location | 打开哪里 |
+| --- | --- |
+| `project` | `settings.project_root` |
+| `data` | `project_root/data` |
+| `runtime` | `project_root/runtime` |
+| `models` | `project_root/models` |
+| `sqlite` | `sqlite_path.parent` |
+| `milvus` | Milvus URI 对应路径的 parent |
+
+其它值 **404** `未知的诊断目录`。不会打开任意用户输入路径。
+
+`GET /api/system/diagnostics` 只读，返回 `get_system_status()`。Docker 偏好在 `data/docker_settings.json`。关机/退出类接口同样本机限定。

@@ -95,3 +95,36 @@ Skill 同样是集合空路径：`GET/POST /api/skills`。
 7. 语音/RVC/文档走各自 session 或 task 接口，不要把文件内容塞进 Agent 文本字段。
 
 配置项的环境变量与文件位置见 [配置项](/reference/config)。
+
+## 源码合同（中档补全）
+
+### 路由是怎么挂上的
+
+`register_routes` 遍历 `_ALL_ROUTERS` 做 `include_router`，然后在同一函数里定义三个系统端点：`GET /api/health`、`GET /api/status`、`GET /api/launcher/progress`，以及 `GET /` → `/static/index.html`。
+
+`configure_middleware` 加 CORS：`allow_origins=["*"]`、`allow_credentials=False`、方法与头全放行。这只影响浏览器预检，**不能**替代 `require_local`。从局域网 IP 打开工作台，静态文件也许能加载，本机设置和资源写接口仍 403。
+
+### 静态挂载
+
+`mount_static_files`：
+
+- `/live2d-assets` ← `data/live2d/`（目录不存在会 `mkdir`）
+- `/static` ← 工作台静态文件，`NoCacheStaticFiles`
+- `/sqlite` ← Datasette 包住 SQLite；`from datasette.app import Datasette` 失败则 `except Exception: pass`，没有这个挂载，应用照常启动
+
+健康检查 JSON 的 `workspace_id` 来自 `Settings.workspace_id`，当前写死 `local-default`，不是按机器生成。
+
+### 调用时不要假设的事
+
+- OpenAPI 运行时才是字段真源；本页分组会过期。
+- 兼容前缀 `/api/providers/resources`、`/api/providers/rvc`、`/api/stt` 仍然注册，新代码走 `/api/resources`、`/api/voice/rvc`、`/api/asr`。
+- `GET /api/launcher/progress` 未注入 `app.state.launcher_progress` 时返回空壳：`starting/done=false`，`percent=0`，`steps=[]`。
+
+
+### require_local 的主机集合
+
+`LOCAL_CLIENT_HOSTS = {127.0.0.1, ::1, localhost, testclient}`；`LOCAL_REQUEST_HOSTS` 不含 `testclient`。带 Origin 时还要比 scheme 与 port。错误文案固定英文：`Local settings are available on localhost only`。
+
+同源头在 OpenAPI 里写作 `X-CHARACTOID-Request`，代码读 `x-charactoid-request`，值必须是 `web`。这与 CORS `*` 同时存在：跨源预检能过，本机检查仍失败。
+
+不要用 `GET /api/health` 判断 LLM 是否可用。健康检查不读 `data/local_settings.json` 里的 Key。

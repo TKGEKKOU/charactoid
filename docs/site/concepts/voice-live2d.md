@@ -160,3 +160,26 @@ app/routers/voice_assets.py    VoiceAsset/GPT-SoVITS API
 app/routers/voice_rvc.py       RVC API
 app/routers/live2d.py          Live2D API
 ```
+
+## 源码合同（中档补全）
+
+GPT-SoVITS 是否「能用」不是单独一个布尔，而是：
+
+`ready = installation_ready && service_running`
+
+来源：`voice/gpt_sovits/adapter.py` 与 `app/routers/resources.py`。`next_action` 只能是：
+
+| next_action | 含义 |
+| --- | --- |
+| `wait` | 安装任务还在跑 |
+| `install` | 未安装 |
+| `check` | 安装目录异常，需要再探测 |
+| `start_service` | 文件齐了但服务没起来 |
+| `none` | 已就绪，不必再点 |
+
+前端应按 `next_action` 显示按钮，不要只看 `installed`。Live2D 静态资源走 `/live2d-assets`，模型目录写接口仍要本机 + `X-CHARACTOID-Request: web`。实时 ASR WebSocket 是 `/api/voice/stream/ws`，PCM signed 16-bit、16kHz。空音频 422 是语音路由，不是 Live2D。
+
+
+FFmpeg、Separator、ASR、RVC、GPT-SoVITS 都是可选资源。缺任何一个时，对话仍应能发文本。Voice Studio 上传分片上限 512MB，与对话附件一致，和知识库文档默认 50MB 不是同一限额。
+
+实时识别空结果走 WebSocket `code=empty`（没有识别到语音），HTTP 转写空文件是 422。不要把这两种空当成文档索引失败。

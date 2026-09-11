@@ -138,3 +138,14 @@ GPT-SoVITS 在代码里被刻意拆成两截：
 - [配置项](/reference/config)
 - [资源、模型与设备](/troubleshooting/resources)
 - [文件与任务运行时](/capabilities/files-runtime)
+
+## 源码合同（中档补全）
+
+评测 API（`app/routers/eval.py`、`eval_dataset.py`）和资源安装 API（`app/routers/resources.py`）不是同一件事。评测数据集不会替你安装 Embedding / Reranker / ASR；资源任务也不会写入评测分数。
+
+资源规范 id 仍是七项：`rvc`、`separator`、`asr`、`gpt_sovits`、`ffmpeg`、`embedding`、`reranker`。页面上如果还写 STT / TTS，只是别名，请求应打到规范 id。评测跑失败时先看 LLM 与 Embedding 是否在 `data/local_settings.json` 配好，再看资源 `next_action`，不要把两种 503 混成一种「系统没装好」。
+
+
+别名不是新资源：请求 `stt` 会 canonical 成 `asr`。评测集可以没有语音资源；反过来，装好 RVC 也不会让评测任务变绿。两套任务 ID 不要混用。
+
+评测任务失败时不要去点资源页的重试安装，除非错误明确写了模型或二进制缺失。

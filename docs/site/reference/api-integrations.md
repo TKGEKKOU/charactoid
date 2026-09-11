@@ -111,3 +111,34 @@ stdio MCP 应优先跑在本机可控进程里。远程 MCP 把网络和凭据�
 - [扩展：Skill、Tool、MCP](/capabilities/extensions)
 - [Live2D 与外部接入](/capabilities/live2d-integrations)
 - [扩展体系设计](/concepts/extensions)
+
+## 源码合同（中档补全）
+
+前缀是 `/api/integrations`（`app/routers/integrations.py`）。OneBot 的 WebSocket 入口另挂在 `integrations.onebot11.ws_server`：`/api/onebot/ws`，不要和 HTTP 配置接口搞混。
+
+### OneBot / NapCat 的 409
+
+- `POST /api/integrations/onebot11/test`：manager 不存在或 `connected` 为假 → 409 `NapCat 尚未建立 WebSocket 连接`
+- `POST /api/integrations/napcat/send`：未连接 → 409 `NapCat 尚未连接`；文本和 `record_path` 都空也会 400/422；角色未绑定可用 GPT-SoVITS 音色时 409 `角色未绑定可用的 GPT-SoVITS 音色`
+
+外部消息必须落到该角色已有的 conversation / run，适配器不得自己选 Worker。
+
+### B 站直播
+
+已实现：`GET /api/integrations/bilibili`，`PUT .../config`，`POST .../connect|disconnect|pause|resume`，`POST .../queue/clear`，`POST .../session/clear`，WebSocket `/api/integrations/bilibili/events/ws`。弹幕仍进绑定角色，不另做人设。
+
+### 没有的渠道
+
+当前 `integrations.py` **没有** `qq_official` 路由或适配器。文档和 UI 若提到 QQ 官方机器人，那是未实现项，不要当成可调用 API。
+
+Skill 上传 zip 上限约 25MB / 500 文件，超限 400。MCP 管理器未就绪时相关接口 503 `MCP 管理器尚未就绪`。
+
+
+### MCP 配置形状
+
+`MCPServerPayload`：`name` 匹配 `[a-z0-9_-]+`；`transport` 为 `stdio` / `streamable_http` / `sse`；stdio 用 `command`+`args`+`env`，远程用 `url`+`headers`。读回时 `env` 与 `headers` 的值打成 `********`，避免把密钥画到插件页。
+
+`allowed_persona_ids` 存在服务器配置上，不是第三套权限表。能力页与角色页都写同一份名单。Skill `name` 同样是 `[a-z0-9_-]+`；`tool_names` 只能引用已注册 ToolSpec，Skill 自己不发 HTTP。
+
+
+渠道适配器禁止自己选工具或改人设。B 站与 OneBot 进系统后，必须落到已绑定角色的同一套 Supervisor → Worker 链。测试连通性失败时先看 409 文案，再查 WebSocket 是否真的连上。

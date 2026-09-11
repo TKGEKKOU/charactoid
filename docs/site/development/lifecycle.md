@@ -159,3 +159,7 @@ Run 进入 `waiting_approval` 之前，监督者已经用纯函数做了决定�
 - 否则 → `confirm` / `local_knowledge_insufficient`
 
 Run 进入 `waiting_approval` 之前，监督者已经用这些函数做了决定。前端不能自己把按钮画成“已批准”。批准之后走 resume，而不是再 persist 一句用户话。
+
+## 源码合同（中档补全）
+
+实现生命周期时不要发明新状态名。公开状态以 `agents.runtime.models.RunStatus` 和事件名为准。`waiting_approval` → 批准后 `RUNNING` 并写 `approval_granted`；拒绝则 `runtime.cancel`。Worker 超时必须与 Manifest 一致，否则前端进度条和实际 abort 会对不上。RVC 的 1800 秒是硬边界，测试不要用 30 秒假超时冒充成功路径。

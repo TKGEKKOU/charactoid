@@ -121,3 +121,35 @@ GitHub Pages 由 `.github/workflows/deploy-charactoid-docs.yml` 在 push 后构�
 - [源码地图](/concepts/source-map)
 - [API 总览](/reference/api)
 - [工程实践](/development/engineering)
+
+## 源码合同（中档补全）
+
+### 发布合同
+
+VitePress `docs/site/.vitepress/config.mjs`：`base: '/charactoid/'`，`lang: 'zh-CN'`，`cleanUrls: true`。本地：
+
+```powershell
+npm install --prefix docs/site
+npm run dev --prefix docs/site
+npm run build --prefix docs/site
+```
+
+`package.json` 脚本：dev 绑定 `127.0.0.1:18081`，preview `127.0.0.1:18082`，build 是 `vitepress build .`。
+
+GitHub Pages 工作流 `.github/workflows/deploy-charactoid-docs.yml`：
+
+- 触发：`main` 上 `docs/site/**` 或该 workflow 文件；也可 `workflow_dispatch`
+- Node 20，`working-directory: docs/site` 执行 `npm install` 与 `npm run build`
+- 上传 `docs/site/.vitepress/dist`，`actions/deploy-pages@v4`
+
+不要把 `docs/archive` 或根 README 复制进 `docs/site` 冒充当前行为。中文 Markdown 用 UTF-8、`\n` 换行写入。本页不负责展示站 `E:\\landing`。
+
+
+站点检索是 VitePress `search.provider = local`。GitHub 链接指向 `https://github.com/TKGEKKOU/charactoid`。`head` 里 favicon 是 `/charactoid/favicon.ico`，因为 Pages 挂在 `base` 子路径。
+
+改 sidebar 只改 `docs/site/.vitepress/config.mjs` 的 `section(...)` 列表。本轮允许改的是 `docs/site/**/*.md`；`concepts/architecture.md`、`concepts/source-map.md`、`reference/api-all.md` 是故意冻结的厚页，不要为了凑字数去改它们。构建产物在 `docs/site/.vitepress/dist`，不要提交。
+
+
+本地预览不要占用应用的 18000 端口。文档 dev 是 18081，preview 是 18082。写完中文页后用 `npm run build --prefix docs/site` 确认 VitePress 能过；`env` 高亮 fallback 可以忽略，那不是文档内容错误。
+
+CI 只在 `docs/site/**` 变更时发 Pages，改 Python 业务代码不会自动重发文档。
